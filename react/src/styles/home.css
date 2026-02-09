@@ -1,0 +1,313 @@
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css");
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", sans-serif;
+}
+
+body {
+  background: #f7f9fc;
+}
+
+/* ================= ENTERPRISE NAVBAR ================= */
+
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 22px 90px;
+}
+
+/* LEFT */
+
+.nav-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.4px;
+}
+
+.tagline {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* RIGHT */
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+/* Sign in */
+
+.nav-login {
+  color: #e5e7eb;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 15px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  transition: 0.3s ease;
+}
+
+.nav-login:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+/* CTA */
+
+.nav-cta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: white;
+
+  padding: 12px 28px;
+  border-radius: 12px;
+
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.35);
+  transition: 0.3s ease;
+}
+
+.nav-cta i {
+  font-size: 13px;
+}
+
+.nav-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.45);
+}
+
+
+/* ================= HERO ================= */
+
+.hero-split {
+  display: flex;
+  padding: 80px;
+  gap: 60px;
+}
+
+.hero-left {
+  flex: 1;
+}
+
+.badge {
+  background: #e0e7ff;
+  color: #1d4ed8;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 14px;
+}
+
+.hero-left h1 {
+  font-size: 42px;
+  margin: 25px 0;
+  color: #0f172a;
+}
+
+.hero-left p {
+  font-size: 17px;
+  line-height: 1.7;
+  color: #475569;
+}
+
+.hero-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.cta-card {
+  background: white;
+  padding: 35px;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+  width: 100%;
+}
+
+.cta-card h2 {
+  margin-bottom: 20px;
+}
+
+.benefits li {
+  list-style: none;
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.benefits i {
+  color: #22c55e;
+  margin-right: 10px;
+}
+
+/* ================= FEATURES ================= */
+
+.features-section {
+  padding: 80px;
+  background: white;
+  text-align: center;
+}
+
+.section-title {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.section-subtitle {
+  color: #64748b;
+  margin-bottom: 50px;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 30px;
+}
+
+.feature-box {
+  background: #f8fafc;
+  padding: 35px;
+  border-radius: 12px;
+}
+
+.feature-box i {
+  font-size: 35px;
+  color: #2563eb;
+  margin-bottom: 20px;
+}
+
+/* ================= ROLES ================= */
+
+.roles-section {
+  padding: 80px;
+  background: #f1f5f9;
+  text-align: center;
+}
+
+.roles-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+}
+
+.role-card {
+  background: white;
+  padding: 35px;
+  border-radius: 12px;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+}
+
+/* ================= FOOTER ================= */
+
+.footer {
+  background: #0f172a;
+  color: white;
+  text-align: center;
+  padding: 18px;
+}
+/* ================= FEATURE CARD MOTION EFFECT ================= */
+
+.feature-box {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border 0.25s ease;
+  cursor: pointer;
+  position: relative;
+  border: 1px solid transparent;
+}
+
+.feature-box:hover {
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.10);
+  border-color: #dbeafe;
+  background: #ffffff;
+}
+
+/* icon animation */
+.feature-box i {
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.feature-box:hover i {
+  transform: scale(1.15);
+  color: #1d4ed8;
+}
+
+/* subtle glow */
+.feature-box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(
+    120deg,
+    rgba(37, 99, 235, 0.15),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.feature-box:hover::after {
+  opacity: 1;
+}
+/* ================= CARD MOTION EFFECTS ================= */
+
+/* FEATURE CARDS */
+
+.feature-box {
+  cursor: pointer;
+  transition: box-shadow 0.25s ease, border 0.25s ease;
+  position: relative;
+}
+
+.feature-box:hover {
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.12);
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+}
+
+.feature-box i {
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.feature-box:hover i {
+  transform: scale(1.15);
+  color: #1d4ed8;
+}
+
+/* ROLE CARDS */
+
+.role-card {
+  cursor: pointer;
+  transition: box-shadow 0.25s ease;
+}
+
+.role-card:hover {
+  box-shadow: 0 25px 55px rgba(0, 0, 0, 0.12);
+}
