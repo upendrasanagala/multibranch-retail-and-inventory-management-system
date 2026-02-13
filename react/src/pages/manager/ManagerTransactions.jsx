@@ -1,28 +1,39 @@
 import { useEffect, useState } from "react";
+import api from "../../services/api";
 
 export default function ManagerTransactions() {
   const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const loggedInUser =
-    JSON.parse(localStorage.getItem("loggedInUser")) || {};
-
-  const branch = loggedInUser.branch || "";
+  const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser")) || {};
+  const branchId = loggedInUser.branch_id;
 
   /* ================= LOAD TRANSACTIONS ================= */
   useEffect(() => {
-    const sales =
-      JSON.parse(localStorage.getItem("sales")) || [];
+    const loadTransactions = async () => {
+      if (!branchId) return;
 
-    // ✅ only this branch sales
-    const branchSales = sales.filter(
-      s => s.branch === branch
-    );
+      setLoading(true);
+      try {
+        const res = await api.sales.getByBranch(branchId);
 
-    // ✅ latest first (safe copy)
-    const sorted = [...branchSales].reverse();
+        const mapped = res.transactions.map(t => ({
+          date: new Date(t.transaction_date).toLocaleDateString(),
+          product: t.items ? t.items.map(i => i.product_name).join(", ") : "Item Details",
+          quantity: t.items ? t.items.reduce((sum, i) => sum + i.quantity, 0) : 0,
+          amount: t.total_amount,
+          paymentMethod: t.payment_method
+        }));
 
-    setTransactions(sorted);
-  }, [branch]);
+        setTransactions(mapped);
+      } catch (err) {
+        console.error("Failed to load transactions", err);
+      }
+      setLoading(false);
+    };
+
+    loadTransactions();
+  }, [branchId]);
 
   return (
     <div>
@@ -90,4 +101,3 @@ export default function ManagerTransactions() {
     </div>
   );
 }
-    

@@ -1,8 +1,8 @@
-"""Phase 1 schema
+"""Initial complete schema
 
-Revision ID: 0bd552028259
+Revision ID: bf276d361230
 Revises: 
-Create Date: 2026-02-04 11:33:21.451512
+Create Date: 2026-02-10 11:19:13.202672
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0bd552028259'
+revision = 'bf276d361230'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -56,11 +56,14 @@ def upgrade():
     )
     op.create_table('users',
     sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('first_name', sa.String(length=50), nullable=False),
+    sa.Column('last_name', sa.String(length=50), nullable=False),
     sa.Column('email', sa.String(length=120), nullable=False),
     sa.Column('password_hash', sa.String(length=255), nullable=False),
     sa.Column('role', sa.String(length=50), nullable=False),
     sa.Column('phone', sa.String(length=20), nullable=True),
+    sa.Column('address', sa.Text(), nullable=True),
+    sa.Column('status', sa.String(length=20), nullable=True),
     sa.Column('branch_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['branch_id'], ['branches.branch_id'], ),

@@ -8,6 +8,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
 
   const navigate = useNavigate();
 
@@ -47,6 +48,12 @@ export default function Login() {
       /* ===== LOGIN SUCCESS - REDIRECT BASED ON ROLE ===== */
       const user = result.user;
 
+      /* If must reset password, redirect to reset page */
+      if (user.must_reset_password) {
+        navigate("/reset-password", { state: { email: email } });
+        return;
+      }
+
       if (user.role === "staff") navigate("/staff");
       else if (user.role === "manager") navigate("/manager");
       else navigate("/admin");
@@ -75,6 +82,9 @@ export default function Login() {
       </div>
 
       <div className="auth-card">
+        <Link to="/" style={{ display: 'block', marginBottom: '15px', color: '#64748b', textDecoration: 'none', fontSize: '14px' }}>
+          ← Back to Home
+        </Link>
         <h2>Retail System Login</h2>
         <p className="subtitle">Access your dashboard</p>
 
@@ -89,14 +99,15 @@ export default function Login() {
             />
           </div>
 
-          <div className="input-group">
+          <div className="input-group" style={{ position: 'relative' }}>
             <input
-              type="password"
+              type={showPass ? "text" : "password"}
               placeholder="Password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               disabled={loading}
             />
+            <span onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '16px', userSelect: 'none' }}>{showPass ? '🙈' : '👁️'}</span>
           </div>
 
           <button className="primary-btn" disabled={loading}>
@@ -107,15 +118,14 @@ export default function Login() {
         </form>
 
         <div className="auth-links">
-          <Link to="/register">Create new account</Link>
+          <Link to="/reset-password">Forgot Password?</Link>
         </div>
 
-        <div className="demo-credentials" style={{ marginTop: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px', fontSize: '12px' }}>
-          <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>Demo Credentials:</p>
-          <p>Admin: admin@retail.com / Admin@123</p>
-          <p>Manager: manager@retail.com / Manager@123</p>
-          <p>Staff: staff@retail.com / Staff@123</p>
+        <div style={{ marginTop: '25px', padding: '12px', background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.1)', borderRadius: '10px', fontSize: '12px', textAlign: 'center' }}>
+          <p style={{ color: '#3b82f6', fontWeight: 'bold', marginBottom: '4px' }}>Default Admin Access</p>
+          <code style={{ fontSize: '11px', color: '#1e293b' }}>admin@retail.com / Admin@123</code>
         </div>
+
       </div>
     </div>
   );

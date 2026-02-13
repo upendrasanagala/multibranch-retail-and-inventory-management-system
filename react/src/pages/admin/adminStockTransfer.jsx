@@ -2,16 +2,8 @@ import { useEffect, useState } from "react";
 import api from "../../services/api";
 
 export default function AdminStockTransfers() {
-  const [products, setProducts] = useState([]);
-  const [branches, setBranches] = useState([]);
+
   const [requests, setRequests] = useState([]);
-
-  const [selectedProduct, setSelectedProduct] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("");
-  const [quantity, setQuantity] = useState("");
-
-  const [productInfo, setProductInfo] = useState(null);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,15 +15,8 @@ export default function AdminStockTransfers() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [productsRes, branchesRes, transfersRes] = await Promise.all([
-        api.products.getAll(),
-        api.branches.getAll(),
-        api.transfers.getPending()
-      ]);
-
-      setProducts(productsRes.products || []);
-      setBranches(branchesRes.branches || []);
-      setRequests(transfersRes.pending_transfers || []);
+      const res = await api.transfers.getAll({ status: "pending" });
+      setRequests(res.transfers || []);
     } catch (err) {
       console.error("Failed to load transfer data:", err);
       setError("Failed to load data from server");
@@ -40,49 +25,13 @@ export default function AdminStockTransfers() {
   };
 
   /* ================= PRODUCT PREVIEW ================= */
-  useEffect(() => {
-    if (!selectedProduct) {
-      setProductInfo(null);
-      return;
-    }
 
-    const product = products.find(
-      p => (p.product_id || p.id) === Number(selectedProduct)
-    );
-
-    setProductInfo(product || null);
-  }, [selectedProduct, products]);
-
-  /* ================= MANUAL ALLOCATION ================= */
-  const allocateStock = async () => {
-    if (!selectedProduct || !selectedBranch || !quantity) return;
-
-    setLoading(true);
-    try {
-      await api.inventory.add({
-        product_id: Number(selectedProduct),
-        branch_id: Number(selectedBranch),
-        quantity: Number(quantity)
-      });
-
-      alert("Stock allocated successfully");
-      setSelectedProduct("");
-      setSelectedBranch("");
-      setQuantity("");
-      setProductInfo(null);
-      await loadData();
-    } catch (err) {
-      alert("Failed to allocate stock: " + err.message);
-    }
-    setLoading(false);
-  };
 
   /* ================= APPROVE REQUEST ================= */
   const approveRequest = async (transferId) => {
     setLoading(true);
     try {
       await api.transfers.approve(transferId);
-      await api.transfers.complete(transferId);
       await loadData();
     } catch (err) {
       alert("Failed to approve transfer: " + err.message);
@@ -110,104 +59,74 @@ export default function AdminStockTransfers() {
 
       <h3>🏬 Retail Stock Transfer & Approval</h3>
 
-      <h4 style={{ marginTop: 30 }}>📥 Branch Stock Requests</h4>
+      <div className="table-card" style={{ marginTop: 20 }}>
+        <h4>📥 Branch Stock Requests</h4>
 
-      {requests.length === 0 ? (
-        <p>No stock requests</p>
-      ) : (
-        <table style={{ marginTop: 10 }}>
-          <thead>
-            <tr>
-              <th>From</th>
-              <th>To</th>
-              <th>Product</th>
-              <th>Qty</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
+        {requests.length === 0 ? (
+          <p style={{ color: '#64748b', marginTop: 10 }}>No pending stock requests</p>
+        ) : (
+          <div className="table-responsive" style={{ marginTop: 15 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-          <tbody>
-            {requests.map(r => (
-              <tr key={r.id}>
-                <td>{r.from_branch || "Admin"}</td>
-                <td>{r.to_branch || r.branch}</td>
-                <td>{r.product_name || r.productName}</td>
-                <td>{r.quantity}</td>
-                <td>
-                  <b style={{
-                    color:
-                      r.status === "approved"
-                        ? "green"
-                        : r.status === "rejected"
-                          ? "red"
-                          : "#ca8a04"
-                  }}>
-                    {r.status}
-                  </b>
-                </td>
+              <tbody>
+                {requests.map(r => (
+                  <tr key={r.id}>
+                    <td><span style={{ fontWeight: 600 }}>{r.from_branch_name || "Admin"}</span></td>
+                    <td><span style={{ fontWeight: 600 }}>{r.to_branch_name || r.branch_name || "Unknown"}</span></td>
+                    <td>{r.product_name || r.productName}</td>
+                    <td>
+                      <span className="stock-badge ok" style={{ background: '#f1f5f9', color: '#1e293b' }}>
+                        {r.quantity}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`stock-badge ${r.status === 'approved' ? 'ok' :
+                        r.status === 'rejected' ? 'low' : 'pending'
+                        }`} style={{
+                          background: r.status === 'pending' ? '#fef9c3' : '',
+                          color: r.status === 'pending' ? '#a16207' : ''
+                        }}>
+                        {r.status.toUpperCase()}
+                      </span>
+                    </td>
 
-                <td>
-                  {r.status === "pending" && (
-                    <>
-                      <button onClick={() => approveRequest(r.transfer_id || r.id)}>
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => rejectRequest(r.id)}
-                        style={{ marginLeft: 6, color: "red" }}
-                      >
-                        Reject
-                      </button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <hr style={{ margin: '40px 0' }} />
-
-      <h3>Direct Stock Allocation</h3>
-      <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-        <select value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}>
-          <option value="">Select Product</option>
-          {products.map(p => (
-            <option key={p.product_id || p.id} value={p.product_id || p.id}>
-              {p.name} (SKU: {p.sku})
-            </option>
-          ))}
-        </select>
-
-        <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)}>
-          <option value="">Select Branch</option>
-          {branches.map(b => (
-            <option key={b.branch_id || b.id} value={b.branch_id || b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="number"
-          placeholder="Quantity"
-          value={quantity}
-          onChange={e => setQuantity(e.target.value)}
-          style={{ width: '100px' }}
-        />
-
-        <button onClick={allocateStock} disabled={loading}>
-          {loading ? "Allocating..." : "Allocate Stock"}
-        </button>
+                    <td style={{ display: 'flex', gap: '8px' }}>
+                      {r.status === "pending" && (
+                        <>
+                          <button
+                            className="primary-btn"
+                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                            onClick={() => approveRequest(r.transfer_id || r.id)}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => rejectRequest(r.transfer_id || r.id)}
+                            style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 12px', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 700 }}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {productInfo && (
-        <div style={{ marginTop: '10px', color: '#666' }}>
-          <p>Current Price: ₹{productInfo.unit_price || productInfo.price}</p>
-        </div>
-      )}
     </div>
   );
 }

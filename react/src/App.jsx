@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Index from "./pages/Index";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
+// import Register from "./pages/Register"; // Disabled for private enterprise
+import ResetPassword from "./pages/ResetPassword";
 
 import AdminDashboard from "./pages/dashboards/AdminDashboard";
 import StaffDashboard from "./pages/staff/StaffDashboard";
@@ -18,7 +19,7 @@ function App() {
         {/* PUBLIC */}
         <Route path="/" element={<Index />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* STAFF */}
         <Route

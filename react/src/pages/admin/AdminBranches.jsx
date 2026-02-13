@@ -5,6 +5,9 @@ export default function AdminBranches() {
   const [branches, setBranches] = useState([]);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [upiId, setUpiId] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editUpi, setEditUpi] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -43,13 +46,15 @@ export default function AdminBranches() {
     try {
       await api.branches.create({
         name: name.trim(),
-        city: location.trim()
+        city: location.trim(),
+        upi_id: upiId.trim()
       });
 
       // Reload branches
       await loadBranches();
       setName("");
       setLocation("");
+      setUpiId("");
     } catch (err) {
       setError(err.message || "Failed to add branch");
     }
@@ -68,6 +73,19 @@ export default function AdminBranches() {
       await loadBranches();
     } catch (err) {
       setError(err.message || "Failed to delete branch");
+    }
+    setLoading(false);
+  };
+
+  /* ================= UPDATE UPI ================= */
+  const updateUpi = async (branchId) => {
+    setLoading(true);
+    try {
+      await api.branches.update(branchId, { upi_id: editUpi.trim() });
+      await loadBranches();
+      setEditingId(null);
+    } catch (err) {
+      setError(err.message || "Failed to update UPI ID");
     }
     setLoading(false);
   };
@@ -91,7 +109,14 @@ export default function AdminBranches() {
           disabled={loading}
         />
 
-        <button onClick={addBranch} disabled={loading}>
+        <input
+          placeholder="UPI ID (e.g. store@upi)"
+          value={upiId}
+          onChange={e => setUpiId(e.target.value)}
+          disabled={loading}
+        />
+
+        <button onClick={addBranch} disabled={loading} style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', padding: '0 15px' }}>
           {loading ? "Adding..." : "Add Branch"}
         </button>
       </div>
@@ -101,41 +126,64 @@ export default function AdminBranches() {
       {branches.length === 0 ? (
         <p>{loading ? "Loading branches..." : "No branches added"}</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Branch</th>
-              <th>Location</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {branches.filter(b => b.status !== 'closed').map((b, i) => (
-              <tr key={b.branch_id || i}>
-                <td>{b.name}</td>
-                <td>{b.city || b.location || 'N/A'}</td>
-                <td>
-                  <span style={{
-                    color: b.status === 'active' ? 'green' : '#666',
-                    fontWeight: 600
-                  }}>
-                    {b.status || 'active'}
-                  </span>
-                </td>
-                <td>
-                  <button
-                    style={{ color: "#dc2626" }}
-                    onClick={() => deleteBranch(b.branch_id, b.name)}
-                    disabled={loading}
-                  >
-                    Delete
-                  </button>
-                </td>
+        <div className="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Branch</th>
+                <th>Location</th>
+                <th>UPI ID (Pay To)</th>
+                <th>Status</th>
+                <th>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {branches.filter(b => b.status !== 'closed').map((b, i) => (
+                <tr key={b.branch_id || i}>
+                  <td><span style={{ fontWeight: 700 }}>{b.name}</span></td>
+                  <td>{b.city || b.location || 'N/A'}</td>
+                  <td>
+                    {editingId === b.branch_id ? (
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          value={editUpi}
+                          onChange={e => setEditUpi(e.target.value)}
+                          style={{ padding: '6px', fontSize: '13px', maxWidth: '180px' }}
+                        />
+                        <button onClick={() => updateUpi(b.branch_id)} className="primary-btn" style={{ padding: '6px 12px' }}>Save</button>
+                        <button onClick={() => setEditingId(null)} style={{ padding: '6px 12px', background: '#f1f5f9', color: '#64748b' }}>Cancel</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: '600' }}>{b.upi_id || 'Not Set'}</span>
+                        <button
+                          onClick={() => { setEditingId(b.branch_id); setEditUpi(b.upi_id || ""); }}
+                          style={{ padding: '4px 10px', fontSize: '12px', background: '#f1f5f9', color: '#475569' }}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <span className="stock-badge ok" style={{ fontSize: '11px' }}>
+                      {b.status || 'active'}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 12px' }}
+                      onClick={() => deleteBranch(b.branch_id, b.name)}
+                      disabled={loading}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

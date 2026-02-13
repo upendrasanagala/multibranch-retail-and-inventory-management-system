@@ -13,9 +13,14 @@ export default function StaffPOS() {
   const [barcode, setBarcode] = useState("");
   const [search, setSearch] = useState("");
   const [mobile, setMobile] = useState("");
+  const [showResults, setShowResults] = useState(false);
 
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+
+  // Real Payment Details
+  const [utr, setUtr] = useState("");
+  const [cardData, setCardData] = useState({ name: "", number: "", cvv: "" });
 
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastSale, setLastSale] = useState(null);
@@ -27,42 +32,43 @@ export default function StaffPOS() {
   const loadInventory = async () => {
     setLoading(true);
     try {
-      // Get inventory for user's branch
-      const branchId = user?.branch_id || user?.branch?.branch_id;
+      const branchId = user?.branch_id || user?.branch?.branch_id || user?.user_branch_id;
+
+      // Fetch ALL products first to ensure we have a complete catalog
+      // pagination limit increased to 1000 to get all products
+      const productsResponse = await api.products.getAll({ per_page: 1000 });
+      const allProducts = productsResponse.products || [];
+
+      let inventoryMap = {};
 
       if (branchId) {
-        const response = await api.inventory.getByBranch(branchId);
-        const inventory = response.inventory || [];
+        // Fetch branch inventory to get stock levels
+        const inventoryResponse = await api.inventory.getByBranch(branchId);
+        const inventory = inventoryResponse.inventory || [];
 
-        // Transform inventory items to product format
-        const productsWithStock = inventory.map(inv => ({
-          productId: inv.product_id,
-          id: inv.product_id,
-          name: inv.product?.name || 'Unknown Product',
-          price: inv.product?.unit_price || 0,
-          stock: inv.quantity,
-          sku: inv.product?.sku
-        }));
-
-        setProducts(productsWithStock);
-      } else {
-        // Fallback: get all products with limited stock info
-        const response = await api.products.getAll();
-        const allProducts = (response.products || []).map(p => ({
-          productId: p.product_id || p.id,
-          id: p.product_id || p.id,
-          name: p.name,
-          price: p.unit_price || p.price || 0,
-          stock: 50, // Default stock
-          sku: p.sku
-        }));
-        setProducts(allProducts);
+        // Create a map for quick lookup: productId -> quantity
+        inventory.forEach(inv => {
+          inventoryMap[inv.product_id] = inv.quantity;
+        });
       }
+
+      // Merge products with inventory data
+      const productsWithStock = allProducts.map(p => ({
+        productId: p.product_id || p.id,
+        id: p.product_id || p.id,
+        name: p.name,
+        price: p.unit_price || p.price || 0,
+        // Use inventory quantity if available, else 0
+        stock: inventoryMap[p.product_id || p.id] !== undefined ? inventoryMap[p.product_id || p.id] : 0,
+        stock: inventoryMap[p.product_id || p.id] !== undefined ? inventoryMap[p.product_id || p.id] : 0,
+        sku: p.sku,
+        size: p.size,
+        unit: p.unit
+      }));
+
+      setProducts(productsWithStock);
     } catch (err) {
       console.error("Failed to load inventory:", err);
-      // Fallback to localStorage
-      const inventory = JSON.parse(localStorage.getItem("branchInventory")) || {};
-      setProducts(inventory[user?.branch] || []);
     }
     setLoading(false);
   };
@@ -72,325 +78,490 @@ export default function StaffPOS() {
   }, []);
 
   /* ================= BARCODE ================= */
-  useEffect(() => {
-    if (!barcode) return;
+  const handleBarcodeKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const code = barcode.trim();
+      if (!code) return;
 
-    const product = products.find(
-      p =>
-        String(p.productId) === barcode ||
-        String(p.id) === barcode ||
-        p.sku === barcode
-    );
+      const product = products.find(
+        p => String(p.productId) === code || String(p.id) === code || p.sku === code
+      );
 
-    if (product) {
-      addToCart(product);
+      if (product) {
+        const inCart = cart.find(c => c.productId === product.productId);
+        const availableStock = product.stock - (inCart ? inCart.qty : 0);
+        if (availableStock > 0) {
+          addToCart(product);
+          setBarcode("");
+        } else {
+          alert("Out of stock!");
+        }
+      } else {
+        alert("Product not found!");
+      }
     }
-
-    setBarcode("");
-  }, [barcode]);
+  };
 
   /* ================= CART ================= */
   const addToCart = (product) => {
-    if (product.stock <= 0) return;
-
-    const existing = cart.find(
-      i => i.productId === product.productId
-    );
-
+    const existing = cart.find(i => i.productId === product.productId);
     if (existing) {
-      if (existing.qty >= product.stock) return;
-
-      setCart(
-        cart.map(i =>
-          i.productId === product.productId
-            ? { ...i, qty: i.qty + 1 }
-            : i
-        )
-      );
+      if (existing.qty >= product.stock) {
+        alert("Cannot exceed available stock!");
+        return;
+      }
+      setCart(cart.map(i => i.productId === product.productId ? { ...i, qty: i.qty + 1 } : i));
     } else {
+      if (product.stock <= 0) {
+        alert("Product is out of stock!");
+        return;
+      }
       setCart([...cart, { ...product, qty: 1 }]);
     }
   };
 
   const updateQty = (id, delta) => {
-    setCart(
-      cart
-        .map(i =>
-          i.productId === id
-            ? { ...i, qty: i.qty + delta }
-            : i
-        )
-        .filter(i => i.qty > 0)
-    );
+    const product = products.find(p => p.productId === id);
+    const item = cart.find(i => i.productId === id);
+    if (delta > 0 && item.qty >= product.stock) {
+      alert("Cannot exceed available stock!");
+      return;
+    }
+    setCart(cart.map(i => i.productId === id ? { ...i, qty: i.qty + delta } : i).filter(i => i.qty > 0));
   };
 
   /* ================= TOTAL ================= */
-  const subtotal = cart.reduce(
-    (s, i) => s + i.price * i.qty,
-    0
-  );
-
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const gst = (subtotal * GST_PERCENT) / 100;
   const total = subtotal + gst - discount;
 
-  /* ================= COMPLETE PAYMENT - BACKEND API ================= */
+  /* ================= COMPLETE PAYMENT ================= */
   const completePayment = async () => {
     if (!cart.length) return;
 
-    setLoading(true);
+    // Validate Mobile
+    if (mobile && !/^\d{10}$/.test(mobile)) {
+      alert("Customer mobile number must be exactly 10 digits.");
+      return;
+    }
 
+    setLoading(true);
     try {
       const saleData = {
-        branch_id: user?.branch_id || user?.branch?.branch_id,
+        branch_id: user?.branch_id,
         mobile: mobile,
         items: cart.map(item => ({
           product_id: item.productId,
           quantity: item.qty,
-          price: item.price
+          unit_price: item.price
         })),
         subtotal: subtotal,
         gst: gst,
         discount: discount,
         total: total,
-        paymentMethod: paymentMethod
+        payment_method: paymentMethod,
+        payment_meta: paymentMethod === 'upi' ? { utr } : (paymentMethod === 'card' ? { card_holder: cardData.name } : null)
       };
 
       const response = await api.sales.create(saleData);
-
       setLastSale(response.transaction);
       setShowReceipt(true);
-
-      // Reload inventory to get updated stock
       await loadInventory();
-
+      setUtr("");
+      setCardData({ name: "", number: "", cvv: "" });
     } catch (err) {
       console.error("Failed to process sale:", err);
       alert("Failed to process sale: " + err.message);
-
-      // Fallback to localStorage
-      const inventory = JSON.parse(localStorage.getItem("branchInventory")) || {};
-      const sales = JSON.parse(localStorage.getItem("sales")) || [];
-
-      if (inventory[user?.branch]) {
-        inventory[user.branch] = inventory[user.branch].map(p => {
-          const sold = cart.find(c => c.productId === p.productId);
-          return sold ? { ...p, stock: p.stock - sold.qty } : p;
-        });
-      }
-
-      sales.push({
-        invoice: "INV" + Date.now(),
-        cashier: user?.email,
-        branch: user?.branch,
-        mobile,
-        items: cart,
-        subtotal,
-        gst,
-        discount,
-        total,
-        paymentMethod,
-        date: new Date().toLocaleString()
-      });
-
-      localStorage.setItem("branchInventory", JSON.stringify(inventory));
-      localStorage.setItem("sales", JSON.stringify(sales));
-
-      loadInventory();
-      setShowReceipt(true);
     }
-
     setLoading(false);
   };
 
   /* ================= PRINT RECEIPT ================= */
   const printReceipt = () => {
-    const printWindow = window.open("", "", "width=380,height=600");
+    const printWindow = window.open("", "", "width=400,height=600");
+    const sale = {
+      items: cart,
+      subtotal,
+      gst,
+      discount,
+      total,
+      transaction_id: lastSale?.transaction_id || "NEW",
+      transaction_date: new Date().toLocaleString()
+    };
+
     printWindow.document.write(`
       <html>
         <head>
           <title>Receipt</title>
           <style>
-            body { font-family: monospace; padding: 10px; }
-            h3 { text-align:center; }
+            body { font-family: 'Courier New', monospace; padding: 10px; margin: 0; }
+            .header { text-align: center; margin-bottom: 10px; }
+            h3, p { margin: 2px 0; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th { border-bottom: 1px dashed #000; text-align: left; padding: 4px 0; }
+            td { padding: 4px 0; vertical-align: top; }
+            .right { text-align: right; }
+            .center { text-align: center; }
+            .totals-row td { padding: 2px 0; }
+            .grand-total { border-top: 1px dashed #000; font-weight: bold; font-size: 14px; padding-top: 5px; }
+            .footer { text-align: center; margin-top: 15px; font-size: 11px; }
           </style>
         </head>
         <body>
-          ${receiptRef.current.innerHTML}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
-  };
+          <div class="header">
+            <h3>RETAIL STORE</h3>
+            <p>Branch: ${branchName}</p>
+            <p>${sale.transaction_date}</p>
+            <p>Receipt: #${sale.transaction_id}</p>
+          </div>
 
-  /* ================= SEARCH ================= */
-  const filtered = products.filter(p =>
-    (p.name || '').toLowerCase().includes(search.toLowerCase())
-  );
-
-  const branchName = user?.branch?.name || user?.branch || 'N/A';
-
-  return (
-    <div className="pos-super">
-
-      <div className="pos-header">
-        <div>
-          <h2>Retail Supermarket POS</h2>
-          <p>Branch: {branchName}</p>
-        </div>
-        <div>
-          <p>Cashier: {user?.email}</p>
-          {loading && <span style={{ color: '#666' }}> (Loading...)</span>}
-        </div>
-      </div>
-
-      <div className="pos-customer">
-        <input
-          placeholder="Customer Mobile"
-          value={mobile}
-          onChange={e => setMobile(e.target.value)}
-        />
-
-        <input
-          placeholder="Scan barcode / SKU"
-          value={barcode}
-          onChange={e => setBarcode(e.target.value)}
-        />
-
-        <input
-          placeholder="Search product"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-
-      <div className="pos-body">
-
-        <div className="pos-products">
-          {loading ? (
-            <p>Loading products...</p>
-          ) : filtered.length === 0 ? (
-            <p>No products available</p>
-          ) : (
-            filtered.map(p => (
-              <div
-                key={p.productId}
-                className="pos-item"
-                onClick={() => addToCart(p)}
-                style={{ opacity: p.stock <= 0 ? 0.5 : 1 }}
-              >
-                <h4>{p.name}</h4>
-                <p>₹{p.price}</p>
-                <span>
-                  Stock: {p.stock}
-                  {p.stock <= 5 && p.stock > 0 && (
-                    <b style={{ color: "orange", marginLeft: 6 }}>
-                      LOW
-                    </b>
-                  )}
-                  {p.stock <= 0 && (
-                    <b style={{ color: "red", marginLeft: 6 }}>
-                      OUT
-                    </b>
-                  )}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="pos-bill">
           <table>
             <thead>
               <tr>
-                <th>Item</th>
-                <th>Rate</th>
-                <th>Qty</th>
-                <th>Total</th>
+                <th style="width: 40%">Item</th>
+                <th class="center" style="width: 20%">Qty</th>
+                <th class="right" style="width: 20%">Rate</th>
+                <th class="right" style="width: 20%">Amt</th>
               </tr>
             </thead>
             <tbody>
-              {cart.map(i => (
-                <tr key={i.productId}>
-                  <td>{i.name}</td>
-                  <td>₹{i.price}</td>
+              ${sale.items.map(i => `
+                <tr>
                   <td>
-                    <button onClick={() => updateQty(i.productId, -1)}>-</button>
-                    {i.qty}
-                    <button onClick={() => updateQty(i.productId, 1)}>+</button>
+                    ${i.name}
+                    ${(i.size || i.unit) ? `<small>(${i.size || ''} ${i.unit || ''})</small>` : ''}
                   </td>
-                  <td>₹{i.price * i.qty}</td>
+                  <td class="center">${i.qty}</td>
+                  <td class="right">${Number(i.price).toFixed(2)}</td>
+                  <td class="right">${(Number(i.price) * Number(i.qty)).toFixed(2)}</td>
                 </tr>
-              ))}
+              `).join('')}
             </tbody>
           </table>
 
-          <div className="bill-summary">
-            <p>Subtotal: ₹{subtotal}</p>
-            <p>GST: ₹{gst.toFixed(2)}</p>
+          <div style="border-top: 1px dashed #000; margin-top: 5px; padding-top: 5px;">
+            <table class="totals">
+              <tr class="totals-row">
+                <td colspan="3">Taxable Amount:</td>
+                <td class="right">₹${sale.subtotal.toFixed(2)}</td>
+              </tr>
+              <tr class="totals-row">
+                <td colspan="3">CGST (2.5%):</td>
+                <td class="right">₹${(sale.gst / 2).toFixed(2)}</td>
+              </tr>
+              <tr class="totals-row">
+                <td colspan="3">SGST (2.5%):</td>
+                <td class="right">₹${(sale.gst / 2).toFixed(2)}</td>
+              </tr>
+              ${sale.discount > 0 ? `
+              <tr class="totals-row">
+                <td colspan="3">Discount:</td>
+                <td class="right">-₹${sale.discount.toFixed(2)}</td>
+              </tr>` : ''}
+              <tr class="totals-row">
+                <td colspan="3" class="grand-total">Grand Total:</td>
+                <td class="right grand-total">₹${sale.total.toFixed(2)}</td>
+              </tr>
+            </table>
+          </div>
 
+          <div class="footer">
+            <p>Payment: ${paymentMethod.toUpperCase()}</p>
+            <p>*** Thank You! Visit Again ***</p>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    // Allow styles to load before printing
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const filtered = products.filter(p => {
+    const term = search.toLowerCase().trim();
+    if (!term) return false;
+    const name = (p.name || '').toLowerCase();
+    const sku = (p.sku || '').toLowerCase();
+    const id = String(p.id || '').toLowerCase();
+    return name.includes(term) || sku.includes(term) || id.includes(term);
+  }).map(p => {
+    const inCart = cart.find(c => c.productId === p.productId);
+    const availableStock = p.stock - (inCart ? inCart.qty : 0);
+    return { ...p, availableStock, inCart: !!inCart };
+  });
+
+  const handleSelectProduct = (p) => {
+    if (p.availableStock > 0) {
+      addToCart(p);
+      setSearch("");
+      setShowResults(false);
+    } else {
+      alert("Product out of stock!");
+    }
+  };
+
+  const branchName = user?.branch_name || "Main Branch";
+
+  /* ================= RENDER ================= */
+  return (
+    <div style={{ padding: "20px", height: "100%", overflowY: "auto" }}>
+      <div className="pos-container">
+        <div className="pos-header">
+          <div>
+            <h2>🛍️ Retail POS Terminal</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <p className="text-muted" style={{ margin: 0 }}>Branch: {branchName}</p>
+              <button
+                onClick={loadInventory}
+                style={{ padding: '2px 8px', fontSize: '10px', background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                <i className="fas fa-sync"></i> Refresh
+              </button>
+            </div>
+          </div>
+          <div>
+            <p>Cashier: {user?.email}</p>
+          </div>
+        </div>
+
+        <div className="pos-customer-bar">
+          <div className="input-group">
+            <label>Customer Mobile</label>
+            <input placeholder="Mobile Number" value={mobile} onChange={e => setMobile(e.target.value)} />
+          </div>
+          <div className="input-group">
+            <label>Scan Barcode</label>
+            <input placeholder="Scan SKU / ID" value={barcode} onChange={e => setBarcode(e.target.value)} onKeyDown={handleBarcodeKeyDown} autoFocus />
+          </div>
+          <div className="input-group search-container">
+            <label>Search Product</label>
             <input
-              type="number"
-              placeholder="Discount"
-              value={discount}
-              onChange={e => setDiscount(Number(e.target.value))}
+              placeholder="Search by name or SKU..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setShowResults(true); }}
+              onFocus={() => setShowResults(true)}
             />
-
-            <h3>Total: ₹{total.toFixed(2)}</h3>
-
-            <select
-              value={paymentMethod}
-              onChange={e => setPaymentMethod(e.target.value)}
-            >
-              <option value="cash">Cash</option>
-              <option value="upi">UPI</option>
-              <option value="card">Card</option>
-            </select>
-
-            <button onClick={completePayment} disabled={loading || cart.length === 0}>
-              {loading ? "PROCESSING..." : "COMPLETE PAYMENT"}
-            </button>
+            {showResults && search.length > 0 && (
+              <div className="search-results-dropdown">
+                {filtered.length === 0 ? (
+                  <div className="no-results">No products found</div>
+                ) : (
+                  filtered.map(p => (
+                    <div key={p.productId} className="search-result-item" onClick={() => handleSelectProduct(p)}>
+                      <div className="info">
+                        <span className="name">{p.name}</span>
+                        <span className="sku">SKU: {p.sku}</span>
+                        {(p.size || p.unit) && (
+                          <span className="sku" style={{ marginLeft: '10px', color: '#666' }}>
+                            {p.size ? `Size: ${p.size}` : ''} {p.unit ? `(${p.unit})` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="meta">
+                        <span className="price">₹{p.price}</span>
+                        <span className={`stock ${p.availableStock <= 0 ? 'out' : ''}`}>Stock: {p.availableStock}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
+
+        <div className="pos-body-full">
+          <div className="pos-bill-enhanced">
+            <div className="cart-container">
+              <div className="table-wrapper">
+                <table className="cart-table-v2">
+                  <thead>
+                    <tr>
+                      <th>Product Details</th>
+                      <th style={{ textAlign: 'center' }}>Unit Price</th>
+                      <th style={{ textAlign: 'center' }}>Quantity</th>
+                      <th style={{ textAlign: 'right' }}>Subtotal</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="empty-cart-msg">
+                          <i className="fas fa-shopping-basket"></i>
+                          <p>No items in cart. Start scanning or searching!</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      cart.map(i => (
+                        <tr key={i.productId}>
+                          <td>
+                            <div className="product-name">{i.name}</div>
+                            <div className="product-sku">
+                              SKU: {i.sku}
+                              {(i.size || i.unit) && (
+                                <span style={{ marginLeft: '8px', color: '#555' }}>
+                                  | {i.size} {i.unit}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>₹{i.price.toFixed(2)}</td>
+                          <td>
+                            <div className="qty-controls-v2">
+                              <button onClick={() => updateQty(i.productId, -1)} className="qty-btn">-</button>
+                              <span className="qty-val">{i.qty}</span>
+                              <button onClick={() => updateQty(i.productId, 1)} className="qty-btn">+</button>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700 }}>₹{(i.price * i.qty).toFixed(2)}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              className="remove-btn"
+                              onClick={() => setCart(cart.filter(x => x.productId !== i.productId))}
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="checkout-sidebar">
+              <div className="bill-card">
+                <h3>Summary</h3>
+                <div className="bill-row"><span>Items ({cart.reduce((a, b) => a + b.qty, 0)})</span><span>₹{subtotal.toFixed(2)}</span></div>
+                <div className="bill-row"><span>Tax (GST 5%)</span><span>₹{gst.toFixed(2)}</span></div>
+                <div className="bill-row">
+                  <span>Discount</span>
+                  <input type="number" className="disc-input" value={discount} onChange={e => setDiscount(Number(e.target.value))} />
+                </div>
+                <div className="total-divider"></div>
+                <div className="bill-row total">
+                  <strong>Payable</strong>
+                  <strong>₹{total.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              <div className="payment-card">
+                <h3>Payment</h3>
+                <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="method-select">
+                  <option value="cash">Cash Payment</option>
+                  <option value="upi">UPI / GPay (UTR Needed)</option>
+                  <option value="qr">QR Code Scan</option>
+                  <option value="card">Debit/Credit Card</option>
+                </select>
+
+                {paymentMethod === 'upi' && (
+                  <div className="payment-extra">
+                    <input placeholder="Enter UTR / Transaction ID" value={utr} onChange={e => setUtr(e.target.value)} />
+                  </div>
+                )}
+
+                {paymentMethod === 'qr' && (
+                  <div className="qr-checkout-box">
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=upi://pay?pa=${user?.upi_id || 'samartha@upi'}&pn=RetailStore&am=${total}&cu=INR`} alt="QR Code" />
+                    <p>Scan to Pay ₹{total.toFixed(2)}</p>
+                  </div>
+                )}
+
+                {paymentMethod === 'card' && (
+                  <div className="payment-extra card-inputs">
+                    <input placeholder="Card Holder Name" value={cardData.name} onChange={e => setCardData({ ...cardData, name: e.target.value })} />
+                    <input placeholder="Last 4 Digits" value={cardData.number} onChange={e => setCardData({ ...cardData, number: e.target.value })} />
+                  </div>
+                )}
+
+                <button className="checkout-btn" onClick={completePayment} disabled={loading || cart.length === 0}>
+                  {loading ? "PROCESSING..." : "FINAL CHECKOUT"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {showReceipt && (
+          <div className="receipt-modal">
+            <div className="receipt-content">
+              <div ref={receiptRef} className="receipt-paper" style={{ padding: '10px', fontSize: '12px' }}>
+                <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                  <h3 style={{ margin: '0 0 5px 0' }}>RETAIL STORE</h3>
+                  <p style={{ margin: '0 0 2px 0' }}>Branch: {branchName}</p>
+                  <p style={{ margin: 0 }}>{new Date().toLocaleString()}</p>
+                </div>
+
+                <table style={{ width: '100%', minWidth: '0', tableLayout: 'fixed', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '11px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px dashed #000' }}>
+                      <th style={{ textAlign: 'left', padding: '2px 0', width: '40%' }}>Item</th>
+                      <th style={{ textAlign: 'center', padding: '2px 0', width: '15%' }}>Qty</th>
+                      <th style={{ textAlign: 'right', padding: '2px 0', width: '20%' }}>Rate</th>
+                      <th style={{ textAlign: 'right', padding: '2px 0', width: '25%' }}>Amt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.map(i => (
+                      <tr key={i.productId}>
+                        <td style={{ padding: '2px 0' }}>
+                          {i.name}
+                          {(i.size || i.unit) && (
+                            <span style={{ fontSize: '10px', marginLeft: '4px', color: '#555' }}>
+                              ({i.size || ''} {i.unit || ''})
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '2px 0' }}>{i.qty}</td>
+                        <td style={{ textAlign: 'right', padding: '2px 0' }}>{i.price.toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', padding: '2px 0' }}>{(i.price * i.qty).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div style={{ borderTop: '1px dashed #000', paddingTop: '5px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Taxable Amount:</span>
+                    <span>₹{subtotal.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>CGST (2.5%):</span>
+                    <span>₹{(gst / 2).toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>SGST (2.5%):</span>
+                    <span>₹{(gst / 2).toFixed(2)}</span>
+                  </div>
+                  {discount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Discount:</span>
+                      <span>-₹{discount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px solid #000', marginTop: '5px', paddingTop: '5px', fontSize: '14px' }}>
+                    <span>Grand Total:</span>
+                    <span>₹{total.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <p style={{ textAlign: 'center', marginTop: '15px', fontSize: '10px' }}>*** Thank You! Visit Again ***</p>
+              </div>
+              <div className="receipt-actions">
+                <button onClick={() => { printReceipt(); setShowReceipt(false); setCart([]); setMobile(""); setDiscount(0); setLastSale(null); }}>🖨️ Print & Done</button>
+                <button onClick={() => { setShowReceipt(false); setCart([]); setMobile(""); setDiscount(0); setLastSale(null); }}>✅ Done — New Sale</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-
-      {showReceipt && (
-        <div className="receipt-modal">
-          <div ref={receiptRef} className="receipt">
-            <h3>RETAIL STORE</h3>
-            <p>Branch: {branchName}</p>
-            {lastSale && <p>Invoice: {lastSale.invoice_number}</p>}
-            <hr />
-            {cart.map(i => (
-              <p key={i.productId}>
-                {i.name} × {i.qty} = ₹{i.price * i.qty}
-              </p>
-            ))}
-            <hr />
-            <p>Subtotal: ₹{subtotal}</p>
-            <p>GST (5%): ₹{gst.toFixed(2)}</p>
-            {discount > 0 && <p>Discount: -₹{discount}</p>}
-            <p><strong>Total: ₹{total.toFixed(2)}</strong></p>
-            <p>Payment: {paymentMethod.toUpperCase()}</p>
-            <p align="center">Thank you!</p>
-          </div>
-
-          <button onClick={printReceipt}>🖨 Print</button>
-          <button
-            onClick={() => {
-              setShowReceipt(false);
-              setCart([]);
-              setMobile("");
-              setDiscount(0);
-              setLastSale(null);
-            }}
-          >
-            New Sale
-          </button>
-        </div>
-      )}
     </div>
   );
 }

@@ -56,7 +56,11 @@ export default function Register() {
     if (!formData.firstName.trim()) err.firstName = "Required";
     if (!formData.lastName.trim()) err.lastName = "Required";
     if (!formData.email) err.email = "Required";
-    if (!formData.mobile) err.mobile = "Required";
+    if (!formData.mobile) {
+      err.mobile = "Required";
+    } else if (!/^\d{10}$/.test(formData.mobile)) {
+      err.mobile = "Mobile number must be exactly 10 digits";
+    }
     if (!formData.password) err.password = "Required";
     if (!formData.confirmPassword) err.confirmPassword = "Required";
     if (!formData.role) err.role = "Required";
@@ -102,7 +106,7 @@ export default function Register() {
       if (result.success) {
         setMessage(
           result.message ||
-            "Registration successful. Please wait for admin approval."
+          "Registration successful. Please wait for admin approval."
         );
         setMessageType("success");
 
@@ -134,18 +138,43 @@ export default function Register() {
   return (
     <div className="auth-wrapper">
       <div className="auth-info">
-        <h1>Create Your Account</h1>
-        <p>Registration requires admin approval before login.</p>
+        <h1>Join the Enterprise</h1>
+        <p>
+          Secure retail management for multi-branch operations.
+        </p>
 
-        <ul className="info-points">
-          <li>✔ Employee onboarding</li>
-          <li>✔ Branch assignment</li>
-          <li>✔ Role based access</li>
-          <li>✔ Secure system</li>
-        </ul>
+        <div style={{ marginTop: '30px', color: '#e2e8f0', fontSize: '14px', lineHeight: '1.6' }}>
+          <h3 style={{ color: 'white', marginBottom: '10px' }}>How it Works</h3>
+          <p style={{ marginBottom: '20px' }}>
+            Our centralized system connects all your retail branches. Managers track inventory and sales in real-time,
+            while granular permissions ensure data security.
+          </p>
+
+          <h3 style={{ color: 'white', marginBottom: '10px' }}>Roles & Access</h3>
+          <ul style={{ listStyle: 'none', padding: 0, marginBottom: '20px' }}>
+            <li style={{ marginBottom: '8px' }}>
+              <strong>👑 Admin:</strong> Full systematic control (Pre-configured).
+            </li>
+            <li style={{ marginBottom: '8px' }}>
+              <strong>👔 Manager:</strong> Register here. Manage branch stock & reports.
+              <br /><small>(Requires Approval)</small>
+            </li>
+            <li style={{ marginBottom: '8px' }}>
+              <strong>👤 Staff:</strong> Created internally by Managers. (POS access only).
+            </li>
+          </ul>
+
+          <div style={{ background: 'rgba(255,255,255,0.1)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #6366f1' }}>
+            <strong>🔒 Private Network:</strong> This is a restricted enterprise system.
+            All new manager registrations must be verified and approved by an Administrator before login is enabled.
+          </div>
+        </div>
       </div>
 
       <div className="auth-card">
+        <Link to="/" style={{ display: 'block', marginBottom: '15px', color: '#64748b', textDecoration: 'none', fontSize: '14px' }}>
+          ← Back to Home
+        </Link>
         <h2>Employee Registration</h2>
         <p className="subtitle">Submit details for admin verification</p>
 
@@ -223,7 +252,7 @@ export default function Register() {
               disabled={loading}
             >
               <option value="">Select Role</option>
-              <option value="staff">Staff</option>
+              {/* Staff role removed as per request */}
               <option value="manager">Manager</option>
             </select>
 
@@ -235,8 +264,8 @@ export default function Register() {
             >
               <option value="">Select Branch</option>
               {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name} — {branch.location || branch.city || "N/A"}
+                <option key={branch.branch_id} value={branch.branch_id}>
+                  {branch.name} — {branch.city || "N/A"}
                 </option>
               ))}
             </select>

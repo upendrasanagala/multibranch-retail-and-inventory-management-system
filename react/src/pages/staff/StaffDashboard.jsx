@@ -5,12 +5,14 @@ import StaffDashboardHome from "./staffDashboardHome";
 import StaffPOS from "./staffPOS";
 import StaffInventory from "./staffInventory";
 import StaffReceipts from "./staffReceipts";
+import StaffProfile from "./StaffProfile";
 
 import "../../styles/dashboard.css";
 
 export default function StaffDashboard() {
   const [active, setActive] = useState("dashboard");
   const navigate = useNavigate();
+  const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
 
   /* ================= LOGOUT ================= */
   const logout = () => {
@@ -19,14 +21,14 @@ export default function StaffDashboard() {
   };
 
   return (
-    <div className="admin-layout">
+    <div className={`admin-layout ${active === "pos" ? "no-scroll" : ""}`}>
 
       {/* ================= SIDEBAR ================= */}
       <aside className="sidebar">
         <div className="sidebar-profile">
           <div className="profile-info">
-            <h4>Staff</h4>
-            <span>POS Operator</span>
+            <h4>{loggedInUser?.name || "Staff"}</h4>
+            <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>{loggedInUser?.branch_name || "POS Operator"}</span>
           </div>
         </div>
 
@@ -59,6 +61,13 @@ export default function StaffDashboard() {
             <i className="fas fa-receipt"></i> Receipts
           </a>
 
+          <a
+            className={active === "profile" ? "active" : ""}
+            onClick={() => setActive("profile")}
+          >
+            <i className="fas fa-user-circle"></i> Profile
+          </a>
+
           <a className="logout-link" onClick={logout}>
             <i className="fas fa-sign-out-alt"></i> Logout
           </a>
@@ -66,11 +75,12 @@ export default function StaffDashboard() {
       </aside>
 
       {/* ================= MAIN CONTENT ================= */}
-      <main className="main-content">
+      <main className={`main-content ${active === "pos" ? "no-padding" : ""}`}>
         {active === "dashboard" && <StaffDashboardHome />}
         {active === "pos" && <StaffPOS />}
         {active === "inventory" && <StaffInventory />}
         {active === "receipts" && <StaffReceipts />}
+        {active === "profile" && <StaffProfile />}
       </main>
 
     </div>

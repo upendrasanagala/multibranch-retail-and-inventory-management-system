@@ -17,4 +17,12 @@ class Product(db.Model):
     unit_price = db.Column(db.Float, nullable=False)
     cost_price = db.Column(db.Float)
     image_path = db.Column(db.String(255))
+    unit = db.Column(db.String(20)) # e.g. kg, L, pcs
+    
+    # New Fields for Import
+    size = db.Column(db.String(50))
+    discount_percent = db.Column(db.Float, default=0.0)
+    gst_percent = db.Column(db.Float, default=0.0)
+    expiry_date = db.Column(db.Date)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

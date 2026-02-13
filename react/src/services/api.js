@@ -29,6 +29,11 @@ const apiRequest = async (endpoint, options = {}) => {
     ...options.headers
   };
 
+  // If sending FormData, let the browser set Content-Type with boundary
+  if (options.body instanceof FormData) {
+    delete headers["Content-Type"];
+  }
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers
@@ -42,11 +47,19 @@ const apiRequest = async (endpoint, options = {}) => {
   }
 
   if (!response.ok) {
-    const error = {
-      response: {
-        status: response.status,
-        data
+    // 🔥 Handle Token Expiry / Unauthorized
+    if (response.status === 401) {
+      localStorage.removeItem("loggedInUser");
+      // Only redirect if NOT already on login page to avoid refresh loop on failed login
+      if (window.location.pathname !== "/login" && !endpoint.includes("/auth/login")) {
+        window.location.href = "/login";
       }
+    }
+
+    const error = new Error(data.message || data.msg || `Request failed with status ${response.status}`);
+    error.response = {
+      status: response.status,
+      data
     };
     throw error;
   }
@@ -107,18 +120,42 @@ const api = {
       apiRequest(`/branches/${id}/inventory`)
   },
 
+  /* ===================== CATEGORIES ===================== */
+  categories: {
+    getAll: () =>
+      apiRequest("/categories/"),
+
+    getById: (id) =>
+      apiRequest(`/categories/${id}`),
+
+    create: (data) =>
+      apiRequest("/categories/", {
+        method: "POST",
+        body: JSON.stringify(data)
+      }),
+
+    update: (id, data) =>
+      apiRequest(`/categories/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data)
+      }),
+
+    delete: (id) =>
+      apiRequest(`/categories/${id}`, { method: "DELETE" })
+  },
+
   /* ===================== PRODUCTS ===================== */
   products: {
     getAll: (params = {}) => {
       const query = new URLSearchParams(params).toString();
-      return apiRequest(`/products${query ? `?${query}` : ""}`);
+      return apiRequest(`/products/${query ? `?${query}` : ""}`);
     },
 
     getById: (id) =>
       apiRequest(`/products/${id}`),
 
     create: (data) =>
-      apiRequest("/products", {
+      apiRequest("/products/", {
         method: "POST",
         body: JSON.stringify(data)
       }),
@@ -130,11 +167,24 @@ const api = {
       }),
 
     delete: (id) =>
-      apiRequest(`/products/${id}`, { method: "DELETE" })
+      apiRequest(`/products/${id}`, { method: "DELETE" }),
+
+    import: (formData) =>
+      apiRequest("/products/import", {
+        method: "POST",
+        body: formData,
+        // Let browser set Content-Type for FormData
+        headers: {}
+      })
   },
 
   /* ===================== INVENTORY ===================== */
   inventory: {
+    getAll: (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      return apiRequest(`/inventory/${query ? `?${query}` : ""}`);
+    },
+
     getByBranch: (branchId) =>
       apiRequest(`/inventory/branch/${branchId}`),
 
@@ -150,16 +200,34 @@ const api = {
         body: JSON.stringify(data)
       }),
 
+    add: (data) =>
+      apiRequest("/inventory/", {
+        method: "POST",
+        body: JSON.stringify(data)
+      }),
+
     getLowStock: (branchId) => {
       const query = branchId ? `?branch_id=${branchId}` : "";
       return apiRequest(`/inventory/low-stock${query}`);
+    },
+
+    getAdjustments: (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      return apiRequest(`/inventory/adjustments${query ? `?${query}` : ""}`);
     }
   },
 
   /* ===================== SALES ===================== */
   sales: {
+    getAll: (params = {}) => {
+      const query = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([_, v]) => v))
+      ).toString();
+      return apiRequest(`/sales/${query ? `?${query}` : ""}`);
+    },
+
     create: (data) =>
-      apiRequest("/sales", {
+      apiRequest("/sales/", {
         method: "POST",
         body: JSON.stringify(data)
       }),
@@ -180,6 +248,11 @@ const api = {
       if (branchId) params.append("branch_id", branchId);
       if (date) params.append("date", date);
       return apiRequest(`/sales/daily-summary?${params.toString()}`);
+    },
+
+    getSummary: (params = {}) => {
+      const query = new URLSearchParams(params).toString();
+      return apiRequest(`/sales/summary${query ? `?${query}` : ""}`);
     }
   },
 
@@ -187,14 +260,14 @@ const api = {
   transfers: {
     getAll: (params = {}) => {
       const query = new URLSearchParams(params).toString();
-      return apiRequest(`/transfers${query ? `?${query}` : ""}`);
+      return apiRequest(`/transfers/${query ? `?${query}` : ""}`);
     },
 
     getById: (id) =>
       apiRequest(`/transfers/${id}`),
 
     create: (data) =>
-      apiRequest("/transfers", {
+      apiRequest("/transfers/", {
         method: "POST",
         body: JSON.stringify(data)
       }),
@@ -203,13 +276,25 @@ const api = {
       apiRequest(`/transfers/${id}/approve`, { method: "PUT" }),
 
     complete: (id) =>
-      apiRequest(`/transfers/${id}/complete`, { method: "PUT" })
+      apiRequest(`/transfers/${id}/complete`, { method: "PUT" }),
+
+    reject: (id, reason) =>
+      apiRequest(`/transfers/${id}/reject`, {
+        method: "PUT",
+        body: JSON.stringify({ reason })
+      })
   },
 
   /* ===================== ADMIN ===================== */
   admin: {
     getUsers: () =>
       apiRequest("/admin/users"),
+
+    createUser: (data) =>
+      apiRequest("/admin/users", {
+        method: "POST",
+        body: JSON.stringify(data)
+      }),
 
     updateUser: (id, data) =>
       apiRequest(`/admin/users/${id}`, {
@@ -220,8 +305,51 @@ const api = {
     approveUser: (id) =>
       apiRequest(`/admin/users/${id}/approve`, { method: "PUT" }),
 
+    deleteUser: (id) =>
+      apiRequest(`/admin/users/${id}`, { method: "DELETE" }),
+
     getStats: () =>
-      apiRequest("/admin/stats")
+      apiRequest("/admin/stats"),
+
+    getReports: (type, params = {}) => {
+      const query = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([_, v]) => v))
+      ).toString();
+      return apiRequest(`/admin/reports/${type}${query ? `?${query}` : ""}`);
+    },
+
+    getRebalanceSuggestions: () =>
+      apiRequest("/admin/inventory/rebalance-suggestions")
+  },
+
+  /* ===================== MANAGER ===================== */
+  manager: {
+    getStaff: () =>
+      apiRequest("/manager/staff"),
+
+    createStaff: (data) =>
+      apiRequest("/manager/staff", {
+        method: "POST",
+        body: JSON.stringify(data)
+      }),
+
+    updateInterviewStatus: (id, status) =>
+      apiRequest(`/manager/staff/${id}/interview`, {
+        method: "PUT",
+        body: JSON.stringify({ interview_status: status })
+      }),
+
+    updateStaffScore: (id, score) =>
+      apiRequest(`/manager/staff/${id}/score`, {
+        method: "PUT",
+        body: JSON.stringify({ score: parseInt(score) })
+      }),
+
+    updateStaff: (id, data) =>
+      apiRequest(`/manager/staff/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data)
+      })
   }
 };
 

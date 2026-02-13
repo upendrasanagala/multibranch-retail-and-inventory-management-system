@@ -1,20 +1,17 @@
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from flask_jwt_extended import jwt_required
 
 from app.extensions import db
 from app.models.branch import Branch
 from app.models.inventory import Inventory
 from app.utils.decorators import roles_required
-
-
-branch_bp = Blueprint("branches", __name__, url_prefix="/api/branches")
+from app.routes import branch_bp
 
 
 # =============================
 # GET ALL BRANCHES
 # =============================
 @branch_bp.route("", methods=["GET"])
-@jwt_required(optional=True)
 def get_branches():
 
     branches = Branch.query.all()
@@ -27,6 +24,7 @@ def get_branches():
                 "city": b.city,
                 "state": b.state,
                 "phone": b.phone,
+                "upi_id": b.upi_id,
                 "status": b.status
             }
             for b in branches
@@ -38,7 +36,6 @@ def get_branches():
 # GET SINGLE BRANCH
 # =============================
 @branch_bp.route("/<int:id>", methods=["GET"])
-@jwt_required(optional=True)
 def get_branch(id):
 
     branch = Branch.query.get_or_404(id)
@@ -50,6 +47,7 @@ def get_branch(id):
         "city": branch.city,
         "state": branch.state,
         "phone": branch.phone,
+        "upi_id": branch.upi_id,
         "status": branch.status
     })
 
@@ -74,6 +72,7 @@ def create_branch():
         state=data.get("state"),
         postal_code=data.get("postal_code"),
         phone=data.get("phone"),
+        upi_id=data.get("upi_id"),
         status="active"
     )
 
@@ -99,6 +98,7 @@ def update_branch(id):
     branch.city = data.get("city", branch.city)
     branch.state = data.get("state", branch.state)
     branch.phone = data.get("phone", branch.phone)
+    branch.upi_id = data.get("upi_id", branch.upi_id)
 
     db.session.commit()
 

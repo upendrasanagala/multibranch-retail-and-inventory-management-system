@@ -11,6 +11,7 @@ class Branch(db.Model):
     state = db.Column(db.String(50))
     postal_code = db.Column(db.String(10))
     phone = db.Column(db.String(20))
+    upi_id = db.Column(db.String(100)) # e.g. branch_name@upi
     manager_id = db.Column(db.Integer)
     status = db.Column(db.String(20), default="active")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

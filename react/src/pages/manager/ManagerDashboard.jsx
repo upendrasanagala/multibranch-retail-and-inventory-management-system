@@ -28,7 +28,7 @@ export default function ManagerDashboard() {
         <div className="sidebar-profile">
           <div className="profile-info">
             <h4>{loggedInUser?.firstName || "Manager"}</h4>
-            <span>{loggedInUser?.branch || "Branch Manager"}</span>
+            <span>{loggedInUser?.branch_name || "Branch Manager"}</span>
           </div>
         </div>
 
@@ -66,6 +66,13 @@ export default function ManagerDashboard() {
             onClick={() => setActive("reports")}
           >
             <i className="fas fa-chart-line"></i> Reports
+          </a>
+
+          <a
+            className={active === "staff" ? "active" : ""}
+            onClick={() => setActive("staff")}
+          >
+            <i className="fas fa-users"></i> Staff Management
           </a>
 
           <a className="logout-link" onClick={handleLogout}>

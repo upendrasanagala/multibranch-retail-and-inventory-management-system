@@ -24,7 +24,7 @@ class SalesTransaction(db.Model):
 
     transaction_date = db.Column(
         db.DateTime,
-        default=datetime.utcnow
+        default=datetime.now
     )
 class TransactionItem(db.Model):
     __tablename__ = "transaction_items"
