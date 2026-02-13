@@ -18,6 +18,7 @@ export default function AdminInventory() {
     discount_percent: "",
     gst_percent: "",
     expiry_date: "",
+    is_b1g1: false, // New: B1G1 Offer
     branch_quantities: {} // New: Store qty per branch
   });
   const [showNewCat, setShowNewCat] = useState(false);
@@ -384,20 +385,20 @@ export default function AdminInventory() {
         unit_price: Number(form.price),
         cost_price: form.cost_price ? Number(form.cost_price) : undefined,
         category_id: form.category_id || null,
-        initial_quantity: totalQty, // Send total for compatibility/logging
-        branch_quantities: form.branch_quantities, // Send detailed distribution
-        unit: form.unit,
-        size: form.size.trim() || null,
+        unit: form.unit || undefined,
+        size: form.size || undefined,
         discount_percent: Number(form.discount_percent) || 0,
         gst_percent: Number(form.gst_percent) || 0,
-        expiry_date: form.expiry_date || null
+        expiry_date: form.expiry_date || null,
+        is_b1g1: form.is_b1g1, // New
+        branch_quantities: form.branch_quantities // Send detailed distribution
       });
 
       setMessage("✅ Product and inventory initialized across all branches");
       setForm({
         name: "", sku: "", barcode: "", description: "", price: "", cost_price: "",
         category_id: "", unit: "",
-        size: "", discount_percent: "", gst_percent: "", expiry_date: "",
+        size: "", discount_percent: "", gst_percent: "", expiry_date: "", is_b1g1: false,
         branch_quantities: {}
       });
       await loadProducts();
@@ -587,6 +588,19 @@ export default function AdminInventory() {
                 disabled={loading}
                 style={{ width: '100%' }}
               />
+            </div>
+
+            <div style={{ width: '100%', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <input
+                type="checkbox"
+                id="b1g1"
+                checked={form.is_b1g1}
+                onChange={e => setForm({ ...form, is_b1g1: e.target.checked })}
+                style={{ width: '16px', height: '16px' }}
+              />
+              <label htmlFor="b1g1" style={{ fontSize: '13px', fontWeight: 'bold', color: '#d97706' }}>
+                🎉 Activate "Buy 1 Get 1 Free" Offer
+              </label>
             </div>
 
             {/* Stock Distribution Section (Replaces simple Qty input) */}

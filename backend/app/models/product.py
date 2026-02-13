@@ -24,5 +24,6 @@ class Product(db.Model):
     discount_percent = db.Column(db.Float, default=0.0)
     gst_percent = db.Column(db.Float, default=0.0)
     expiry_date = db.Column(db.Date)
+    is_b1g1 = db.Column(db.Boolean, default=False) # Buy 1 Get 1 Free Offer
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

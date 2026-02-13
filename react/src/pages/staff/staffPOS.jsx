@@ -63,7 +63,8 @@ export default function StaffPOS() {
         stock: inventoryMap[p.product_id || p.id] !== undefined ? inventoryMap[p.product_id || p.id] : 0,
         sku: p.sku,
         size: p.size,
-        unit: p.unit
+        unit: p.unit,
+        is_b1g1: p.is_b1g1 // Map B1G1 flag
       }));
 
       setProducts(productsWithStock);
@@ -131,10 +132,37 @@ export default function StaffPOS() {
     setCart(cart.map(i => i.productId === id ? { ...i, qty: i.qty + delta } : i).filter(i => i.qty > 0));
   };
 
-  /* ================= TOTAL ================= */
+  /* ================= TOTAL & DISCOUNT LOGIC ================= */
+  // 1. Calculate Item-Level Discounts (B1G1)
+  const itemDiscounts = cart.reduce((acc, item) => {
+    let disc = 0;
+    // B1G1 Logic: Buy 1 Get 1 Free = Every 2nd item is free
+    if (item.is_b1g1) {
+      const freeQty = Math.floor(item.qty / 2);
+      disc = freeQty * item.price;
+    }
+    return acc + disc;
+  }, 0);
+
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const gst = (subtotal * GST_PERCENT) / 100;
-  const total = subtotal + gst - discount;
+
+  // 2. Bill-Level Discount (10% off if Total > 400)
+  // We apply this on (Subtotal + GST - ItemDiscounts) or just Subtotal? 
+  // Usually applied on the payable amount before this specific discount.
+  // Let's say: NetBill = Subtotal + GST - ItemDiscounts.
+  // If NetBill > 400, apply 10% of NetBill.
+
+  const currentTotalBeforeBillDisc = subtotal + gst - itemDiscounts;
+  const billDiscount = currentTotalBeforeBillDisc > 400 ? (currentTotalBeforeBillDisc * 0.10) : 0;
+
+  // Total Auto Discount
+  const autoDiscount = itemDiscounts + billDiscount;
+
+  // Final Total (Manual discount is separate or additive? User asked for auto features, 
+  // but existing manual discount state 'discount' allows override/extra. 
+  // Let's treat 'discount' state as EXTRA manual discount).
+  const total = currentTotalBeforeBillDisc - billDiscount - discount;
 
   /* ================= COMPLETE PAYMENT ================= */
   const completePayment = async () => {
@@ -158,7 +186,7 @@ export default function StaffPOS() {
         })),
         subtotal: subtotal,
         gst: gst,
-        discount: discount,
+        discount: autoDiscount + discount, // Send total discount (Auto + Manual) to backend
         total: total,
         payment_method: paymentMethod,
         payment_meta: paymentMethod === 'upi' ? { utr } : (paymentMethod === 'card' ? { card_holder: cardData.name } : null)
@@ -365,6 +393,7 @@ export default function StaffPOS() {
                       </div>
                       <div className="meta">
                         <span className="price">₹{p.price}</span>
+                        {p.is_b1g1 && <span style={{ fontSize: '10px', background: '#d97706', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>B1G1 Combined</span>}
                         <span className={`stock ${p.availableStock <= 0 ? 'out' : ''}`}>Stock: {p.availableStock}</span>
                       </div>
                     </div>
@@ -441,8 +470,23 @@ export default function StaffPOS() {
                 <h3>Summary</h3>
                 <div className="bill-row"><span>Items ({cart.reduce((a, b) => a + b.qty, 0)})</span><span>₹{subtotal.toFixed(2)}</span></div>
                 <div className="bill-row"><span>Tax (GST 5%)</span><span>₹{gst.toFixed(2)}</span></div>
+
+                {itemDiscounts > 0 && (
+                  <div className="bill-row" style={{ color: '#10b981' }}>
+                    <span>B1G1 Savings</span>
+                    <span>-₹{itemDiscounts.toFixed(2)}</span>
+                  </div>
+                )}
+
+                {billDiscount > 0 && (
+                  <div className="bill-row" style={{ color: '#d97706' }}>
+                    <span>Special Offer (10% off &gt;400)</span>
+                    <span>-₹{billDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+
                 <div className="bill-row">
-                  <span>Discount</span>
+                  <span>Manual Discount</span>
                   <input type="number" className="disc-input" value={discount} onChange={e => setDiscount(Number(e.target.value))} />
                 </div>
                 <div className="total-divider"></div>
