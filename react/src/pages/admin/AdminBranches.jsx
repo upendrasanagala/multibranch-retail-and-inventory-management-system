@@ -79,7 +79,7 @@ export default function AdminBranches() {
 
   /* ================= HARD DELETE BRANCH ================= */
   const hardDeleteBranch = async (branchId, branchName) => {
-    const confirmation = prompt(`⚠️ DANGER ZONE ⚠️\n\nThis will PERMANENTLY DELETE branch "${branchName}" along with:\n- All Sales History\n- All Inventory Records\n- All Stock Transfers\n\nTo confirm, type "DELETE" below:`);
+    const confirmation = prompt(`⚠️ DANGER ZONE ⚠️\n\nThis will PERMANENTLY DELETE branch "${branchName}" along with:\n- All Sales History\n- All Inventory Records\n- All Stock Transfers\n- ALL STAFF & MANAGERS linked to this branch\n\nTo confirm, type "DELETE" below:`);
 
     if (confirmation !== "DELETE") {
       if (confirmation !== null) alert("Deletion cancelled. You typed the wrong confirmation.");

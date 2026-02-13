@@ -155,12 +155,16 @@ def delete_branch(id):
         # Delete transactions
         Transaction.query.filter(Transaction.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
 
-    # 4. Unlink Users (Set branch_id = NULL)
+    # 4. Delete Associated Staff (Managers & Staff)
+    # Safety: Do NOT delete admins even if linked (though they shouldn't be)
     from app.models.user import User
-    User.query.filter_by(branch_id=id).update({User.branch_id: None})
+    User.query.filter(User.branch_id == id, User.role != 'admin').delete()
+    
+    # Just in case an admin was linked, unlink them
+    User.query.filter(User.branch_id == id, User.role == 'admin').update({User.branch_id: None})
 
     # 5. Delete Branch
     db.session.delete(branch)
     db.session.commit()
 
-    return jsonify({"message": f"Branch '{branch.name}' and all associated data permanently deleted"}), 200
+    return jsonify({"message": f"Branch '{branch.name}' and all associated data (including staff) permanently deleted"}), 200
