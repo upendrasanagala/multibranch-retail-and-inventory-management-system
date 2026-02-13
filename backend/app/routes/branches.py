@@ -134,37 +134,42 @@ def get_branch_inventory(id):
 @jwt_required()
 @roles_required("admin")
 def delete_branch(id):
-    branch = Branch.query.get_or_404(id)
-    
-    # 1. Delete Inventory
-    Inventory.query.filter_by(branch_id=id).delete()
-    
-    # 2. Delete Stock Transfers (From/To)
-    from app.models.stock_transfer import StockTransfer
-    StockTransfer.query.filter((StockTransfer.from_branch_id == id) | (StockTransfer.to_branch_id == id)).delete()
-    
-    # 3. Delete Sales Transactions & Items
-    from app.models.sales import Transaction, TransactionItem
-    # Find all transactions for this branch
-    transactions = Transaction.query.filter_by(branch_id=id).all()
-    txn_ids = [t.transaction_id for t in transactions]
-    
-    if txn_ids:
-        # Delete items first
-        TransactionItem.query.filter(TransactionItem.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
-        # Delete transactions
-        Transaction.query.filter(Transaction.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
+    try:
+        branch = Branch.query.get_or_404(id)
+        
+        # 1. Delete Inventory
+        Inventory.query.filter_by(branch_id=id).delete()
+        
+        # 2. Delete Stock Transfers (From/To)
+        from app.models.stock_transfer import StockTransfer
+        StockTransfer.query.filter((StockTransfer.from_branch_id == id) | (StockTransfer.to_branch_id == id)).delete()
+        
+        # 3. Delete Sales Transactions & Items
+        from app.models.sales import SalesTransaction, TransactionItem
+        # Find all transactions for this branch
+        transactions = SalesTransaction.query.filter_by(branch_id=id).all()
+        txn_ids = [t.transaction_id for t in transactions]
+        
+        if txn_ids:
+            # Delete items first
+            TransactionItem.query.filter(TransactionItem.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
+            # Delete transactions
+            SalesTransaction.query.filter(SalesTransaction.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
 
-    # 4. Delete Associated Staff (Managers & Staff)
-    # Safety: Do NOT delete admins even if linked (though they shouldn't be)
-    from app.models.user import User
-    User.query.filter(User.branch_id == id, User.role != 'admin').delete()
-    
-    # Just in case an admin was linked, unlink them
-    User.query.filter(User.branch_id == id, User.role == 'admin').update({User.branch_id: None})
+        # 4. Delete Associated Staff (Managers & Staff)
+        # Safety: Do NOT delete admins even if linked (though they shouldn't be)
+        from app.models.user import User
+        User.query.filter(User.branch_id == id, User.role != 'admin').delete()
+        
+        # Just in case an admin was linked, unlink them
+        User.query.filter(User.branch_id == id, User.role == 'admin').update({User.branch_id: None})
 
-    # 5. Delete Branch
-    db.session.delete(branch)
-    db.session.commit()
+        # 5. Delete Branch
+        db.session.delete(branch)
+        db.session.commit()
 
-    return jsonify({"message": f"Branch '{branch.name}' and all associated data (including staff) permanently deleted"}), 200
+        return jsonify({"message": f"Branch '{branch.name}' and all associated data (including staff) permanently deleted"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
