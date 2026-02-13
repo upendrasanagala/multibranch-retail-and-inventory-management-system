@@ -236,6 +236,8 @@ export default function StaffPOS() {
   // Total Auto Discount (Item + Bill)
   const autoDiscount = itemDiscounts + billDiscount;
 
+  const [showSuccess, setShowSuccess] = useState(false);
+
   /* ================= COMPLETE PAYMENT ================= */
   const completePayment = async () => {
     if (cart.length === 0) return alert("Cart is empty");
@@ -247,7 +249,6 @@ export default function StaffPOS() {
     try {
       const saleData = {
         branch_id: user?.branch_id,
-        mobile: mobile,
         items: cart.map(item => ({
           product_id: item.productId,
           quantity: item.qty,
@@ -266,17 +267,30 @@ export default function StaffPOS() {
 
       // SUCCESS ACTIONS
       playSuccessSound();
-      alert("🎉 Payment Successful! Have a wonderful day!");
+      setShowSuccess(true);
 
-      // Reset
-      setCart([]);
-      setDiscount(0);
-      setPaymentMethod("");
-      setUtr("");
-      setCardData({ name: "", number: "" });
+      // Delay before reset & print (show animation)
+      setTimeout(() => {
+        setShowSuccess(false);
+        setCart([]);
+        setDiscount(0);
+        setPaymentMethod("");
+        setUtr("");
+        setCardData({ name: "", number: "" });
 
-      // Auto Print (optional/mock)
-      // window.print(); 
+        // Trigger Print with correct data
+        // We need to pass the sale object constructed for printing
+        const printSale = {
+          items: cart, // Use current cart before reset (but we reset it above? No, closure captures it? Yes cart is const in this render)
+          subtotal,
+          gst,
+          discount: autoDiscount + manualDiscountAmount,
+          total,
+          transaction_id: res.transaction_id, // Fix: Access directly from response
+          transaction_date: new Date().toLocaleString()
+        };
+        printReceipt(printSale);
+      }, 2000);
 
     } catch (err) {
       alert("Current Sale Failed: " + err.message);
@@ -285,13 +299,13 @@ export default function StaffPOS() {
   };
 
   /* ================= PRINT RECEIPT ================= */
-  const printReceipt = () => {
+  const printReceipt = (saleData) => {
     const printWindow = window.open("", "", "width=400,height=600");
-    const sale = {
+    const sale = saleData || {
       items: cart,
       subtotal,
       gst,
-      discount,
+      discount: autoDiscount + manualDiscountAmount,
       total,
       transaction_id: lastSale?.transaction_id || "NEW",
       transaction_date: new Date().toLocaleString()
@@ -418,6 +432,62 @@ export default function StaffPOS() {
   /* ================= RENDER ================= */
   return (
     <div style={{ padding: "20px", height: "100%", overflowY: "auto" }}>
+      <style>{`
+          @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            70% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          @keyframes checkStroke {
+            0% { stroke-dashoffset: 100; }
+            100% { stroke-dashoffset: 0; }
+          }
+          .success-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex; justify-content: center; alignItems: center;
+            z-index: 9999;
+          }
+          .success-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+          }
+          .checkmark-circle {
+            width: 80px; height: 80px; margin: 0 auto 20px;
+            background: #22c55e; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 20px #22c55e80;
+            position: relative;
+          }
+          .checkmark-svg {
+            width: 50px; height: 50px;
+            stroke: white; stroke-width: 5; fill: none;
+            stroke-linecap: round; stroke-linejoin: round;
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+            animation: checkStroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) 0.2s forwards;
+          }
+        `}</style>
+
+      {showSuccess && (
+        <div className="success-overlay">
+          <div className="success-card">
+            <div className="checkmark-circle">
+              <svg className="checkmark-svg" viewBox="0 0 52 52">
+                <path d="M14 27l10 10 L40 16" />
+              </svg>
+            </div>
+            <h2 style={{ color: '#15803d', margin: 0 }}>Payment Successful!</h2>
+            <p style={{ color: '#666', marginTop: '10px' }}>Printing Receipt...</p>
+          </div>
+        </div>
+      )}
+
       <div className="pos-container">
         <div className="pos-header">
           <div>
