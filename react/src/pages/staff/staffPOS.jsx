@@ -485,7 +485,7 @@ export default function StaffPOS() {
                 <div style={{ background: '#fffbeb', padding: '8px', borderRadius: '6px', marginBottom: '8px', border: '1px solid #fcd34d' }}>
                   <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', marginBottom: '4px' }}>🎉 Auto Bill Offer Config</div>
                   <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px' }}>If > ₹</span>
+                    <span style={{ fontSize: '11px' }}>If &gt; ₹</span>
                     <input
                       type="number"
                       value={billThreshold}
