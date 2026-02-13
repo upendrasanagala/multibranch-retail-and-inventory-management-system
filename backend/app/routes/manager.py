@@ -23,35 +23,45 @@ def create_staff():
     first_name = data.get("firstName")
     last_name = data.get("lastName")
     email = data.get("email")
-    password = data.get("password")
+    # password = data.get("password")  <-- REMOVED
     address = data.get("address")
     phone = data.get("mobile") or data.get("phone")
-
-    if not first_name or not last_name or not email or not password:
+    score = data.get("score") # New field
+    
+    if not first_name or not last_name or not email:
         return jsonify({"message": "Missing required fields"}), 400
 
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already registered"}), 409
+
+    # Generate a random 16-char placeholder password
+    import secrets
+    import string
+    alphabet = string.ascii_letters + string.digits
+    placeholder_password = ''.join(secrets.choice(alphabet) for i in range(16))
 
     # Create staff user with manager's branch
     staff = User(
         first_name=first_name,
         last_name=last_name,
         email=email,
-        password_hash=generate_password_hash(password),
+        password_hash=generate_password_hash(placeholder_password),
         role="staff",
         branch_id=manager.branch_id,
         interviewer_id=manager_id,
         address=address,
         phone=phone,
-        status="pending"
+        status="pending",
+        # Auto-complete interview process
+        interview_status="completed", 
+        score=int(score) if score is not None else 0
     )
 
     db.session.add(staff)
     db.session.commit()
 
     return jsonify({
-        "message": "Staff account created. Waiting for admin approval.",
+        "message": "Staff account created. Interview marked as completed. Waiting for admin approval.",
         "user_id": staff.user_id
     }), 201
 
@@ -131,6 +141,10 @@ def update_interview_status(user_id):
     if new_status not in valid_statuses:
         return jsonify({"message": "Invalid status"}), 400
         
+    # Prevent changing status if already completed (unless admin overrides, but this is manager route)
+    if staff.interview_status == "completed":
+        return jsonify({"message": "Interview process is already completed. Cannot modify status."}), 400
+
     staff.interview_status = new_status
     db.session.commit()
     

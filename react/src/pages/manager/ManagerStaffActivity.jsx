@@ -192,6 +192,7 @@ export default function ManagerStaffActivity() {
                       onChange={(e) => handleStatusUpdate(s.user_id, e.target.value)}
                       className="status-select"
                       style={{ padding: '4px', borderRadius: '4px', fontSize: '12px', width: '120px' }}
+                      disabled={s.interview_status === 'completed'}
                     >
                       <option value="not_started">Not Started</option>
                       <option value="round_1">Round 1</option>
@@ -215,6 +216,7 @@ export default function ManagerStaffActivity() {
                       }}
                       min="0"
                       max="100"
+                      disabled={s.interview_status === 'completed'}
                     />
                   </td>
                   <td>
@@ -269,10 +271,19 @@ export default function ManagerStaffActivity() {
                   <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>EMAIL ADDRESS</label>
                   <input type="email" name="email" value={formData.email} onChange={handleChange} required />
                 </div>
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>{editMode ? 'NEW PASSWORD (OPTIONAL)' : 'INITIAL PASSWORD'}</label>
-                  <input type="password" name="password" value={formData.password} onChange={handleChange} required={!editMode} />
-                </div>
+                {/* Password removed for Create (auto-generated), shown only if editing password (optional) */}
+                {editMode && (
+                  <div className="input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>NEW PASSWORD (OPTIONAL)</label>
+                    <input type="password" name="password" value={formData.password} onChange={handleChange} />
+                  </div>
+                )}
+                {!editMode && (
+                  <div className="input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>INTERVIEW SCORE</label>
+                    <input type="number" name="score" value={formData.score || ""} onChange={handleChange} required min="0" max="100" />
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
