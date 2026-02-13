@@ -157,7 +157,8 @@ def create_product():
             size=data.get("size"),
             discount_percent=data.get("discount_percent", 0.0),
             gst_percent=data.get("gst_percent", 0.0),
-            expiry_date=expiry_date
+            expiry_date=expiry_date,
+            is_b1g1=data.get("is_b1g1", False)
         )
         
         db.session.add(product)
@@ -236,6 +237,7 @@ def update_product(product_id):
     product.size = data.get("size", product.size)
     product.discount_percent = data.get("discount_percent", product.discount_percent)
     product.gst_percent = data.get("gst_percent", product.gst_percent)
+    product.is_b1g1 = data.get("is_b1g1", product.is_b1g1)
     
     if "expiry_date" in data:
         try:
