@@ -104,22 +104,63 @@ export default function StaffPOS() {
     }
   };
 
-  /* ================= CART ================= */
+  /* ================= SOUND UTILS ================= */
+  const playBeep = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1000, ctx.currentTime); // 1000Hz beep
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1); // 100ms duration
+    } catch (e) {
+      console.warn("Audio play failed", e);
+    }
+  };
+
+  /* ================= CART LOGIC ================= */
   const addToCart = (product) => {
-    const existing = cart.find(i => i.productId === product.productId);
-    if (existing) {
-      if (existing.qty >= product.stock) {
-        alert("Cannot exceed available stock!");
-        return;
+    setCart(prev => {
+      const existing = prev.find(i => i.productId === (product.product_id || product.id));
+      if (existing) {
+        // Check stock before incrementing
+        const productInInventory = products.find(p => p.productId === (product.product_id || product.id));
+        if (existing.qty + 1 > productInInventory.stock) {
+          alert("Cannot exceed available stock!");
+          return prev; // Return previous state if stock limit reached
+        }
+        return prev.map(i => i.productId === (product.product_id || product.id)
+          ? { ...i, qty: i.qty + 1 }
+          : i
+        );
       }
-      setCart(cart.map(i => i.productId === product.productId ? { ...i, qty: i.qty + 1 } : i));
-    } else {
+      // Check stock for new item
       if (product.stock <= 0) {
         alert("Product is out of stock!");
-        return;
+        return prev; // Return previous state if out of stock
       }
-      setCart([...cart, { ...product, qty: 1 }]);
-    }
+      return [...prev, {
+        productId: product.product_id || product.id,
+        name: product.name,
+        price: product.unit_price || product.price, // Use unit_price or price
+        qty: 1,
+        stock: product.stock, // Track available stock
+        current_stock: product.stock, // This seems redundant with 'stock'
+        is_b1g1: product.is_b1g1 // Track B1G1 status
+      }];
+    });
+    playBeep(); // Play sound
+    setSearch(""); // Clear search
   };
 
   const updateQty = (id, delta) => {
