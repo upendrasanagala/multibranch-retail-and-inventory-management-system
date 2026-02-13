@@ -439,57 +439,94 @@ export default function StaffPOS() {
   return (
     <div style={{ padding: "20px", height: "100%", overflowY: "auto" }}>
       <style>{`
-          @keyframes popIn {
+          @keyframes check-scale {
             0% { transform: scale(0); opacity: 0; }
-            70% { transform: scale(1.2); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 1; }
             100% { transform: scale(1); opacity: 1; }
           }
-          @keyframes checkStroke {
+          @keyframes check-stroke {
             0% { stroke-dashoffset: 100; }
             100% { stroke-dashoffset: 0; }
           }
+          @keyframes confetti-pop {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+          }
           .success-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6);
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
             display: flex; justify-content: center; alignItems: center;
-            z-index: 9999;
+            z-index: 10000;
           }
           .success-card {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
+            background: white; padding: 50px; border-radius: 30px;
             text-align: center;
-            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            animation: check-scale 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative;
+            overflow: hidden;
           }
-          .checkmark-circle {
-            width: 80px; height: 80px; margin: 0 auto 20px;
-            background: #22c55e; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 20px #22c55e80;
+          .checkmark-wrapper {
+            width: 100px; height: 100px; margin: 0 auto 20px;
             position: relative;
           }
+          .checkmark-circle {
+            width: 100%; height: 100%;
+            background: #22c55e; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.4);
+            position: relative;
+            z-index: 2;
+          }
+          /* Confetti Particles */
+          .particles {
+            position: absolute; top: 50%; left: 50%; width: 100%; height: 100%;
+            pointer-events: none; z-index: 1;
+            transform: translate(-50%, -50%);
+          }
+          .particle {
+            position: absolute; width: 10px; height: 10px;
+            background: #fcd34d; border-radius: 50%;
+            opacity: 0;
+          }
+          .particle:nth-child(1) { top: 0; left: 50%; animation: confetti-pop 0.6s ease-out 0.3s forwards; }
+          .particle:nth-child(2) { top: 20%; left: 80%; background: #ef4444; animation: confetti-pop 0.6s ease-out 0.4s forwards; }
+          .particle:nth-child(3) { top: 80%; left: 80%; background: #3b82f6; animation: confetti-pop 0.6s ease-out 0.3s forwards; }
+          .particle:nth-child(4) { top: 100%; left: 50%; animation: confetti-pop 0.6s ease-out 0.5s forwards; }
+          .particle:nth-child(5) { top: 80%; left: 20%; background: #ec4899; animation: confetti-pop 0.6s ease-out 0.3s forwards; }
+          .particle:nth-child(6) { top: 20%; left: 20%; background: #8b5cf6; animation: confetti-pop 0.6s ease-out 0.4s forwards; }
+
           .checkmark-svg {
-            width: 50px; height: 50px;
-            stroke: white; stroke-width: 5; fill: none;
+            width: 60px; height: 60px;
+            stroke: white; stroke-width: 6; fill: none;
             stroke-linecap: round; stroke-linejoin: round;
-            stroke-dasharray: 100;
-            stroke-dashoffset: 100;
-            animation: checkStroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) 0.2s forwards;
+            stroke-dasharray: 100; stroke-dashoffset: 100;
+            animation: check-stroke 0.4s cubic-bezier(0.65, 0, 0.45, 1) 0.3s forwards;
           }
         `}</style>
 
       {showSuccess && (
         <div className="success-overlay">
           <div className="success-card">
-            <div className="checkmark-circle">
-              <svg className="checkmark-svg" viewBox="0 0 52 52">
-                <path d="M14 27l10 10 L40 16" />
-              </svg>
+            <div className="checkmark-wrapper">
+              <div className="particles">
+                <div className="particle"></div><div className="particle"></div>
+                <div className="particle"></div><div className="particle"></div>
+                <div className="particle"></div><div className="particle"></div>
+              </div>
+              <div className="checkmark-circle">
+                <svg className="checkmark-svg" viewBox="0 0 52 52">
+                  <path d="M14 27l10 10 L40 16" />
+                </svg>
+              </div>
             </div>
-            <h2 style={{ color: '#15803d', margin: 0 }}>Payment Successful!</h2>
-            <p style={{ color: '#666', marginTop: '10px' }}>Printing Receipt...</p>
+            <h2 style={{
+              color: '#15803d', margin: '0 0 10px 0',
+              fontSize: '28px', fontWeight: '800',
+              letterSpacing: '-0.5px'
+            }}>Payment Successful!</h2>
+            <p style={{ color: '#666', margin: 0, fontSize: '14px' }}>Printing Receipt...</p>
           </div>
         </div>
       )}
