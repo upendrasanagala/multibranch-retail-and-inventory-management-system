@@ -421,6 +421,18 @@ export default function AdminInventory() {
     setTimeout(() => setMessage(""), 2500);
   };
 
+  /* ================= UPDATE B1G1 ================= */
+  const updateB1G1 = async (id, value) => {
+    try {
+      await api.products.update(id, { is_b1g1: value });
+      setMessage(value ? "🎉 Method B1G1 Activated" : "🚫 Method B1G1 Deactivated");
+      await loadProducts();
+    } catch (err) {
+      setMessage("❌ " + (err.message || "Failed to update offer"));
+    }
+    setTimeout(() => setMessage(""), 2500);
+  };
+
   /* ================= DELETE PRODUCT ================= */
   const deleteProduct = async (id) => {
     if (!window.confirm("Delete this product?")) return;
@@ -844,6 +856,7 @@ export default function AdminInventory() {
                     <th>Category</th>
                     <th>Unit</th>
                     <th>Inventory Status</th>
+                    <th>B1G1 Offer</th>
                     <th>Price (₹)</th>
                     <th>Actions</th>
                   </tr>
@@ -878,6 +891,19 @@ export default function AdminInventory() {
                             ⚠️ Low in {p.low_stock_branches} branch{p.low_stock_branches > 1 ? 'es' : ''}
                           </div>
                         )}
+                      </td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <label style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', fontWeight: 600 }}>
+                          <input
+                            type="checkbox"
+                            checked={p.is_b1g1 || false}
+                            onChange={e => updateB1G1(p.product_id || p.id, e.target.checked)}
+                            disabled={loading}
+                            style={{ width: '16px', height: '16px', marginBottom: '2px', cursor: 'pointer' }}
+                          />
+                          <span style={{ color: p.is_b1g1 ? '#d97706' : '#94a3b8' }}>{p.is_b1g1 ? 'ACTIVE' : 'OFF'}</span>
+                        </label>
                       </td>
 
                       <td>
