@@ -71,6 +71,7 @@ def get_products():
             "total_stock": total_stock,
             "low_stock_branches": low_stock_count,
             "image_path": p.image_path,
+            "is_b1g1": p.is_b1g1, # Include B1G1 status
             "created_at": p.created_at.isoformat() if p.created_at else None
         })
     
@@ -101,6 +102,7 @@ def get_product(product_id):
         "cost_price": product.cost_price if product.cost_price is not None and not (isinstance(product.cost_price, float) and math.isnan(product.cost_price)) else None,
         "unit": product.unit,
         "image_path": product.image_path,
+        "is_b1g1": product.is_b1g1,
         "created_at": product.created_at.isoformat() if product.created_at else None
     }), 200
 
