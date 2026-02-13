@@ -269,6 +269,17 @@ export default function StaffPOS() {
       playSuccessSound();
       setShowSuccess(true);
 
+      // Capture data for printing IMMEDIATELY (to avoid any state/closure issues)
+      const printSaleData = {
+        items: cart,
+        subtotal,
+        gst,
+        discount: autoDiscount + manualDiscountAmount,
+        total,
+        transaction_id: res.transaction_id,
+        transaction_date: new Date().toLocaleString()
+      };
+
       // Delay before reset & print (show animation)
       setTimeout(() => {
         setShowSuccess(false);
@@ -278,18 +289,7 @@ export default function StaffPOS() {
         setUtr("");
         setCardData({ name: "", number: "" });
 
-        // Trigger Print with correct data
-        // We need to pass the sale object constructed for printing
-        const printSale = {
-          items: cart, // Use current cart before reset (but we reset it above? No, closure captures it? Yes cart is const in this render)
-          subtotal,
-          gst,
-          discount: autoDiscount + manualDiscountAmount,
-          total,
-          transaction_id: res.transaction_id, // Fix: Access directly from response
-          transaction_date: new Date().toLocaleString()
-        };
-        printReceipt(printSale);
+        printReceipt(printSaleData);
       }, 2000);
 
     } catch (err) {
@@ -301,6 +301,12 @@ export default function StaffPOS() {
   /* ================= PRINT RECEIPT ================= */
   const printReceipt = (saleData) => {
     const printWindow = window.open("", "", "width=400,height=600");
+
+    if (!printWindow) {
+      alert("⚠️ Receipt printing was blocked by your browser.\nPlease allow popups for this site.");
+      return;
+    }
+
     const sale = saleData || {
       items: cart,
       subtotal,
