@@ -275,6 +275,12 @@ export default function StaffPOS() {
         subtotal,
         gst,
         discount: autoDiscount + manualDiscountAmount,
+        discountBreakdown: {
+          b1g1: itemDiscounts,
+          bill: billDiscount,
+          manual: manualDiscountAmount
+        },
+        billOfferPercent: billOfferPercent, // Pass for display
         total,
         transaction_id: res.transaction_id,
         transaction_date: new Date().toLocaleString()
@@ -308,14 +314,17 @@ export default function StaffPOS() {
     }
 
     const sale = saleData || {
-      items: cart,
-      subtotal,
-      gst,
-      discount: autoDiscount + manualDiscountAmount,
-      total,
-      transaction_id: lastSale?.transaction_id || "NEW",
+      items: [],
+      subtotal: 0,
+      gst: 0,
+      discount: 0,
+      discountBreakdown: { b1g1: 0, bill: 0, manual: 0 },
+      transaction_id: "ERR",
       transaction_date: new Date().toLocaleString()
     };
+
+    // Fallback if breakdown missing (e.g. old data)
+    const breakdown = sale.discountBreakdown || { b1g1: 0, bill: 0, manual: 0 };
 
     printWindow.document.write(`
       <html>
@@ -346,8 +355,8 @@ export default function StaffPOS() {
           <table>
             <thead>
               <tr>
-                <th style="width: 40%">Item</th>
-                <th class="center" style="width: 20%">Qty</th>
+                <th style="width: 45%">Item</th>
+                <th class="center" style="width: 15%">Qty</th>
                 <th class="right" style="width: 20%">Rate</th>
                 <th class="right" style="width: 20%">Amt</th>
               </tr>
@@ -356,8 +365,9 @@ export default function StaffPOS() {
               ${sale.items.map(i => `
                 <tr>
                   <td>
-                    ${i.name}
-                    ${(i.size || i.unit) ? `<small>(${i.size || ''} ${i.unit || ''})</small>` : ''}
+                    <div style="font-weight: bold;">${i.name}</div>
+                    ${(i.size || i.unit) ? `<div style="font-size: 10px; color: #555;">Weight: ${i.size || ''}${i.unit || ''}</div>` : ''}
+                    ${i.sku ? `<div style="font-size: 9px; color: #777;">SKU: ${i.sku}</div>` : ''}
                   </td>
                   <td class="center">${i.qty}</td>
                   <td class="right">${Number(i.price).toFixed(2)}</td>
@@ -381,11 +391,26 @@ export default function StaffPOS() {
                 <td colspan="3">SGST (2.5%):</td>
                 <td class="right">₹${(sale.gst / 2).toFixed(2)}</td>
               </tr>
-              ${sale.discount > 0 ? `
+
+              <!-- Detailed Discount Breakdown -->
+              ${breakdown.b1g1 > 0 ? `
               <tr class="totals-row">
-                <td colspan="3">Discount:</td>
-                <td class="right">-₹${sale.discount.toFixed(2)}</td>
+                <td colspan="3">B1G1 Savings:</td>
+                <td class="right">-₹${breakdown.b1g1.toFixed(2)}</td>
               </tr>` : ''}
+
+              ${breakdown.bill > 0 ? `
+              <tr class="totals-row">
+                <td colspan="3">Bill Offer (${sale.billOfferPercent || ''}%):</td>
+                <td class="right">-₹${breakdown.bill.toFixed(2)}</td>
+              </tr>` : ''}
+
+              ${breakdown.manual > 0 ? `
+              <tr class="totals-row">
+                <td colspan="3">Manual Discount:</td>
+                <td class="right">-₹${breakdown.manual.toFixed(2)}</td>
+              </tr>` : ''}
+
               <tr class="totals-row">
                 <td colspan="3" class="grand-total">Grand Total:</td>
                 <td class="right grand-total">₹${sale.total.toFixed(2)}</td>
@@ -394,7 +419,7 @@ export default function StaffPOS() {
           </div>
 
           <div class="footer">
-            <p>Payment: ${paymentMethod.toUpperCase()}</p>
+            <p>Payment: ${paymentMethod ? paymentMethod.toUpperCase() : 'CASH'}</p>
             <p>*** Thank You! Visit Again ***</p>
           </div>
         </body>
