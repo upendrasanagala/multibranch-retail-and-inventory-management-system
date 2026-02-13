@@ -1,89 +1,103 @@
-import random
-from app import create_app
-from app.extensions import db
-from app.models.category import Category
+
+import os
+import pandas as pd
+from app import create_app, db
 from app.models.product import Product
+from app.models.category import Category
 from app.models.inventory import Inventory
 from app.models.branch import Branch
+import uuid
 
-def seed_inventory():
-    print("Seeding inventory data...")
-    
-    # 1. Categories
-    categories_data = [
-        {"name": "Kitchen Products", "description": "Kitchenware and utensils"},
-        {"name": "Clothes", "description": "Apparel and clothing items"},
-        {"name": "Grocery", "description": "Food and household supplies"},
-        {"name": "Home Appliances", "description": "Electrical appliances for home use"}
-    ]
-    
-    category_map = {}
-    for cat_data in categories_data:
-        cat = Category.query.filter_by(name=cat_data["name"]).first()
-        if not cat:
-            cat = Category(name=cat_data["name"], description=cat_data["description"])
-            db.session.add(cat)
-            db.session.flush()
-        category_map[cat_data["name"]] = cat.category_id
-        
-    # 2. Products
-    products_data = [
-        # Kitchen Products
-        {"name": "Non-stick Frying Pan", "sku": "KIT-001", "category": "Kitchen Products", "price": 25.99},
-        {"name": "Chef's Knife Set", "sku": "KIT-002", "category": "Kitchen Products", "price": 89.50},
-        {"name": "Electric Toaster", "sku": "KIT-003", "category": "Kitchen Products", "price": 45.00},
-        
-        # Clothes
-        {"name": "Cotton T-Shirt (White)", "sku": "CLO-001", "category": "Clothes", "price": 12.99},
-        {"name": "Denim Jeans (Blue)", "sku": "CLO-002", "category": "Clothes", "price": 49.95},
-        {"name": "Winter Jacket (Navy)", "sku": "CLO-003", "category": "Clothes", "price": 120.00},
-        
-        # Grocery
-        {"name": "Organic Milk (1L)", "sku": "GRO-001", "category": "Grocery", "price": 3.50},
-        {"name": "Whole Wheat Bread", "sku": "GRO-002", "category": "Grocery", "price": 2.80},
-        {"name": "Espresso Coffee Beans", "sku": "GRO-003", "category": "Grocery", "price": 18.00},
-        
-        # Home Appliances
-        {"name": "Smart Vacuum Cleaner", "sku": "HAP-001", "category": "Home Appliances", "price": 299.00},
-        {"name": "Air Purifier", "sku": "HAP-002", "category": "Home Appliances", "price": 150.00},
-        {"name": "Microwave Oven", "sku": "HAP-003", "category": "Home Appliances", "price": 185.00}
-    ]
-    
-    product_ids = []
-    for prod_data in products_data:
-        prod = Product.query.filter_by(sku=prod_data["sku"]).first()
-        if not prod:
-            prod = Product(
-                name=prod_data["name"],
-                sku=prod_data["sku"],
-                category_id=category_map[prod_data["category"]],
-                unit_price=prod_data["price"],
-                cost_price=prod_data["price"] * 0.7
-            )
-            db.session.add(prod)
-            db.session.flush()
-        product_ids.append(prod.product_id)
-        
-    # 3. Inventory for all branches
-    branches = Branch.query.all()
-    for branch in branches:
-        for p_id in product_ids:
-            inv = Inventory.query.filter_by(product_id=p_id, branch_id=branch.branch_id).first()
-            if not inv:
-                qty = random.randint(10, 100)
-                inv = Inventory(
-                    product_id=p_id,
-                    branch_id=branch.branch_id,
-                    quantity=qty,
-                    min_threshold=5,
-                    max_threshold=200
-                )
-                db.session.add(inv)
-                
-    db.session.commit()
-    print("Seeding completed successfully!")
-
-if __name__ == "__main__":
+def seed_data():
     app = create_app()
     with app.app_context():
-        seed_inventory()
+        file_path = r"d:\multibranch-retail-and-inventory-management-system\inventory_dataset.csv"
+        if not os.path.exists(file_path):
+            print(f"File not found: {file_path}")
+            return
+
+        print("Reading CSV...")
+        df = pd.read_csv(file_path)
+        
+        # Standardize columns
+        df.columns = [c.lower().strip() for c in df.columns]
+        
+        # Cache existing data
+        categories = {c.name.lower(): c for c in Category.query.all()}
+        branches = Branch.query.all()
+        
+        print(f"Found {len(branches)} branches.")
+        
+        added = 0
+        updated = 0
+        
+        for index, row in df.iterrows():
+            try:
+                name = str(row['name']).strip()
+                if not name: continue
+                
+                # Category
+                cat_name = str(row['category']).strip()
+                category = categories.get(cat_name.lower())
+                if not category:
+                    category = Category(name=cat_name, description="Imported")
+                    db.session.add(category)
+                    db.session.flush()
+                    categories[cat_name.lower()] = category
+                
+                # Product Check
+                sku = str(row.get('sku', '')).strip()
+                size = str(row.get('size', '')).strip()
+                
+                product = Product.query.filter_by(sku=sku).first()
+                if not product:
+                    product = Product.query.filter_by(name=name, size=size if size else None).first()
+                
+                if product:
+                    # Update
+                    product.unit_price = row['price']
+                    if 'cost_price' in row: product.cost_price = row['cost_price']
+                    product.stock_quantity = row['stock'] # This field might not exist on Product, wait. Stock is in Inventory.
+                    updated += 1
+                else:
+                    # Create
+                    product = Product(
+                        name=name,
+                        sku=sku if sku else f"GEN-{uuid.uuid4().hex[:8].upper()}",
+                        barcode=str(row.get('barcode', '')),
+                        category_id=category.category_id,
+                        unit_price=row['price'],
+                        cost_price=row.get('cost_price', row['price']*0.7),
+                        unit=row.get('unit', 'pcs'),
+                        size=size or None,
+                        description=row.get('description', ''),
+                        expiry_date=pd.to_datetime(row['expiry_date']).date() if pd.notna(row['expiry_date']) else None
+                    )
+                    db.session.add(product)
+                    db.session.flush()
+                    added += 1
+                
+                # Inventory
+                qty = int(row.get('stock', 0))
+                for branch in branches:
+                    inv = Inventory.query.filter_by(product_id=product.product_id, branch_id=branch.branch_id).first()
+                    if not inv:
+                        inv = Inventory(
+                            product_id=product.product_id,
+                            branch_id=branch.branch_id,
+                            quantity=qty,
+                            min_threshold=10,
+                            max_threshold=1000
+                        )
+                        db.session.add(inv)
+                    else:
+                        inv.quantity = qty # Reset stock to CSV value
+                        
+            except Exception as e:
+                print(f"Error on row {index}: {e}")
+                
+        db.session.commit()
+        print(f"Success! Added: {added}, Updated: {updated}")
+
+if __name__ == "__main__":
+    seed_data()

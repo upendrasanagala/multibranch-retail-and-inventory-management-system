@@ -8,6 +8,8 @@ export default function AdminInventory() {
   const [form, setForm] = useState({
     name: "",
     sku: "",
+    barcode: "", // New: Barcode field
+    description: "", // New: Description field
     price: "",
     cost_price: "",
     category_id: "",
@@ -377,6 +379,8 @@ export default function AdminInventory() {
       await api.products.create({
         name: form.name.trim(),
         sku: form.sku.trim() || undefined,
+        barcode: form.barcode.trim() || undefined, // New
+        description: form.description.trim() || undefined, // New
         unit_price: Number(form.price),
         cost_price: form.cost_price ? Number(form.cost_price) : undefined,
         category_id: form.category_id || null,
@@ -391,7 +395,7 @@ export default function AdminInventory() {
 
       setMessage("✅ Product and inventory initialized across all branches");
       setForm({
-        name: "", sku: "", price: "", cost_price: "",
+        name: "", sku: "", barcode: "", description: "", price: "", cost_price: "",
         category_id: "", unit: "",
         size: "", discount_percent: "", gst_percent: "", expiry_date: "",
         branch_quantities: {}
@@ -560,6 +564,26 @@ export default function AdminInventory() {
                 placeholder="SKU (Opt)"
                 value={form.sku}
                 onChange={e => setForm({ ...form, sku: e.target.value })}
+                disabled={loading}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ width: '120px' }}>
+              <input
+                placeholder="Barcode (Opt)"
+                value={form.barcode}
+                onChange={e => setForm({ ...form, barcode: e.target.value })}
+                disabled={loading}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ width: '100%', marginTop: '5px' }}>
+              <input
+                placeholder="Description / Product Details"
+                value={form.description}
+                onChange={e => setForm({ ...form, description: e.target.value })}
                 disabled={loading}
                 style={{ width: '100%' }}
               />

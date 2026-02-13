@@ -99,6 +99,7 @@ def update_branch(id):
     branch.state = data.get("state", branch.state)
     branch.phone = data.get("phone", branch.phone)
     branch.upi_id = data.get("upi_id", branch.upi_id)
+    branch.status = data.get("status", branch.status)
 
     db.session.commit()
 
