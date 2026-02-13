@@ -109,23 +109,17 @@ export default function StaffPOS() {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
-
       const ctx = new AudioContext();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-
       osc.connect(gain);
       gain.connect(ctx.destination);
-
       osc.type = "sine";
-      osc.frequency.setValueAtTime(1000, ctx.currentTime); // 1000Hz beep
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-
+      osc.frequency.setValueAtTime(1200, ctx.currentTime);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
       osc.start();
-      osc.stop(ctx.currentTime + 0.1); // 100ms duration
-    } catch (e) {
-      console.warn("Audio play failed", e);
-    }
+      osc.stop(ctx.currentTime + 0.08);
+    } catch (e) { console.warn("Audio play failed", e); }
   };
 
   const playSuccessSound = () => {
@@ -134,23 +128,24 @@ export default function StaffPOS() {
       if (!AudioContext) return;
       const ctx = new AudioContext();
 
-      const playNote = (freq, time, duration) => {
+      const playTone = (freq, type, startTime, duration) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + time);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime + time);
-        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + time + duration);
-        osc.start(ctx.currentTime + time);
-        osc.stop(ctx.currentTime + time + duration);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime + startTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + startTime + duration);
+        osc.start(ctx.currentTime + startTime);
+        osc.stop(ctx.currentTime + startTime + duration);
       };
 
-      // Simple ascending arpeggio (C major ish)
-      playNote(523.25, 0, 0.2); // C5
-      playNote(659.25, 0.15, 0.2); // E5
-      playNote(783.99, 0.3, 0.4); // G5
+      // "Coin Collect" / "Level Up" style sound
+      playTone(523.25, "sine", 0, 0.1);       // C5
+      playTone(659.25, "sine", 0.1, 0.1);     // E5
+      playTone(783.99, "square", 0.2, 0.3);   // G5 (Square wave for "8-bit" feel)
+      playTone(1046.50, "sine", 0.3, 0.4);    // C6
     } catch (e) {
       console.warn("Success audio failed", e);
     }
