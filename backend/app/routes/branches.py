@@ -125,3 +125,42 @@ def get_branch_inventory(id):
             for item in inventory
         ]
     })
+
+
+# =============================
+# DELETE BRANCH (HARD DELETE)
+# =============================
+@branch_bp.route("/<int:id>", methods=["DELETE"])
+@jwt_required()
+@roles_required("admin")
+def delete_branch(id):
+    branch = Branch.query.get_or_404(id)
+    
+    # 1. Delete Inventory
+    Inventory.query.filter_by(branch_id=id).delete()
+    
+    # 2. Delete Stock Transfers (From/To)
+    from app.models.stock_transfer import StockTransfer
+    StockTransfer.query.filter((StockTransfer.from_branch_id == id) | (StockTransfer.to_branch_id == id)).delete()
+    
+    # 3. Delete Sales Transactions & Items
+    from app.models.sales import Transaction, TransactionItem
+    # Find all transactions for this branch
+    transactions = Transaction.query.filter_by(branch_id=id).all()
+    txn_ids = [t.transaction_id for t in transactions]
+    
+    if txn_ids:
+        # Delete items first
+        TransactionItem.query.filter(TransactionItem.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
+        # Delete transactions
+        Transaction.query.filter(Transaction.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
+
+    # 4. Unlink Users (Set branch_id = NULL)
+    from app.models.user import User
+    User.query.filter_by(branch_id=id).update({User.branch_id: None})
+
+    # 5. Delete Branch
+    db.session.delete(branch)
+    db.session.commit()
+
+    return jsonify({"message": f"Branch '{branch.name}' and all associated data permanently deleted"}), 200

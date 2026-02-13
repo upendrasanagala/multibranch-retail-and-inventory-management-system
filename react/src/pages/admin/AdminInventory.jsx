@@ -603,7 +603,7 @@ export default function AdminInventory() {
                 <span style={{ fontWeight: 'normal', color: '#64748b', fontSize: '11px' }}>Enter qty for each branch</span>
               </h4>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                {branches.map(b => (
+                {branches.filter(b => b.status !== 'closed').map(b => (
                   <div key={b.branch_id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <label style={{ fontSize: '10px', fontWeight: '600', color: '#475569' }}>{b.name}</label>
                     <input
@@ -1042,7 +1042,10 @@ export default function AdminInventory() {
                     </tr>
                   </thead>
                   <tbody>
-                    {distributionData.map(item => (
+                    {distributionData.filter(item => {
+                      const branch = branches.find(b => b.branch_id === item.branch_id);
+                      return branch && branch.status !== 'closed';
+                    }).map((item) => (
                       <tr key={item.inventory_id}>
                         <td>
                           <div style={{ fontWeight: 600 }}>{item.branch_name || `Branch ${item.branch_id}`}</div>

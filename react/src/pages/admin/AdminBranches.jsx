@@ -77,6 +77,25 @@ export default function AdminBranches() {
     setLoading(false);
   };
 
+  /* ================= HARD DELETE BRANCH ================= */
+  const hardDeleteBranch = async (branchId, branchName) => {
+    const confirmation = prompt(`⚠️ DANGER ZONE ⚠️\n\nThis will PERMANENTLY DELETE branch "${branchName}" along with:\n- All Sales History\n- All Inventory Records\n- All Stock Transfers\n\nTo confirm, type "DELETE" below:`);
+
+    if (confirmation !== "DELETE") {
+      if (confirmation !== null) alert("Deletion cancelled. You typed the wrong confirmation.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.branches.delete(branchId);
+      await loadBranches();
+    } catch (err) {
+      setError(err.message || "Failed to delete branch");
+    }
+    setLoading(false);
+  };
+
   /* ================= UPDATE UPI ================= */
   const updateUpi = async (branchId) => {
     setLoading(true);
@@ -138,7 +157,7 @@ export default function AdminBranches() {
               </tr>
             </thead>
             <tbody>
-              {branches.filter(b => b.status !== 'closed').map((b, i) => (
+              {branches.map((b, i) => (
                 <tr key={b.branch_id || i}>
                   <td><span style={{ fontWeight: 700 }}>{b.name}</span></td>
                   <td>{b.city || b.location || 'N/A'}</td>
@@ -166,18 +185,28 @@ export default function AdminBranches() {
                     )}
                   </td>
                   <td>
-                    <span className="stock-badge ok" style={{ fontSize: '11px' }}>
+                    <span className={`stock-badge ${b.status === 'closed' ? 'low' : 'ok'}`} style={{ fontSize: '11px' }}>
                       {b.status || 'active'}
                     </span>
                   </td>
-                  <td>
+                  <td style={{ display: 'flex', gap: '8px' }}>
+                    {b.status !== 'closed' && (
+                      <button
+                        style={{ background: '#f97316', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
+                        onClick={() => closeBranch(b.branch_id, b.name)}
+                        disabled={loading}
+                        title="Deactivate this branch (Preserves Data)"
+                      >
+                        Close
+                      </button>
+                    )}
                     <button
-                      style={{ background: '#f97316', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
-                      onClick={() => closeBranch(b.branch_id, b.name)}
+                      style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
+                      onClick={() => hardDeleteBranch(b.branch_id, b.name)}
                       disabled={loading}
-                      title="Deactivate this branch (Preserves Data)"
+                      title="PERMANENTLY DELETE Branch and All History"
                     >
-                      Close
+                      Delete
                     </button>
                   </td>
                 </tr>
