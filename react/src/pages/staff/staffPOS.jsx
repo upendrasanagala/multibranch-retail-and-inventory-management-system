@@ -147,34 +147,36 @@ export default function StaffPOS() {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const gst = (subtotal * GST_PERCENT) / 100;
 
-  // 2. Bill-Level Discount (10% off if Total > 400)
-  // We apply this on (Subtotal + GST - ItemDiscounts) or just Subtotal? 
-  // Usually applied on the payable amount before this specific discount.
-  // Let's say: NetBill = Subtotal + GST - ItemDiscounts.
-  // If NetBill > 400, apply 10% of NetBill.
+  // 2. Bill-Level Discount (Configurable)
+  const [billThreshold, setBillThreshold] = useState(400);
+  const [billOfferPercent, setBillOfferPercent] = useState(10);
 
   const currentTotalBeforeBillDisc = subtotal + gst - itemDiscounts;
-  const billDiscount = currentTotalBeforeBillDisc > 400 ? (currentTotalBeforeBillDisc * 0.10) : 0;
 
-  // Total Auto Discount
+  // Calculate Bill Offer
+  const billDiscount = currentTotalBeforeBillDisc > billThreshold
+    ? (currentTotalBeforeBillDisc * billOfferPercent) / 100
+    : 0;
+
+  // 3. Manual Discount (Now Percentage)
+  // Applied on what remains? Usually manual disc is on the final payable.
+  // Let's apply it on (Total - other discounts).
+  const taxableAmount = currentTotalBeforeBillDisc - billDiscount;
+  const manualDiscountAmount = (taxableAmount * discount) / 100;
+
+  const total = taxableAmount - manualDiscountAmount;
+
+  // Total Auto Discount (Item + Bill)
   const autoDiscount = itemDiscounts + billDiscount;
-
-  // Final Total (Manual discount is separate or additive? User asked for auto features, 
-  // but existing manual discount state 'discount' allows override/extra. 
-  // Let's treat 'discount' state as EXTRA manual discount).
-  const total = currentTotalBeforeBillDisc - billDiscount - discount;
 
   /* ================= COMPLETE PAYMENT ================= */
   const completePayment = async () => {
-    if (!cart.length) return;
+    if (cart.length === 0) return alert("Cart is empty");
+    if (!paymentMethod) return alert("Select payment method");
+    if (paymentMethod === 'upi' && !utr) return alert("Enter UTR for UPI");
+    if (paymentMethod === 'card' && !cardData.name) return alert("Enter Card Details");
 
-    // Validate Mobile
-    if (mobile && !/^\d{10}$/.test(mobile)) {
-      alert("Customer mobile number must be exactly 10 digits.");
-      return;
-    }
-
-    setLoading(true);
+    setLoading(true); // Assuming setLoading is used for processing state
     try {
       const saleData = {
         branch_id: user?.branch_id,
@@ -186,7 +188,8 @@ export default function StaffPOS() {
         })),
         subtotal: subtotal,
         gst: gst,
-        discount: autoDiscount + discount, // Send total discount (Auto + Manual) to backend
+        // Send total discount value (Auto + Manual Amount) to backend
+        discount: autoDiscount + manualDiscountAmount,
         total: total,
         payment_method: paymentMethod,
         payment_meta: paymentMethod === 'upi' ? { utr } : (paymentMethod === 'card' ? { card_holder: cardData.name } : null)
@@ -478,17 +481,57 @@ export default function StaffPOS() {
                   </div>
                 )}
 
+                {/* Configurable Bill Offer */}
+                <div style={{ background: '#fffbeb', padding: '8px', borderRadius: '6px', marginBottom: '8px', border: '1px solid #fcd34d' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', marginBottom: '4px' }}>🎉 Auto Bill Offer Config</div>
+                  <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px' }}>If > ₹</span>
+                    <input
+                      type="number"
+                      value={billThreshold}
+                      onChange={e => setBillThreshold(Number(e.target.value))}
+                      style={{ width: '50px', padding: '2px', fontSize: '11px' }}
+                    />
+                    <span style={{ fontSize: '11px' }}>Get</span>
+                    <input
+                      type="number"
+                      value={billOfferPercent}
+                      onChange={e => setBillOfferPercent(Number(e.target.value))}
+                      style={{ width: '35px', padding: '2px', fontSize: '11px' }}
+                    />
+                    <span style={{ fontSize: '11px' }}>% Off</span>
+                  </div>
+                </div>
+
                 {billDiscount > 0 && (
                   <div className="bill-row" style={{ color: '#d97706' }}>
-                    <span>Special Offer (10% off &gt;400)</span>
+                    <span>Special Offer ({billOfferPercent}% off)</span>
                     <span>-₹{billDiscount.toFixed(2)}</span>
                   </div>
                 )}
 
                 <div className="bill-row">
-                  <span>Manual Discount</span>
-                  <input type="number" className="disc-input" value={discount} onChange={e => setDiscount(Number(e.target.value))} />
+                  <span>Manual Discount (%)</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <input
+                      type="number"
+                      className="disc-input"
+                      value={discount}
+                      onChange={e => setDiscount(Number(e.target.value))}
+                      placeholder="0"
+                      max="100"
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: 'bold' }}>%</span>
+                  </div>
                 </div>
+
+                {manualDiscountAmount > 0 && (
+                  <div className="bill-row" style={{ color: '#6366f1', fontSize: '12px' }}>
+                    <span>(Manual Amt)</span>
+                    <span>-₹{manualDiscountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+
                 <div className="total-divider"></div>
                 <div className="bill-row total">
                   <strong>Payable</strong>
