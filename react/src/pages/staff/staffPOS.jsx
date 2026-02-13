@@ -128,6 +128,34 @@ export default function StaffPOS() {
     }
   };
 
+  const playSuccessSound = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+
+      const playNote = (freq, time, duration) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + time);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime + time);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + time + duration);
+        osc.start(ctx.currentTime + time);
+        osc.stop(ctx.currentTime + time + duration);
+      };
+
+      // Simple ascending arpeggio (C major ish)
+      playNote(523.25, 0, 0.2); // C5
+      playNote(659.25, 0.15, 0.2); // E5
+      playNote(783.99, 0.3, 0.4); // G5
+    } catch (e) {
+      console.warn("Success audio failed", e);
+    }
+  };
+
   /* ================= CART LOGIC ================= */
   const addToCart = (product) => {
     setCart(prev => {
@@ -236,15 +264,24 @@ export default function StaffPOS() {
         payment_meta: paymentMethod === 'upi' ? { utr } : (paymentMethod === 'card' ? { card_holder: cardData.name } : null)
       };
 
-      const response = await api.sales.create(saleData);
-      setLastSale(response.transaction);
-      setShowReceipt(true);
-      await loadInventory();
+      const res = await api.sales.create(saleData);
+
+      // SUCCESS ACTIONS
+      playSuccessSound();
+      alert("🎉 Payment Successful! Have a wonderful day!");
+
+      // Reset
+      setCart([]);
+      setDiscount(0);
+      setPaymentMethod("");
       setUtr("");
-      setCardData({ name: "", number: "", cvv: "" });
+      setCardData({ name: "", number: "" });
+
+      // Auto Print (optional/mock)
+      // window.print(); 
+
     } catch (err) {
-      console.error("Failed to process sale:", err);
-      alert("Failed to process sale: " + err.message);
+      alert("Current Sale Failed: " + err.message);
     }
     setLoading(false);
   };
