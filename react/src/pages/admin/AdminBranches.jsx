@@ -61,9 +61,9 @@ export default function AdminBranches() {
     setLoading(false);
   };
 
-  /* ================= DELETE BRANCH ================= */
-  const deleteBranch = async (branchId, branchName) => {
-    if (!confirm(`Are you sure you want to delete branch "${branchName}"?`)) {
+  /* ================= CLOSE BRANCH ================= */
+  const closeBranch = async (branchId, branchName) => {
+    if (!confirm(`Are you sure you want to CLOSE branch "${branchName}"? This will stop operations but preserve data.`)) {
       return;
     }
 
@@ -72,7 +72,7 @@ export default function AdminBranches() {
       await api.branches.update(branchId, { status: 'closed' });
       await loadBranches();
     } catch (err) {
-      setError(err.message || "Failed to delete branch");
+      setError(err.message || "Failed to close branch");
     }
     setLoading(false);
   };
@@ -172,11 +172,12 @@ export default function AdminBranches() {
                   </td>
                   <td>
                     <button
-                      style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 12px' }}
-                      onClick={() => deleteBranch(b.branch_id, b.name)}
+                      style={{ background: '#f97316', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
+                      onClick={() => closeBranch(b.branch_id, b.name)}
                       disabled={loading}
+                      title="Deactivate this branch (Preserves Data)"
                     >
-                      Delete
+                      Close
                     </button>
                   </td>
                 </tr>
