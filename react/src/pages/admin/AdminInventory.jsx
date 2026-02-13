@@ -53,6 +53,63 @@ export default function AdminInventory() {
   const [importFile, setImportFile] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
 
+  /* ========== BULK DELETE UTILITIES ========== */
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      // Select all visible (filtered) products
+      const allIds = filteredProducts.map(p => p.product_id || p.id);
+      setSelectedIds(new Set(allIds));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectOne = (id) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} products? This cannot be undone.`)) return;
+
+    setLoading(true);
+    try {
+      const user = JSON.parse(localStorage.getItem("loggedInUser"));
+      const token = user?.access_token;
+
+      const res = await fetch("http://127.0.0.1:5000/api/products/bulk", {
+        method: "DELETE",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ product_ids: Array.from(selectedIds) })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessage(`✅ ${data.message}`);
+        setSelectedIds(new Set());
+        await loadProducts();
+      } else {
+        throw new Error(data.message || "Bulk delete failed");
+      }
+    } catch (err) {
+      setMessage("❌ " + err.message);
+    }
+    setLoading(false);
+    setTimeout(() => setMessage(""), 2500);
+  };
+
   /* ========== IMPORT HISTORY ========== */
   const [importHistory, setImportHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -698,6 +755,16 @@ export default function AdminInventory() {
             <span style={{ fontSize: '13px', color: '#64748b' }}>
               {loading ? "Fetching..." : `Showing ${filteredProducts.length} products`}
             </span>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="primary-btn"
+                style={{ background: '#ef4444', marginLeft: '10px' }}
+                disabled={loading}
+              >
+                🗑️ Delete Selected ({selectedIds.size})
+              </button>
+            )}
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -726,6 +793,13 @@ export default function AdminInventory() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: '40px' }}>
+                      <input
+                        type="checkbox"
+                        onChange={handleSelectAll}
+                        checked={filteredProducts.length > 0 && selectedIds.size === filteredProducts.length}
+                      />
+                    </th>
                     <th>SKU</th>
                     <th>Name</th>
                     <th>Size/Weight</th>
@@ -739,7 +813,14 @@ export default function AdminInventory() {
 
                 <tbody>
                   {filteredProducts.map(p => (
-                    <tr key={p.product_id || p.id}>
+                    <tr key={p.product_id || p.id} className={selectedIds.has(p.product_id || p.id) ? "selected-row" : ""}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(p.product_id || p.id)}
+                          onChange={() => handleSelectOne(p.product_id || p.id)}
+                        />
+                      </td>
                       <td>{p.sku || p.product_id || p.id}</td>
                       <td><span style={{ fontWeight: 600 }}>{p.name}</span></td>
                       <td><span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>{p.size || '-'}</span></td>

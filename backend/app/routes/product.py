@@ -274,6 +274,38 @@ def delete_product(product_id):
     return jsonify({"message": "Product deleted successfully"}), 200
 
 # =============================
+# Bulk Delete Products (Admin Only)
+# =============================
+@product_bp.route("/bulk", methods=["DELETE"])
+@jwt_required()
+@roles_required("admin")
+def delete_bulk_products():
+    data = request.get_json() or {}
+    product_ids = data.get("product_ids", [])
+    
+    if not product_ids or not isinstance(product_ids, list):
+        return jsonify({"message": "No product IDs provided"}), 400
+        
+    # Delete all related records for ALL products to avoid FK constraints
+    from app.models.inventory import Inventory
+    from app.models.sales import TransactionItem
+    from app.models.stock_transfer import StockTransfer
+    from app.models.adjustment import InventoryAdjustment
+    
+    # Batch delete related records
+    Inventory.query.filter(Inventory.product_id.in_(product_ids)).delete(synchronize_session=False)
+    TransactionItem.query.filter(TransactionItem.product_id.in_(product_ids)).delete(synchronize_session=False)
+    StockTransfer.query.filter(StockTransfer.product_id.in_(product_ids)).delete(synchronize_session=False)
+    InventoryAdjustment.query.filter(InventoryAdjustment.product_id.in_(product_ids)).delete(synchronize_session=False)
+    
+    # Delete products
+    Product.query.filter(Product.product_id.in_(product_ids)).delete(synchronize_session=False)
+    
+    db.session.commit()
+    
+    return jsonify({"message": f"Successfully deleted {len(product_ids)} products"}), 200
+
+# =============================
 # Import Products from Excel
 # =============================
 @product_bp.route("/import", methods=["POST"])
