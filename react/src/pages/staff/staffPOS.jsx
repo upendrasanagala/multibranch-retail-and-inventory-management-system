@@ -180,11 +180,14 @@ export default function StaffPOS() {
       return [...prev, {
         productId: product.product_id || product.id,
         name: product.name,
-        price: product.unit_price || product.price, // Use unit_price or price
+        price: product.unit_price || product.price,
         qty: 1,
-        stock: product.stock, // Track available stock
-        current_stock: product.stock, // This seems redundant with 'stock'
-        is_b1g1: product.is_b1g1 // Track B1G1 status
+        stock: product.stock,
+        current_stock: product.stock,
+        is_b1g1: product.is_b1g1,
+        sku: product.sku, // Added SKU
+        unit: product.unit, // Added Unit
+        size: product.size // Added Size
       }];
     });
     playBeep(); // Play sound
