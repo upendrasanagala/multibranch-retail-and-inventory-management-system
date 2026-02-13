@@ -96,6 +96,22 @@ export default function AdminBranches() {
     setLoading(false);
   };
 
+  /* ================= REOPEN BRANCH ================= */
+  const reopenBranch = async (branchId, branchName) => {
+    if (!confirm(`Are you sure you want to REOPEN branch "${branchName}"?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.branches.update(branchId, { status: 'active' });
+      await loadBranches();
+    } catch (err) {
+      setError(err.message || "Failed to reopen branch");
+    }
+    setLoading(false);
+  };
+
   /* ================= UPDATE UPI ================= */
   const updateUpi = async (branchId) => {
     setLoading(true);
@@ -190,7 +206,7 @@ export default function AdminBranches() {
                     </span>
                   </td>
                   <td style={{ display: 'flex', gap: '8px' }}>
-                    {b.status !== 'closed' && (
+                    {b.status !== 'closed' ? (
                       <button
                         style={{ background: '#f97316', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
                         onClick={() => closeBranch(b.branch_id, b.name)}
@@ -198,6 +214,15 @@ export default function AdminBranches() {
                         title="Deactivate this branch (Preserves Data)"
                       >
                         Close
+                      </button>
+                    ) : (
+                      <button
+                        style={{ background: '#10b981', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
+                        onClick={() => reopenBranch(b.branch_id, b.name)}
+                        disabled={loading}
+                        title="Reactivate this branch"
+                      >
+                        Reopen
                       </button>
                     )}
                     <button
