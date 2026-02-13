@@ -116,6 +116,9 @@ const api = {
         body: JSON.stringify(data)
       }),
 
+    delete: (id) =>
+      apiRequest(`/branches/${id}`, { method: "DELETE" }),
+
     getInventory: (id) =>
       apiRequest(`/branches/${id}/inventory`)
   },
