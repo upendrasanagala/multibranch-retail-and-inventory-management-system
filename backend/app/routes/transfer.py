@@ -34,9 +34,15 @@ def create_transfer():
     if not all([product_id, from_branch_id, to_branch_id, quantity]):
         return jsonify({"message": "Missing required fields"}), 400
     
-    if from_branch_id == to_branch_id:
-        return jsonify({"message": "Transfer branches must be different"}), 400
+    from app.models.user import User
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
     
+    # Enforce branch isolation for non-admins: They must be either source or destination
+    if user.role != "admin":
+        if user.branch_id not in [from_branch_id, to_branch_id]:
+            return jsonify({"message": "You can only create transfers involving your own branch"}), 403
+
     # Check source inventory
     source_inventory = Inventory.query.filter_by(
         product_id=product_id, branch_id=from_branch_id
@@ -76,6 +82,16 @@ def get_transfers():
     status = request.args.get("status")
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
+    
+    from app.models.user import User
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
     
     query = StockTransfer.query
     
@@ -157,9 +173,15 @@ def get_transfer(transfer_id):
 @jwt_required()
 @roles_required("admin", "manager")
 def approve_transfer(transfer_id):
+    from app.models.user import User
     user_id = get_jwt_identity()
+    user = User.query.get(user_id)
     transfer = StockTransfer.query.get_or_404(transfer_id)
     
+    # Enforce branch isolation: non-admins must be part of the transfer
+    if user.role != "admin" and user.branch_id not in [transfer.from_branch_id, transfer.to_branch_id]:
+        return jsonify({"message": "Access denied to this transfer"}), 403
+
     if transfer.status != "pending":
         return jsonify({"message": f"Transfer already {transfer.status}"}), 400
     
@@ -205,9 +227,15 @@ def approve_transfer(transfer_id):
 @jwt_required()
 @roles_required("admin", "manager")
 def reject_transfer(transfer_id):
+    from app.models.user import User
     user_id = get_jwt_identity()
+    user = User.query.get(user_id)
     transfer = StockTransfer.query.get_or_404(transfer_id)
     
+    # Enforce branch isolation
+    if user.role != "admin" and user.branch_id not in [transfer.from_branch_id, transfer.to_branch_id]:
+        return jsonify({"message": "Access denied to this transfer"}), 403
+
     if transfer.status != "pending":
         return jsonify({"message": f"Transfer already {transfer.status}"}), 400
     

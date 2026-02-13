@@ -20,6 +20,7 @@ class SalesTransaction(db.Model):
 
     total_amount = db.Column(db.Float, nullable=False)
     payment_method = db.Column(db.String(50))
+    discount = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(30), default="completed")
 
     transaction_date = db.Column(

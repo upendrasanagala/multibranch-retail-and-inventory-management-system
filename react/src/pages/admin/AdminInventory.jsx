@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDate } from "../../utils/dateUtils";
 import api from "../../services/api";
 
 export default function AdminInventory() {
@@ -1089,7 +1090,7 @@ export default function AdminInventory() {
                       <tr key={item.inventory_id}>
                         <td>
                           <div style={{ fontWeight: 600 }}>{item.branch_name || `Branch ${item.branch_id}`}</div>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>Last updated: {new Date(item.last_updated).toLocaleDateString()}</div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>Last updated: {formatDate(item.last_updated)}</div>
                         </td>
                         <td>
                           <span className={`stock-badge ${item.quantity <= item.min_threshold ? 'low' : 'ok'}`}>

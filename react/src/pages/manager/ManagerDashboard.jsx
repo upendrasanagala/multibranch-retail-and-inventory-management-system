@@ -6,6 +6,7 @@ import ManagerTransactions from "./ManagerTransactions";
 import ManagerTransfers from "./ManagerTransfers";
 import ManagerReports from "./ManagerReports";
 import StaffActivity from "./ManagerStaffActivity";
+import LiveClock from "../../components/LiveClock";
 import "../../styles/dashboard.css";
 
 export default function ManagerDashboard() {
@@ -80,6 +81,7 @@ export default function ManagerDashboard() {
           </a>
         </nav>
 
+        <LiveClock />
       </aside>
 
       {/* ========== MAIN CONTENT ========== */}

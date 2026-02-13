@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function ManagerTransactions() {
   const [transactions, setTransactions] = useState([]);
@@ -18,7 +19,7 @@ export default function ManagerTransactions() {
         const res = await api.sales.getByBranch(branchId);
 
         const mapped = res.transactions.map(t => ({
-          date: new Date(t.transaction_date).toLocaleDateString(),
+          date: formatDate(t.transaction_date),
           product: t.items ? t.items.map(i => i.product_name).join(", ") : "Item Details",
           quantity: t.items ? t.items.reduce((sum, i) => sum + i.quantity, 0) : 0,
           amount: t.total_amount,

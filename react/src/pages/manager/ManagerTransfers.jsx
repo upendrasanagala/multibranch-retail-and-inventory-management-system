@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function ManagerTransfers() {
   const [transfers, setTransfers] = useState([]);
@@ -126,7 +127,7 @@ export default function ManagerTransfers() {
             <tbody>
               {displayedTransfers.map(t => (
                 <tr key={t.transfer_id}>
-                  <td>{new Date(t.request_date).toLocaleDateString()}</td>
+                  <td>{formatDate(t.request_date)}</td>
                   <td>{t.product_name}</td>
                   <td style={{ fontWeight: "bold" }}>{t.quantity}</td>
                   <td>

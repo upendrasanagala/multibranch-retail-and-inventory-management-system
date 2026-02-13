@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function StaffReceipts() {
   const [receipts, setReceipts] = useState([]);
@@ -54,95 +55,205 @@ export default function StaffReceipts() {
     setLoading(false);
   };
 
+  /* ================= PRINT RECEIPT ================= */
   const printReceipt = (sale) => {
     const win = window.open("", "_blank", "width=400,height=600");
 
-    // Calculate GST if not explicitly provided
-    const total = Number(sale.total_amount || 0);
-    const subtotal = Number(sale.subtotal || (total / 1.05)) || 0;
-    const gst = Number(sale.tax || (total - subtotal)) || 0;
+    if (!win) {
+      alert("⚠️ Receipt printing was blocked by your browser.\nPlease allow popups for this site.");
+      return;
+    }
+
+    const transaction_id = sale.transaction_id || "ERR";
+    const transaction_date = sale.transaction_date ? new Date(sale.transaction_date) : new Date();
+    const total_amount = Number(sale.total_amount || 0);
     const discount = Number(sale.discount || 0);
+    const paymentMethod = sale.payment_method;
+
+    // --- 1. Group items by GST Rate ---
+    const gstGroups = {};
+    const gstBreakup = {};
+
+    (sale.items || []).forEach(item => {
+      // Backend now returns gst_percent
+      const rate = item.gst_percent || 0;
+      if (!gstGroups[rate]) gstGroups[rate] = [];
+      gstGroups[rate].push(item);
+
+      if (!gstBreakup[rate]) gstBreakup[rate] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
+
+      // History items use 'unit_price' and 'quantity'
+      const price = Number(item.unit_price || 0);
+      const qty = Number(item.quantity || 0);
+      const itemTotal = price * qty;
+
+      // Back-calculate taxable
+      const taxable = itemTotal / (1 + rate / 100);
+      const taxAmt = itemTotal - taxable;
+
+      gstBreakup[rate].taxable += taxable;
+      gstBreakup[rate].cgst += taxAmt / 2;
+      gstBreakup[rate].sgst += taxAmt / 2;
+      gstBreakup[rate].total += itemTotal;
+    });
+
+    // Discount breakdown might not be fully available in history if not stored JSON, 
+    // but we can show total savings if discount > 0
+    const totalSavings = discount;
 
     win.document.write(`
       <html>
         <head>
-          <title>Receipt #${sale.transaction_id}</title>
+          <title>Invoice #${transaction_id}</title>
           <style>
-            body { font-family: 'Courier New', monospace; padding: 20px; text-align: center; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
-            td, th { padding: 4px 0; text-align: left; }
-            .right { text-align: right; }
+            body { font-family: 'Courier New', monospace; font-size: 11px; padding: 10px; margin: 0; width: 300px; }
             .center { text-align: center; }
-            .border-bottom { border-bottom: 1px dashed #000; }
-            .border-top { border-top: 1px dashed #000; }
-            .total-row { font-weight: bold; font-size: 14px; border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; }
-            h3, p { margin: 2px 0; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            
+            .header img { width: 100px; margin-bottom: 5px; } 
+            .header h2 { margin: 2px 0; font-size: 16px; }
+            .header p { margin: 1px 0; font-size: 10px; }
+            
+            .meta { margin: 10px 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; display: flex; justify-content: space-between; flex-wrap: wrap; }
+            .meta div { width: 48%; }
+            
+            table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
+            th { border-bottom: 1px dashed #000; text-align: left; font-size: 10px; padding: 2px 0; }
+            td { padding: 2px 0; vertical-align: top; font-size: 10px; }
+            
+            .group-header { font-weight: bold; text-decoration: underline; margin-top: 5px; font-size: 10px; }
+            
+            .totals { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
+            .totals p { margin: 2px 0; display: flex; justify-content: space-between; }
+            .grand-total { font-size: 14px; font-weight: bold; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; margin: 5px 0; }
+            
+            .gst-table { border-top: 1px dashed #000; margin-top: 10px; }
+            .gst-table th { font-size: 9px; text-align: right; }
+            .gst-table th:first-child { text-align: left; }
+            .gst-table td { font-size: 9px; text-align: right; }
+            .gst-table td:first-child { text-align: left; }
+            
+            .savings { text-align: center; margin: 10px 0; font-weight: bold; font-size: 12px; border: 1px dashed #000; padding: 5px; }
+            .footer { text-align: center; margin-top: 15px; font-size: 10px; }
+            .barcode { margin: 10px auto; height: 30px; background: #000; width: 80%; display: block; } 
           </style>
         </head>
         <body>
-          <div style="margin-bottom: 10px;">
-            <h3>RETAIL STORE</h3>
+          <div class="header">
+            <h2>RETAIL STORE</h2>
             <p>Branch: ${user?.branch_name || 'Main'}</p>
-            <p>${new Date(sale.transaction_date).toLocaleString()}</p>
-            <p>Receipt: #${sale.transaction_id}</p>
+            <p>Phone: +91 98765 43210</p>
+            <br/>
+            <h3 style="margin:0; text-decoration: underline;">TAX INVOICE</h3>
           </div>
-          
-          <table class="border-bottom">
+
+          <div class="meta">
+            <div>Bill No: ${transaction_id}</div>
+            <div class="right">Date: ${formatDate(transaction_date)}</div>
+            <div>Cashier: ${user?.name || 'Staff'}</div>
+            <div class="right">Time: ${new Date(transaction_date).toLocaleTimeString()}</div>
+          </div>
+
+          <table>
             <thead>
-              <tr class="border-bottom">
-                <th>Item</th>
-                <th class="center">Qty</th>
-                <th class="right">Rate</th>
-                <th class="right">Amt</th>
+              <tr>
+                <th style="width: 50%">Particulars</th>
+                <th class="center" style="width: 15%">Qty</th>
+                <th class="right" style="width: 15%">Rate</th>
+                <th class="right" style="width: 20%">Value</th>
               </tr>
             </thead>
             <tbody>
-              ${sale.items?.map(i => `
+              ${Object.keys(gstGroups).map((rate, idx) => `
                 <tr>
-                  <td>${i.product_name}</td>
-                  <td class="center">${i.quantity}</td>
-                  <td class="right">${Number(i.unit_price).toFixed(2)}</td>
-                  <td class="right">${(Number(i.unit_price) * Number(i.quantity)).toFixed(2)}</td>
+                  <td colspan="4" class="group-header">
+                    ${idx + 1}) CGST @ ${(rate / 2).toFixed(2)}%, SGST @ ${(rate / 2).toFixed(2)}%
+                  </td>
                 </tr>
-              `).join('') || ''}
+                ${gstGroups[rate].map(i => `
+                  <tr>
+                    <td>
+                      ${i.product_name}
+                      ${i.is_b1g1 ? '<br/>(B1G1 Free)' : ''}
+                      ${(i.size || i.unit) ? `<br/><span style="font-size:9px">${i.size || ''}${i.unit || ''}</span>` : ''}
+                    </td>
+                    <td class="center">${i.quantity}</td>
+                    <td class="right">${Number(i.unit_price).toFixed(2)}</td>
+                    <td class="right">${(Number(i.unit_price) * Number(i.quantity)).toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              `).join('')}
             </tbody>
           </table>
-          
-            <div style="border-top: 1px dashed #000; margin-top: 5px; padding-top: 5px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+
+          <div class="totals">
+            <p><span>Total Items: ${(sale.items || []).length}</span> <span>Total Qty: ${(sale.items || []).reduce((s, i) => s + i.quantity, 0)}</span></p>
+            
+            <p style="border-top: 1px dotted #000; margin-top: 5px; padding-top: 2px;">
+              <span>Gross Amount:</span> <span>₹${(total_amount + discount).toFixed(2)}</span>
+            </p>
+            
+            ${discount > 0 ? `<p><span>Less: Discount:</span> <span>-₹${discount.toFixed(2)}</span></p>` : ''}
+            
+            <p class="grand-total"><span>Grand Total:</span> <span>₹${total_amount.toFixed(2)}</span></p>
+          </div>
+
+          <table class="gst-table">
+            <thead>
+              <tr>
+                <th>GST%</th>
+                <th>Taxable</th>
+                <th>CGST</th>
+                <th>SGST</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Object.keys(gstBreakup).map(rate => `
                 <tr>
-                  <td colspan="3">Taxable:</td>
-                  <td class="right">₹${subtotal.toFixed(2)}</td>
+                  <td>${rate}%</td>
+                  <td>${gstBreakup[rate].taxable.toFixed(2)}</td>
+                  <td>${gstBreakup[rate].cgst.toFixed(2)}</td>
+                  <td>${gstBreakup[rate].sgst.toFixed(2)}</td>
+                  <td>${gstBreakup[rate].total.toFixed(2)}</td>
                 </tr>
-                <tr>
-                  <td colspan="3">CGST (2.5%):</td>
-                  <td class="right">₹${(gst / 2).toFixed(2)}</td>
-                </tr>
-                <tr>
-                  <td colspan="3">SGST (2.5%):</td>
-                  <td class="right">₹${(gst / 2).toFixed(2)}</td>
-                </tr>
-                ${discount > 0 ? `
-                <tr>
-                  <td colspan="3">Discount:</td>
-                  <td class="right">-₹${discount.toFixed(2)}</td>
-                </tr>` : ''}
-                <tr>
-                  <td colspan="3" class="total-row">Grand Total:</td>
-                  <td class="right total-row">₹${total.toFixed(2)}</td>
-                </tr>
-              </table>
+              `).join('')}
+              <tr style="border-top: 1px solid #000; font-weight: bold;">
+                <td>Tot</td>
+                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.taxable, 0).toFixed(2)}</td>
+                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.cgst, 0).toFixed(2)}</td>
+                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.sgst, 0).toFixed(2)}</td>
+                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.total, 0).toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p style="margin-top: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px;">
+            Payment Mode: ${paymentMethod ? paymentMethod.toUpperCase() : 'CASH'}
+            <span class="right" style="float:right">₹${total_amount.toFixed(2)}</span>
+          </p>
+
+          ${totalSavings > 0 ? `
+            <div class="savings">
+              * * Saved Rs. ${totalSavings.toFixed(2)} On MRP * *
             </div>
-          
-          <div style="margin-top: 15px; font-size: 10px;">
-            <p>Payment: ${sale.payment_method?.toUpperCase()}</p>
-            <p>*** Thank You! Visit Again ***</p>
+          ` : ''}
+
+          <div class="footer">
+            <div class="barcode" style="text-align:center; color:white; line-height:30px;">|||||||||||||||||||</div>
+            <p>This is a computer generated invoice</p>
           </div>
         </body>
       </html>
     `);
+
     win.document.close();
-    win.print();
+    win.focus();
+    setTimeout(() => {
+      win.print();
+      win.close();
+    }, 250);
   };
 
   return (
@@ -198,7 +309,7 @@ export default function StaffReceipts() {
                   <tr key={r.transaction_id}>
                     <td><span style={{ fontWeight: 600 }}>#{r.transaction_id}</span></td>
                     <td>
-                      <div>{new Date(r.transaction_date).toLocaleDateString()}</div>
+                      <div>{formatDate(r.transaction_date)}</div>
                       <div style={{ fontSize: '11px', color: '#64748b' }}>{new Date(r.transaction_date).toLocaleTimeString()}</div>
                     </td>
                     <td>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function ManagerReports() {
   const [sales, setSales] = useState([]);
@@ -26,7 +27,7 @@ export default function ManagerReports() {
 
       // Map API response to component format
       const mappedSales = res.transactions.map(t => ({
-        date: new Date(t.transaction_date).toLocaleDateString(),
+        date: formatDate(t.transaction_date),
         // For reports, we might need item details, but the search endpoint gives summary
         // We'll use the summary for now or fetch details if needed
         products: t.items ? t.items.map(i => i.product_name).join(", ") : "View Details",
@@ -130,7 +131,7 @@ export default function ManagerReports() {
             <div className="print-header" style={{ display: 'none', marginBottom: '20px', textAlign: 'center' }}>
               <h2>Sales Report</h2>
               <p>Branch: {JSON.parse(localStorage.getItem("loggedInUser"))?.branch_name || "N/A"}</p>
-              <p>Period: {fromDate} to {toDate}</p>
+              <p>Period: {formatDate(fromDate)} to {formatDate(toDate)}</p>
             </div>
 
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>

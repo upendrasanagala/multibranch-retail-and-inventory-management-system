@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function ManagerStaffActivity() {
   const [staff, setStaff] = useState([]);
@@ -221,7 +222,7 @@ export default function ManagerStaffActivity() {
                   </td>
                   <td>
                     <div style={{ fontSize: '12px', color: '#64748b' }}>
-                      Last: {s.created_at ? new Date(s.created_at).toLocaleDateString() : "N/A"}
+                      Last: {s.created_at ? formatDate(s.created_at) : "N/A"}
                     </div>
                   </td>
                   <td>

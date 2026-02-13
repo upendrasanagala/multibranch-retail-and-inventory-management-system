@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function ManagerInventory() {
   const [inventory, setInventory] = useState([]);
@@ -194,7 +195,7 @@ export default function ManagerInventory() {
                       <td style={{ fontWeight: 'bold' }}>{p.quantity || 0}</td>
                       <td>₹{((p.quantity || 0) * (p.unit_price || 0)).toFixed(2)}</td>
                       <td>
-                        {p.expiry_date ? new Date(p.expiry_date).toLocaleDateString() : '-'}
+                        {p.expiry_date ? formatDate(p.expiry_date) : '-'}
                       </td>
                       <td>
                         {(p.quantity || 0) <= (p.min_threshold || 5) ? (

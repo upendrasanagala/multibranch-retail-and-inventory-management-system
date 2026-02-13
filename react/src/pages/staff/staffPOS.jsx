@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import "../../styles/dashboard.css";
+import { formatDate, formatDateTime } from "../../utils/dateUtils";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
 
@@ -182,7 +183,8 @@ export default function StaffPOS() {
         is_b1g1: product.is_b1g1,
         sku: product.sku, // Added SKU
         unit: product.unit, // Added Unit
-        size: product.size // Added Size
+        size: product.size, // Added Size
+        gst_percent: product.gst_percent || 0 // Added GST for receipt grouping
       }];
     });
     playBeep(); // Play sound
@@ -283,7 +285,7 @@ export default function StaffPOS() {
         billOfferPercent: billOfferPercent, // Pass for display
         total,
         transaction_id: res.transaction_id,
-        transaction_date: new Date().toLocaleString()
+        transaction_date: formatDateTime(new Date())
       };
 
       // Delay before reset & print (show animation)
@@ -296,6 +298,7 @@ export default function StaffPOS() {
         setCardData({ name: "", number: "" });
 
         printReceipt(printSaleData);
+        loadInventory(); // Auto-refresh stock
       }, 2000);
 
     } catch (err) {
@@ -323,104 +326,178 @@ export default function StaffPOS() {
       transaction_date: new Date().toLocaleString()
     };
 
-    // Fallback if breakdown missing (e.g. old data)
-    const breakdown = sale.discountBreakdown || { b1g1: 0, bill: 0, manual: 0 };
+    // --- 1. Group items by GST Rate ---
+    const gstGroups = {};
+    const gstBreakup = {}; // { '5': { taxable: 0, cgst: 0, sgst: 0, total: 0 } }
 
+    sale.items.forEach(item => {
+      const rate = item.gst_percent || 0;
+      if (!gstGroups[rate]) gstGroups[rate] = [];
+      gstGroups[rate].push(item);
+
+      // Calculate breakup
+      if (!gstBreakup[rate]) gstBreakup[rate] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
+
+      const itemTotal = Number(item.price) * Number(item.qty);
+      // Back-calculate taxable from total (Assuming price includes GST)
+      // Taxable = Total / (1 + rate/100)
+      const taxable = itemTotal / (1 + rate / 100);
+      const taxAmt = itemTotal - taxable;
+
+      gstBreakup[rate].taxable += taxable;
+      gstBreakup[rate].cgst += taxAmt / 2;
+      gstBreakup[rate].sgst += taxAmt / 2;
+      gstBreakup[rate].total += itemTotal;
+    });
+
+    const breakdown = sale.discountBreakdown || { b1g1: 0, bill: 0, manual: 0 };
+    const totalSavings = (breakdown.b1g1 || 0) + (breakdown.bill || 0) + (breakdown.manual || 0) + (sale.discount || 0);
+
+    // --- HTML Template ---
     printWindow.document.write(`
       <html>
         <head>
-          <title>Receipt</title>
+          <title>Invoice #${sale.transaction_id}</title>
           <style>
-            body { font-family: 'Courier New', monospace; padding: 10px; margin: 0; }
-            .header { text-align: center; margin-bottom: 10px; }
-            h3, p { margin: 2px 0; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th { border-bottom: 1px dashed #000; text-align: left; padding: 4px 0; }
-            td { padding: 4px 0; vertical-align: top; }
-            .right { text-align: right; }
+            body { font-family: 'Courier New', monospace; font-size: 11px; padding: 10px; margin: 0; width: 300px; }
             .center { text-align: center; }
-            .totals-row td { padding: 2px 0; }
-            .grand-total { border-top: 1px dashed #000; font-weight: bold; font-size: 14px; padding-top: 5px; }
-            .footer { text-align: center; margin-top: 15px; font-size: 11px; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            
+            .header img { width: 100px; margin-bottom: 5px; } /* Placeholder for Logo */
+            .header h2 { margin: 2px 0; font-size: 16px; }
+            .header p { margin: 1px 0; font-size: 10px; }
+            
+            .meta { margin: 10px 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; display: flex; justify-content: space-between; flex-wrap: wrap; }
+            .meta div { width: 48%; }
+            
+            table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
+            th { border-bottom: 1px dashed #000; text-align: left; font-size: 10px; padding: 2px 0; }
+            td { padding: 2px 0; vertical-align: top; font-size: 10px; }
+            
+            .group-header { font-weight: bold; text-decoration: underline; margin-top: 5px; font-size: 10px; }
+            
+            .totals { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
+            .totals p { margin: 2px 0; display: flex; justify-content: space-between; }
+            .grand-total { font-size: 14px; font-weight: bold; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; margin: 5px 0; }
+            
+            .gst-table { border-top: 1px dashed #000; margin-top: 10px; }
+            .gst-table th { font-size: 9px; text-align: right; }
+            .gst-table th:first-child { text-align: left; }
+            .gst-table td { font-size: 9px; text-align: right; }
+            .gst-table td:first-child { text-align: left; }
+            
+            .savings { text-align: center; margin: 10px 0; font-weight: bold; font-size: 12px; border: 1px dashed #000; padding: 5px; }
+            .footer { text-align: center; margin-top: 15px; font-size: 10px; }
+            .barcode { margin: 10px auto; height: 30px; background: #000; width: 80%; display: block; } /* Mockup */
           </style>
         </head>
         <body>
           <div class="header">
-            <h3>RETAIL STORE</h3>
+            <h2>RETAIL STORE</h2>
             <p>Branch: ${branchName}</p>
-            <p>${sale.transaction_date}</p>
-            <p>Receipt: #${sale.transaction_id}</p>
+            <p>Phone: +91 98765 43210</p>
+            <br/>
+            <h3 style="margin:0; text-decoration: underline;">TAX INVOICE</h3>
+          </div>
+
+          <div class="meta">
+            <div>Bill No: ${sale.transaction_id}</div>
+            <div class="right">Date: ${formatDate(new Date())}</div>
+            <div>Cashier: ${user?.name || 'Staff'}</div>
+            <div class="right">Time: ${new Date().toLocaleTimeString()}</div>
           </div>
 
           <table>
             <thead>
               <tr>
-                <th style="width: 45%">Item</th>
+                <th style="width: 50%">Particulars</th>
                 <th class="center" style="width: 15%">Qty</th>
-                <th class="right" style="width: 20%">Rate</th>
-                <th class="right" style="width: 20%">Amt</th>
+                <th class="right" style="width: 15%">Rate</th>
+                <th class="right" style="width: 20%">Value</th>
               </tr>
             </thead>
             <tbody>
-              ${sale.items.map(i => `
+              ${Object.keys(gstGroups).map((rate, idx) => `
                 <tr>
-                  <td>
-                    <div style="font-weight: bold;">${i.name}</div>
-                    ${(i.size || i.unit) ? `<div style="font-size: 10px; color: #555;">Weight: ${i.size || ''}${i.unit || ''}</div>` : ''}
-                    ${i.sku ? `<div style="font-size: 9px; color: #777;">SKU: ${i.sku}</div>` : ''}
+                  <td colspan="4" class="group-header">
+                    ${idx + 1}) CGST @ ${(rate / 2).toFixed(2)}%, SGST @ ${(rate / 2).toFixed(2)}%
                   </td>
-                  <td class="center">${i.qty}</td>
-                  <td class="right">${Number(i.price).toFixed(2)}</td>
-                  <td class="right">${(Number(i.price) * Number(i.qty)).toFixed(2)}</td>
                 </tr>
+                ${gstGroups[rate].map(i => `
+                  <tr>
+                    <td>
+                      ${i.name}
+                      ${i.is_b1g1 ? '<br/>(B1G1 Free)' : ''}
+                      ${(i.size || i.unit) ? `<br/><span style="font-size:9px">${i.size || ''}${i.unit || ''}</span>` : ''}
+                    </td>
+                    <td class="center">${i.qty}</td>
+                    <td class="right">${Number(i.price).toFixed(2)}</td>
+                    <td class="right">${(Number(i.price) * Number(i.qty)).toFixed(2)}</td>
+                  </tr>
+                `).join('')}
               `).join('')}
             </tbody>
           </table>
 
-          <div style="border-top: 1px dashed #000; margin-top: 5px; padding-top: 5px;">
-            <table class="totals">
-              <tr class="totals-row">
-                <td colspan="3">Taxable Amount:</td>
-                <td class="right">₹${sale.subtotal.toFixed(2)}</td>
-              </tr>
-              <tr class="totals-row">
-                <td colspan="3">CGST (2.5%):</td>
-                <td class="right">₹${(sale.gst / 2).toFixed(2)}</td>
-              </tr>
-              <tr class="totals-row">
-                <td colspan="3">SGST (2.5%):</td>
-                <td class="right">₹${(sale.gst / 2).toFixed(2)}</td>
-              </tr>
+          <div class="totals">
+            <p><span>Total Items: ${sale.items.length}</span> <span>Total Qty: ${sale.items.reduce((s, i) => s + i.qty, 0)}</span></p>
+            
+            <p style="border-top: 1px dotted #000; margin-top: 5px; padding-top: 2px;">
+              <span>Gross Amount:</span> <span>₹${sale.items.reduce((s, i) => s + (i.price * i.qty), 0).toFixed(2)}</span>
+            </p>
 
-              <!-- Detailed Discount Breakdown -->
-              ${breakdown.b1g1 > 0 ? `
-              <tr class="totals-row">
-                <td colspan="3">B1G1 Savings:</td>
-                <td class="right">-₹${breakdown.b1g1.toFixed(2)}</td>
-              </tr>` : ''}
-
-              ${breakdown.bill > 0 ? `
-              <tr class="totals-row">
-                <td colspan="3">Bill Offer (${sale.billOfferPercent || ''}%):</td>
-                <td class="right">-₹${breakdown.bill.toFixed(2)}</td>
-              </tr>` : ''}
-
-              ${breakdown.manual > 0 ? `
-              <tr class="totals-row">
-                <td colspan="3">Manual Discount:</td>
-                <td class="right">-₹${breakdown.manual.toFixed(2)}</td>
-              </tr>` : ''}
-
-              <tr class="totals-row">
-                <td colspan="3" class="grand-total">Grand Total:</td>
-                <td class="right grand-total">₹${sale.total.toFixed(2)}</td>
-              </tr>
-            </table>
+            ${breakdown.b1g1 > 0 ? `<p><span>Less: B1G1 Savings:</span> <span>-₹${breakdown.b1g1.toFixed(2)}</span></p>` : ''}
+            ${breakdown.bill > 0 ? `<p><span>Less: Bill Offer:</span> <span>-₹${breakdown.bill.toFixed(2)}</span></p>` : ''}
+            ${breakdown.manual > 0 ? `<p><span>Less: Manual Disc:</span> <span>-₹${breakdown.manual.toFixed(2)}</span></p>` : ''}
+            
+            <p class="grand-total"><span>Grand Total:</span> <span>₹${sale.total.toFixed(2)}</span></p>
           </div>
 
+          <table class="gst-table">
+            <thead>
+              <tr>
+                <th>GST%</th>
+                <th>Taxable</th>
+                <th>CGST</th>
+                <th>SGST</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Object.keys(gstBreakup).map(rate => `
+                <tr>
+                  <td>${rate}%</td>
+                  <td>${gstBreakup[rate].taxable.toFixed(2)}</td>
+                  <td>${gstBreakup[rate].cgst.toFixed(2)}</td>
+                  <td>${gstBreakup[rate].sgst.toFixed(2)}</td>
+                  <td>${gstBreakup[rate].total.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+              <tr style="border-top: 1px solid #000; font-weight: bold;">
+                <td>Tot</td>
+                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.taxable, 0).toFixed(2)}</td>
+                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.cgst, 0).toFixed(2)}</td>
+                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.sgst, 0).toFixed(2)}</td>
+                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.total, 0).toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p style="margin-top: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px;">
+            Payment Mode: ${paymentMethod ? paymentMethod.toUpperCase() : 'CASH'}
+            <span class="right" style="float:right">₹${sale.total.toFixed(2)}</span>
+          </p>
+
+          ${totalSavings > 0 ? `
+            <div class="savings">
+              * * Saved Rs. ${totalSavings.toFixed(2)} On MRP * *
+            </div>
+          ` : ''}
+
           <div class="footer">
-            <p>Payment: ${paymentMethod ? paymentMethod.toUpperCase() : 'CASH'}</p>
-            <p>*** Thank You! Visit Again ***</p>
+            <div class="barcode" style="text-align:center; color:white; line-height:30px;">|||||||||||||||||||</div>
+            <p>This is a computer generated invoice</p>
           </div>
         </body>
       </html>
@@ -428,7 +505,6 @@ export default function StaffPOS() {
 
     printWindow.document.close();
     printWindow.focus();
-    // Allow styles to load before printing
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
@@ -647,7 +723,10 @@ export default function StaffPOS() {
                       cart.map(i => (
                         <tr key={i.productId}>
                           <td>
-                            <div className="product-name">{i.name}</div>
+                            <div className="product-name">
+                              {i.name}
+                              {i.is_b1g1 && <span style={{ fontSize: '10px', background: '#d97706', color: 'white', padding: '1px 3px', borderRadius: '3px', marginLeft: '5px' }}>B1G1</span>}
+                            </div>
                             <div className="product-sku">
                               SKU: {i.sku}
                               {(i.size || i.unit) && (
@@ -665,7 +744,24 @@ export default function StaffPOS() {
                               <button onClick={() => updateQty(i.productId, 1)} className="qty-btn">+</button>
                             </div>
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700 }}>₹{(i.price * i.qty).toFixed(2)}</td>
+
+                          <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                            {i.is_b1g1 && i.qty >= 2 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '11px' }}>
+                                  ₹{(i.price * i.qty).toFixed(2)}
+                                </span>
+                                <span style={{ color: '#16a34a' }}>
+                                  ₹{(i.price * (i.qty - Math.floor(i.qty / 2))).toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'normal' }}>
+                                  (Free: {Math.floor(i.qty / 2)})
+                                </span>
+                              </div>
+                            ) : (
+                              `₹${(i.price * i.qty).toFixed(2)}`
+                            )}
+                          </td>
                           <td style={{ textAlign: 'center' }}>
                             <button
                               className="remove-btn"
@@ -790,79 +886,82 @@ export default function StaffPOS() {
           </div>
         </div>
 
-        {showReceipt && (
-          <div className="receipt-modal">
-            <div className="receipt-content">
-              <div ref={receiptRef} className="receipt-paper" style={{ padding: '10px', fontSize: '12px' }}>
-                <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                  <h3 style={{ margin: '0 0 5px 0' }}>RETAIL STORE</h3>
-                  <p style={{ margin: '0 0 2px 0' }}>Branch: {branchName}</p>
-                  <p style={{ margin: 0 }}>{new Date().toLocaleString()}</p>
-                </div>
+        {
+          showReceipt && (
+            <div className="receipt-modal">
+              <div className="receipt-content">
+                <div ref={receiptRef} className="receipt-paper" style={{ padding: '10px', fontSize: '12px' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                    <h3 style={{ margin: '0 0 5px 0' }}>RETAIL STORE</h3>
+                    <p style={{ margin: '0 0 2px 0' }}>Branch: {branchName}</p>
+                    <p style={{ margin: 0 }}>{new Date().toLocaleString()}</p>
+                  </div>
 
-                <table style={{ width: '100%', minWidth: '0', tableLayout: 'fixed', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '11px' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px dashed #000' }}>
-                      <th style={{ textAlign: 'left', padding: '2px 0', width: '40%' }}>Item</th>
-                      <th style={{ textAlign: 'center', padding: '2px 0', width: '15%' }}>Qty</th>
-                      <th style={{ textAlign: 'right', padding: '2px 0', width: '20%' }}>Rate</th>
-                      <th style={{ textAlign: 'right', padding: '2px 0', width: '25%' }}>Amt</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cart.map(i => (
-                      <tr key={i.productId}>
-                        <td style={{ padding: '2px 0' }}>
-                          {i.name}
-                          {(i.size || i.unit) && (
-                            <span style={{ fontSize: '10px', marginLeft: '4px', color: '#555' }}>
-                              ({i.size || ''} {i.unit || ''})
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center', padding: '2px 0' }}>{i.qty}</td>
-                        <td style={{ textAlign: 'right', padding: '2px 0' }}>{i.price.toFixed(2)}</td>
-                        <td style={{ textAlign: 'right', padding: '2px 0' }}>{(i.price * i.qty).toFixed(2)}</td>
+                  <table style={{ width: '100%', minWidth: '0', tableLayout: 'fixed', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '11px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px dashed #000' }}>
+                        <th style={{ textAlign: 'left', padding: '2px 0', width: '40%' }}>Item</th>
+                        <th style={{ textAlign: 'center', padding: '2px 0', width: '15%' }}>Qty</th>
+                        <th style={{ textAlign: 'right', padding: '2px 0', width: '20%' }}>Rate</th>
+                        <th style={{ textAlign: 'right', padding: '2px 0', width: '25%' }}>Amt</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {cart.map(i => (
+                        <tr key={i.productId}>
+                          <td style={{ padding: '2px 0' }}>
+                            {i.name}
+                            {i.is_b1g1 && <span style={{ fontSize: '10px', fontWeight: 'bold' }}> (B1G1)</span>}
+                            {(i.size || i.unit) && (
+                              <span style={{ fontSize: '10px', marginLeft: '4px', color: '#555' }}>
+                                ({i.size || ''} {i.unit || ''})
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '2px 0' }}>{i.qty}</td>
+                          <td style={{ textAlign: 'right', padding: '2px 0' }}>{i.price.toFixed(2)}</td>
+                          <td style={{ textAlign: 'right', padding: '2px 0' }}>{(i.price * i.qty).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
 
-                <div style={{ borderTop: '1px dashed #000', paddingTop: '5px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Taxable Amount:</span>
-                    <span>₹{subtotal.toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>CGST (2.5%):</span>
-                    <span>₹{(gst / 2).toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>SGST (2.5%):</span>
-                    <span>₹{(gst / 2).toFixed(2)}</span>
-                  </div>
-                  {discount > 0 && (
+                  <div style={{ borderTop: '1px dashed #000', paddingTop: '5px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Discount:</span>
-                      <span>-₹{discount.toFixed(2)}</span>
+                      <span>Taxable Amount:</span>
+                      <span>₹{subtotal.toFixed(2)}</span>
                     </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px solid #000', marginTop: '5px', paddingTop: '5px', fontSize: '14px' }}>
-                    <span>Grand Total:</span>
-                    <span>₹{total.toFixed(2)}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>CGST (2.5%):</span>
+                      <span>₹{(gst / 2).toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>SGST (2.5%):</span>
+                      <span>₹{(gst / 2).toFixed(2)}</span>
+                    </div>
+                    {discount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Discount:</span>
+                        <span>-₹{discount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px solid #000', marginTop: '5px', paddingTop: '5px', fontSize: '14px' }}>
+                      <span>Grand Total:</span>
+                      <span>₹{total.toFixed(2)}</span>
+                    </div>
                   </div>
-                </div>
 
-                <p style={{ textAlign: 'center', marginTop: '15px', fontSize: '10px' }}>*** Thank You! Visit Again ***</p>
-              </div>
-              <div className="receipt-actions">
-                <button onClick={() => { printReceipt(); setShowReceipt(false); setCart([]); setMobile(""); setDiscount(0); setLastSale(null); }}>🖨️ Print & Done</button>
-                <button onClick={() => { setShowReceipt(false); setCart([]); setMobile(""); setDiscount(0); setLastSale(null); }}>✅ Done — New Sale</button>
+                  <p style={{ textAlign: 'center', marginTop: '15px', fontSize: '10px' }}>*** Thank You! Visit Again ***</p>
+                </div>
+                <div className="receipt-actions">
+                  <button onClick={() => { printReceipt(); setShowReceipt(false); setCart([]); setMobile(""); setDiscount(0); setLastSale(null); }}>🖨️ Print & Done</button>
+                  <button onClick={() => { setShowReceipt(false); setCart([]); setMobile(""); setDiscount(0); setLastSale(null); }}>✅ Done — New Sale</button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
-    </div>
+          )
+        }
+      </div >
+    </div >
   );
 }

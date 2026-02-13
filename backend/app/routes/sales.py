@@ -38,8 +38,12 @@ def create_sale():
         return jsonify({"message": "No items in transaction"}), 400
     
     # Calculate total and validate stock
-    total_amount = 0
+    items_subtotal = 0
     validated_items = []
+    
+    # Get discount and total from request (Frontend logic for B1G1/Bill Offer/GST)
+    discount = data.get("discount", 0.0)
+    total_from_fe = data.get("total")
     
     for item in items:
         product_id = item.get("product_id")
@@ -61,7 +65,7 @@ def create_sale():
         product = Product.query.get(product_id)
         unit_price = item.get("unit_price", product.unit_price)
         subtotal = unit_price * quantity
-        total_amount += subtotal
+        items_subtotal += subtotal
         
         validated_items.append({
             "product_id": product_id,
@@ -71,11 +75,15 @@ def create_sale():
             "inventory": inventory
         })
     
+    # Use frontend total if provided (trusted for complex logic), else calculate simple
+    final_total = total_from_fe if total_from_fe is not None else (items_subtotal - discount)
+
     # Create transaction
     transaction = SalesTransaction(
         branch_id=user.branch_id,
         staff_id=user_id,
-        total_amount=total_amount,
+        total_amount=final_total,
+        discount=discount,
         payment_method=payment_method,
         status="completed"
     )
@@ -102,7 +110,7 @@ def create_sale():
     return jsonify({
         "message": "Sale completed successfully",
         "transaction_id": transaction.transaction_id,
-        "total_amount": total_amount,
+        "total_amount": final_total,
         "transaction_date": transaction.transaction_date.isoformat()
     }), 201
 
@@ -120,6 +128,15 @@ def get_sales():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
+    
     query = SalesTransaction.query
     
     if branch_id:
@@ -136,7 +153,8 @@ def get_sales():
     
     if date_to:
         try:
-            date_to_dt = datetime.fromisoformat(date_to)
+                        # Set time to end of day to include same-day records
+            date_to_dt = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59)
             query = query.filter(SalesTransaction.transaction_date <= date_to_dt)
         except ValueError:
             pass
@@ -187,7 +205,11 @@ def get_sale(transaction_id):
             "product_name": product.name if product else None,
             "quantity": item.quantity,
             "unit_price": item.unit_price,
-            "subtotal": item.subtotal
+            "subtotal": item.subtotal,
+            "size": product.size if product else None,
+            "unit": product.unit if product else None,
+            "is_b1g1": product.is_b1g1 if product else False,
+            "gst_percent": product.gst_percent if product else 0.0
         })
     
     staff = User.query.get(transaction.staff_id)
@@ -198,6 +220,7 @@ def get_sale(transaction_id):
         "staff_id": transaction.staff_id,
         "staff_name": staff.name if staff else None,
         "total_amount": transaction.total_amount,
+        "discount": transaction.discount,
         "payment_method": transaction.payment_method,
         "status": transaction.status,
         "transaction_date": transaction.transaction_date.isoformat() if transaction.transaction_date else None,
@@ -244,6 +267,15 @@ def get_sales_summary():
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
     
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
+    
     query = SalesTransaction.query.filter(SalesTransaction.status == "completed")
     
     if branch_id:
@@ -258,7 +290,9 @@ def get_sales_summary():
     
     if date_to:
         try:
-            date_to_dt = datetime.fromisoformat(date_to)
+            # Set time to end of day to include same-day records
+                        # Set time to end of day to include same-day records
+            date_to_dt = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59).replace(hour=23, minute=59, second=59)
             query = query.filter(SalesTransaction.transaction_date <= date_to_dt)
         except ValueError:
             pass
@@ -282,6 +316,13 @@ def get_sales_summary():
 @sales_bp.route("/branch/<int:branch_id>", methods=["GET"])
 @jwt_required()
 def get_sales_by_branch(branch_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin" and user.branch_id != branch_id:
+        return jsonify({"message": "Access denied to other branch data"}), 403
+
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
     page = request.args.get("page", 1, type=int)
@@ -298,7 +339,8 @@ def get_sales_by_branch(branch_id):
     
     if date_to:
         try:
-            date_to_dt = datetime.fromisoformat(date_to)
+                        # Set time to end of day to include same-day records
+            date_to_dt = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59)
             query = query.filter(SalesTransaction.transaction_date <= date_to_dt)
         except ValueError:
             pass
@@ -319,7 +361,11 @@ def get_sales_by_branch(branch_id):
                 "product_name": product.name if product else "Unknown",
                 "quantity": item.quantity,
                 "unit_price": item.unit_price,
-                "subtotal": item.subtotal
+                "subtotal": item.subtotal,
+                "size": product.size if product else None,
+                "unit": product.unit if product else None,
+                "is_b1g1": product.is_b1g1 if product else False,
+                "gst_percent": product.gst_percent if product else 0.0
             })
 
         transactions.append({
@@ -328,6 +374,7 @@ def get_sales_by_branch(branch_id):
             "staff_id": t.staff_id,
             "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,
             "total_amount": t.total_amount,
+            "discount": t.discount,
             "payment_method": t.payment_method,
             "status": t.status,
             "transaction_date": t.transaction_date.isoformat() if t.transaction_date else None,
@@ -392,6 +439,15 @@ def get_daily_summary():
     else:
         target_date = datetime.now().date()
     
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
+
     query = SalesTransaction.query.filter(
         SalesTransaction.status == "completed",
         db.func.date(SalesTransaction.transaction_date) == target_date

@@ -4,7 +4,7 @@ Dashboard statistics, user management, reports
 """
 
 from flask import request, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
@@ -431,6 +431,15 @@ def sales_report():
         else:
             start_date = datetime.now() - timedelta(days=days)
     
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
+
     # Query transactions with branch names
     query = db.session.query(
         SalesTransaction, 
@@ -508,6 +517,15 @@ def sales_report():
 def inventory_report():
     branch_id = request.args.get("branch_id", type=int)
     
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
+
     query = db.session.query(
         Inventory, Product, Branch.name.label("branch_name")
     ).join(
@@ -579,6 +597,15 @@ def top_products_report():
         else:
             start_date = datetime.now() - timedelta(days=days)
     
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
+
     # Get transactions in period
     trans_query = SalesTransaction.query.filter(
         SalesTransaction.transaction_date >= start_date,
@@ -591,8 +618,11 @@ def top_products_report():
     
     transaction_ids = [t.transaction_id for t in trans_query.all()]
     
+    delta = end_date - start_date
+    actual_days = max(delta.days, 1)
+
     if not transaction_ids:
-        return jsonify({"top_products": [], "period_days": days}), 200
+        return jsonify({"top_products": [], "period_days": actual_days}), 200
     
     # Aggregate by product
     product_sales = db.session.query(
@@ -619,7 +649,7 @@ def top_products_report():
     
     return jsonify({
         "top_products": top_products,
-        "period_days": days
+        "period_days": actual_days
     }), 200
 
 

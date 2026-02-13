@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDate } from "../../utils/dateUtils";
 import api from "../../services/api";
 
 export default function StaffInventory() {
@@ -59,10 +60,13 @@ export default function StaffInventory() {
               {products.map(p => (
                 <tr key={p.inventory_id || p.id}>
                   <td>{p.sku || 'N/A'}</td>
-                  <td>{p.product_name || p.name}</td>
+                  <td>
+                    {p.product_name || p.name}
+                    {p.is_b1g1 && <span style={{ fontSize: '10px', background: '#d97706', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>B1G1</span>}
+                  </td>
                   <td>{p.size || '-'}</td>
                   <td>₹{p.unit_price || p.price}</td>
-                  <td>{p.expiry_date ? new Date(p.expiry_date).toLocaleDateString() : '-'}</td>
+                  <td>{p.expiry_date ? formatDate(p.expiry_date) : '-'}</td>
                   <td>{p.quantity || p.stock || 0}</td>
                   <td>
                     {(p.quantity || p.stock || 0) <= (p.min_threshold || 5) ? (

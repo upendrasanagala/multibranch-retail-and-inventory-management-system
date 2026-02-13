@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDate } from "../../utils/dateUtils";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
 
@@ -68,9 +69,7 @@ export default function StaffDashboardHome() {
     const groups = {};
     txns.forEach(t => {
       if (!t.transaction_date) return;
-      const dateKey = new Date(t.transaction_date).toLocaleDateString('en-IN', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-      });
+      const dateKey = formatDate(t.transaction_date);
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }

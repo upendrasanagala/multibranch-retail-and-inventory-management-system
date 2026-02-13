@@ -9,6 +9,7 @@ import AdminReports from "../admin/AdminReports";
 
 import api from "../../services/api";
 import { logout as authLogout, getCurrentUser } from "../../services/authService";
+import LiveClock from "../../components/LiveClock";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -228,6 +229,8 @@ export default function AdminDashboard() {
 
             <a onClick={logout}>Logout</a>
           </nav>
+
+          <LiveClock />
         </aside>
 
         {/* ================= MAIN ================= */}

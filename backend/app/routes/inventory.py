@@ -10,6 +10,7 @@ from app.extensions import db
 from app.models.inventory import Inventory
 from app.models.product import Product
 from app.models.adjustment import InventoryAdjustment
+from app.models.user import User
 from app.utils.decorators import roles_required
 from app.routes import inventory_bp
 
@@ -25,6 +26,15 @@ def get_inventory():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
+
     from app.models.branch import Branch
     query = db.session.query(
         Inventory, Product, Branch
@@ -78,6 +88,13 @@ def get_inventory():
 @inventory_bp.route("/branch/<int:branch_id>", methods=["GET"])
 @jwt_required()
 def get_inventory_by_branch(branch_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin" and user.branch_id != branch_id:
+        return jsonify({"message": "Access denied to other branch data"}), 403
+
     query = db.session.query(
         Inventory, Product
     ).join(
@@ -115,6 +132,15 @@ def get_inventory_by_branch(branch_id):
 def get_low_stock():
     branch_id = request.args.get("branch_id", type=int)
     
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Enforce branch isolation for non-admins
+    if user.role != "admin":
+        branch_id = user.branch_id
+        if not branch_id:
+            return jsonify({"message": "User not assigned to a branch"}), 403
+
     query = db.session.query(
         Inventory, Product
     ).join(

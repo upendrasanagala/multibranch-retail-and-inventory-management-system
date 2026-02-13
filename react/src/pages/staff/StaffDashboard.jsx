@@ -6,6 +6,7 @@ import StaffPOS from "./staffPOS";
 import StaffInventory from "./staffInventory";
 import StaffReceipts from "./staffReceipts";
 import StaffProfile from "./StaffProfile";
+import LiveClock from "../../components/LiveClock";
 
 import "../../styles/dashboard.css";
 
@@ -72,6 +73,8 @@ export default function StaffDashboard() {
             <i className="fas fa-sign-out-alt"></i> Logout
           </a>
         </nav>
+
+        <LiveClock />
       </aside>
 
       {/* ================= MAIN CONTENT ================= */}
