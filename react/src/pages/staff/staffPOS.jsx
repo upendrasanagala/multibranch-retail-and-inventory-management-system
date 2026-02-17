@@ -61,7 +61,6 @@ export default function StaffPOS() {
         price: p.unit_price || p.price || 0,
         // Use inventory quantity if available, else 0
         stock: inventoryMap[p.product_id || p.id] !== undefined ? inventoryMap[p.product_id || p.id] : 0,
-        stock: inventoryMap[p.product_id || p.id] !== undefined ? inventoryMap[p.product_id || p.id] : 0,
         sku: p.sku,
         size: p.size,
         unit: p.unit,

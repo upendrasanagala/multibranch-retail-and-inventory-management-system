@@ -56,8 +56,44 @@ Streamlined workflow for moving stock between locations.
 ## 🛠️ Tech Stack
 - **Frontend**: React.js with Vanilla CSS (Modern UI tokens)
 - **Backend**: Python Flask with SQLAlchemy
-- **Database**: SQL-based (Drizzle ORM compatibility)
+- **Database**: PostgreSQL (Local)
 - **Auth**: JWT-based secure authentication
+
+---
+
+## 🗄️ Database Setup (Local PostgreSQL)
+
+The system is configured to run with a **Local PostgreSQL** instance.
+
+### Prerequisites
+- [PostgreSQL](https://www.postgresql.org/download/) (v14+) installed and running.
+
+### Setup Instructions
+
+1. **Create the Database**:
+   ```sql
+   CREATE DATABASE retail_inventory_db;
+   ```
+
+2. **Configure Environment Variables**:
+   Navigate to `/backend` and update your `.env` file:
+   ```env
+   # Database Configuration
+   DATABASE_URL=postgresql://postgres:<YOUR_PASSWORD>@localhost:5432/retail_inventory_db
+
+   # JWT Secret Key
+   JWT_SECRET_KEY=yoursecretkeyhere
+   ```
+
+3. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run Server**:
+   ```bash
+   py -3.12 run.py
+   ```
 
 ---
 
@@ -66,9 +102,11 @@ Streamlined workflow for moving stock between locations.
 ### Backend
 1. Navigate to `/backend`
 2. Install dependencies: `pip install -r requirements.txt`
-3. Run the server: `python run.py`
+3. Ensure `.env` is configured correctly (see Database Setup above)
+4. Run the server: `py -3.12 run.py`
 
 ### Frontend
 1. Navigate to `/react`
 2. Install dependencies: `npm install`
 3. Launch the app: `npm run dev`
+
