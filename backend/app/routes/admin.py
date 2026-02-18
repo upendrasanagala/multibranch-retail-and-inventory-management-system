@@ -68,6 +68,7 @@ def get_dashboard_stats():
     today_revenue = sum(s.total_amount for s in today_sales)
     today_cash = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'cash')
     today_upi = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'upi')
+    today_qr = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'qr')
     
     # Critical Low Stock (Top 5)
     critical_stock = db.session.query(
@@ -83,6 +84,21 @@ def get_dashboard_stats():
         "min": inv.min_threshold
     } for inv, p_name, b_name in critical_stock]
     
+    # Branch Sales Performance (Last 30 days)
+    branch_performance = db.session.query(
+        Branch.name, func.sum(SalesTransaction.total_amount)
+    ).join(
+        SalesTransaction, Branch.branch_id == SalesTransaction.branch_id
+    ).filter(
+        SalesTransaction.transaction_date >= thirty_days_ago,
+        SalesTransaction.status == "completed"
+    ).group_by(Branch.name).all()
+    
+    branch_stats = [{
+        "name": name,
+        "revenue": float(revenue)
+    } for name, revenue in branch_performance]
+
     return jsonify({
         "total_users": total_users,
         "total_branches": total_branches,
@@ -97,7 +113,9 @@ def get_dashboard_stats():
         "today_revenue": today_revenue,
         "today_cash": today_cash,
         "today_upi": today_upi,
-        "critical_items": critical_items
+        "today_qr": today_qr,
+        "critical_items": critical_items,
+        "branch_performance": branch_stats
     }), 200
 
 

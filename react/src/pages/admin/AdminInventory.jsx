@@ -2,7 +2,36 @@ import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/dateUtils";
 import api from "../../services/api";
 
-export default function AdminInventory() {
+const tableStyles = `
+  .inventory-row:hover {
+    background-color: #f1f5f9 !important;
+    transform: scale(1.002);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+  }
+  .inventory-row {
+    position: relative;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .inventory-row:hover td {
+    color: #0f172a;
+  }
+  .inventory-row.selected-row {
+    background-color: #eff6ff !important;
+  }
+  th {
+    padding: 12px 10px;
+    background: #f8fafc;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  td {
+    padding: 12px 10px;
+    vertical-align: middle;
+  }
+`;
+
+
+export default function AdminInventory({ setActiveSection }) {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [branches, setBranches] = useState([]); // New: Branches for stock distribution
@@ -18,10 +47,13 @@ export default function AdminInventory() {
     size: "",
     discount_percent: "",
     gst_percent: "",
+    mfg_date: "",
     expiry_date: "",
     is_b1g1: false, // New: B1G1 Offer
+    supplier_id: "", // New: Supplier field
     branch_quantities: {} // New: Store qty per branch
   });
+  const [suppliers, setSuppliers] = useState([]); // New: Suppliers list
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCat, setNewCat] = useState({ name: "", description: "" });
   const [catLoading, setCatLoading] = useState(false);
@@ -89,7 +121,7 @@ export default function AdminInventory() {
       const user = JSON.parse(localStorage.getItem("loggedInUser"));
       const token = user?.access_token;
 
-      const res = await fetch("http://127.0.0.1:5000/api/products/bulk", {
+      const res = await fetch("http://127.0.0.1:5001/api/products/bulk", {
         method: "DELETE",
         headers: {
           "Authorization": "Bearer " + token,
@@ -124,7 +156,7 @@ export default function AdminInventory() {
       const user = JSON.parse(localStorage.getItem("loggedInUser"));
       const token = user?.access_token;
       if (token) {
-        const res = await fetch("http://127.0.0.1:5000/api/products/imports", {
+        const res = await fetch("http://127.0.0.1:5001/api/products/imports", {
           headers: { "Authorization": "Bearer " + token }
         });
         const data = await res.json();
@@ -140,9 +172,19 @@ export default function AdminInventory() {
   useEffect(() => {
     loadProducts();
     loadCategories();
-    loadBranches(); // New
+    loadBranches();
+    loadSuppliers(); // New
     loadSuggestions();
   }, []);
+
+  const loadSuppliers = async () => {
+    try {
+      const res = await api.suppliers.getAll();
+      setSuppliers(res.suppliers || []);
+    } catch (err) {
+      console.error("Failed to load suppliers", err);
+    }
+  };
 
   const loadBranches = async () => {
     try {
@@ -183,6 +225,57 @@ export default function AdminInventory() {
     setImportLoading(false);
     // Reset input
     e.target.value = null;
+
+
+
+
+  };
+
+  const handleDownloadSample = async () => {
+    try {
+      const user = JSON.parse(localStorage.getItem("loggedInUser"));
+      const token = user?.access_token;
+
+      const res = await fetch("http://127.0.0.1:5001/api/products/download-sample", {
+        headers: { "Authorization": "Bearer " + token }
+      });
+
+      if (!res.ok) throw new Error("Download failed");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "sample_inventory_template.csv";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Download Failed: " + err.message);
+    }
+  };
+  const handleDownloadFile = async (filename) => {
+    try {
+      const user = JSON.parse(localStorage.getItem("loggedInUser"));
+      const token = user?.access_token;
+
+      const res = await fetch(`http://127.0.0.1:5001/api/products/imports/${filename}`, {
+        headers: { "Authorization": "Bearer " + token }
+      });
+
+      if (!res.ok) throw new Error("Download failed");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Download Failed: " + err.message);
+    }
   };
 
   const [suggestions, setSuggestions] = useState([]);
@@ -206,24 +299,47 @@ export default function AdminInventory() {
     setDistLoading(false);
   };
 
-  const updateThresholds = async (inventoryId, minThreshold, maxThreshold) => {
-    try {
-      await api.inventory.update(inventoryId, {
-        min_threshold: parseInt(minThreshold),
-        max_threshold: parseInt(maxThreshold)
-      });
-      // Update local state
-      setDistributionData(prev => prev.map(d =>
-        d.inventory_id === inventoryId ? { ...d, min_threshold: minThreshold, max_threshold: maxThreshold } : d
-      ));
-    } catch (err) {
-      alert("Failed to update thresholds");
-    }
+  /* ========== RETURN TO SUPPLIER MODAL ========== */
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnForm, setReturnForm] = useState({ product_id: null, branch_id: "", supplier_id: "", quantity: "", reason: "Returned to Supplier (Damaged/Expired)" });
+  const [returnLoading, setReturnLoading] = useState(false);
+
+  const openReturnModal = (product) => {
+    setReturnForm({ ...returnForm, product_id: product.product_id || product.id });
+    setShowReturnModal(true);
   };
 
-  /* ========== STOCK ADJUSTMENT ========== */
-  const [adjustTarget, setAdjustTarget] = useState(null);
-  const [adjustForm, setAdjustForm] = useState({ type: 'add', quantity: '', reason: '' });
+  const handleReturnSubmit = async (e) => {
+    e.preventDefault();
+    if (!returnForm.branch_id || !returnForm.quantity) {
+      alert("Please select branch and quantity");
+      return;
+    }
+    setReturnLoading(true);
+    try {
+      const user = JSON.parse(localStorage.getItem("loggedInUser"));
+      const token = user?.access_token;
+      const res = await fetch("http://127.0.0.1:5001/api/products/return", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(returnForm)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("✅ " + data.message);
+        setShowReturnModal(false);
+        loadProducts();
+      } else {
+        alert("❌ " + data.message);
+      }
+    } catch (err) {
+      alert("❌ Error processing return");
+    }
+    setReturnLoading(false);
+  };
 
   const openAdjustment = (item) => {
     setAdjustTarget(item);
@@ -328,7 +444,7 @@ export default function AdminInventory() {
         const user = JSON.parse(localStorage.getItem("loggedInUser"));
         const token = user?.access_token;
         if (token) {
-          const res = await fetch("http://127.0.0.1:5000/api/categories/", {
+          const res = await fetch("http://127.0.0.1:5001/api/categories/", {
             headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" }
           });
           const data = await res.json();
@@ -390,8 +506,10 @@ export default function AdminInventory() {
         size: form.size || undefined,
         discount_percent: Number(form.discount_percent) || 0,
         gst_percent: Number(form.gst_percent) || 0,
+        mfg_date: form.mfg_date || null,
         expiry_date: form.expiry_date || null,
         is_b1g1: form.is_b1g1, // New
+        supplier_id: form.supplier_id || null,
         branch_quantities: form.branch_quantities // Send detailed distribution
       });
 
@@ -399,7 +517,8 @@ export default function AdminInventory() {
       setForm({
         name: "", sku: "", barcode: "", description: "", price: "", cost_price: "",
         category_id: "", unit: "",
-        size: "", discount_percent: "", gst_percent: "", expiry_date: "", is_b1g1: false,
+        size: "", discount_percent: "", gst_percent: "", mfg_date: "", expiry_date: "", is_b1g1: false,
+        supplier_id: "",
         branch_quantities: {}
       });
       await loadProducts();
@@ -457,6 +576,7 @@ export default function AdminInventory() {
 
   return (
     <div>
+      <style>{tableStyles}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <h2>Admin Inventory Management</h2>
 
@@ -603,19 +723,6 @@ export default function AdminInventory() {
               />
             </div>
 
-            <div style={{ width: '100%', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <input
-                type="checkbox"
-                id="b1g1"
-                checked={form.is_b1g1}
-                onChange={e => setForm({ ...form, is_b1g1: e.target.checked })}
-                style={{ width: '16px', height: '16px' }}
-              />
-              <label htmlFor="b1g1" style={{ fontSize: '13px', fontWeight: 'bold', color: '#d97706' }}>
-                🎉 Activate "Buy 1 Get 1 Free" Offer
-              </label>
-            </div>
-
             {/* Stock Distribution Section (Replaces simple Qty input) */}
             <div style={{
               width: '100%',
@@ -674,6 +781,30 @@ export default function AdminInventory() {
               </button>
             </div>
 
+            <div style={{ display: 'flex', gap: '5px' }}>
+              <select
+                value={form.supplier_id}
+                onChange={e => setForm({ ...form, supplier_id: e.target.value })}
+                disabled={loading}
+                style={{ flex: 1 }}
+                required
+              >
+                <option value="">Select Supplier *</option>
+                {suppliers.map(s => (
+                  <option key={s.supplier_id} value={s.supplier_id}>{s.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="secondary-btn"
+                style={{ padding: '8px 12px', fontSize: '13px' }}
+                onClick={() => setActiveSection && setActiveSection("suppliers")}
+                title="Manage Suppliers"
+              >
+                🚚
+              </button>
+            </div>
+
             <div style={{ display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap', marginTop: '10px' }}>
               <input
                 type="number"
@@ -707,15 +838,26 @@ export default function AdminInventory() {
                 disabled={loading}
                 style={{ width: "80px" }}
               />
-              <input
-                type="date"
-                placeholder="Expiry Date"
-                value={form.expiry_date}
-                onChange={e => setForm({ ...form, expiry_date: e.target.value })}
-                disabled={loading}
-                style={{ width: "150px" }}
-                title="Expiry Date"
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600' }}>Mfg Date</label>
+                <input
+                  type="date"
+                  value={form.mfg_date}
+                  onChange={e => setForm({ ...form, mfg_date: e.target.value })}
+                  disabled={loading}
+                  style={{ width: "135px" }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600' }}>Expiry Date</label>
+                <input
+                  type="date"
+                  value={form.expiry_date}
+                  onChange={e => setForm({ ...form, expiry_date: e.target.value })}
+                  disabled={loading}
+                  style={{ width: "135px" }}
+                />
+              </div>
             </div>
 
             {/* ========== UNIT DROPDOWN ========== */}
@@ -843,100 +985,140 @@ export default function AdminInventory() {
             <div className="table-responsive">
               <table>
                 <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}>
+                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                    <th style={{ width: '40px', padding: '12px 10px' }}>
                       <input
                         type="checkbox"
                         onChange={handleSelectAll}
                         checked={filteredProducts.length > 0 && selectedIds.size === filteredProducts.length}
                       />
                     </th>
-                    <th>SKU</th>
-                    <th>Name</th>
-                    <th>Size/Weight</th>
-                    <th>Category</th>
-                    <th>Unit</th>
-                    <th>Inventory Status</th>
-                    <th>B1G1 Offer</th>
-                    <th>Price (₹)</th>
-                    <th>Actions</th>
+                    <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>SKU</th>
+                    <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Name</th>
+                    <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Size</th>
+                    <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</th>
+                    <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Supplier</th>
+                    <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unit</th>
+                    <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mfg/Exp</th>
+                    <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stock Status</th>
+                    <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>B1G1</th>
+                    <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price</th>
+                    <th style={{ textAlign: 'right', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {filteredProducts.map(p => (
-                    <tr key={p.product_id || p.id} className={selectedIds.has(p.product_id || p.id) ? "selected-row" : ""}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(p.product_id || p.id)}
-                          onChange={() => handleSelectOne(p.product_id || p.id)}
-                        />
-                      </td>
-                      <td>{p.sku || p.product_id || p.id}</td>
-                      <td><span style={{ fontWeight: 600 }}>{p.name}</span></td>
-                      <td><span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>{p.size || '-'}</span></td>
-                      <td><span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>{p.category?.name || 'N/A'}</span></td>
-                      <td>
-                        <span className="stock-badge ok" style={{ fontSize: '11px' }}>
-                          {p.unit || 'pcs'}
-                        </span>
-                      </td>
-
-                      <td>
-                        <div style={{ fontWeight: 700, fontSize: '14px', color: p.total_stock === 0 ? '#dc2626' : '#0f172a' }}>
-                          {p.total_stock || 0} {p.unit || 'pcs'}
-                        </div>
-                        {p.low_stock_branches > 0 && (
-                          <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
-                            ⚠️ Low in {p.low_stock_branches} branch{p.low_stock_branches > 1 ? 'es' : ''}
-                          </div>
-                        )}
-                      </td>
-
-                      <td style={{ textAlign: 'center' }}>
-                        <label style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', fontWeight: 600 }}>
+                  {filteredProducts.map(p => {
+                    const isExpired = p.expiry_date && new Date(p.expiry_date) < new Date();
+                    return (
+                      <tr
+                        key={p.product_id || p.id}
+                        className={`inventory-row ${selectedIds.has(p.product_id || p.id) ? "selected-row" : ""}`}
+                        style={{
+                          background: isExpired ? '#fff1f2' : (selectedIds.has(p.product_id || p.id) ? '#f0f9ff' : 'inherit'),
+                          transition: 'all 0.2s ease',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <td>
                           <input
                             type="checkbox"
-                            checked={p.is_b1g1 || false}
-                            onChange={e => updateB1G1(p.product_id || p.id, e.target.checked)}
-                            disabled={loading}
-                            style={{ width: '16px', height: '16px', marginBottom: '2px', cursor: 'pointer' }}
+                            checked={selectedIds.has(p.product_id || p.id)}
+                            onChange={() => handleSelectOne(p.product_id || p.id)}
                           />
-                          <span style={{ color: p.is_b1g1 ? '#d97706' : '#94a3b8' }}>{p.is_b1g1 ? 'ACTIVE' : 'OFF'}</span>
-                        </label>
-                      </td>
+                        </td>
+                        <td>{p.sku || p.product_id || p.id}</td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{p.name}</div>
+                          {isExpired && <span style={{ fontSize: '10px', color: '#e11d48', fontWeight: 'bold' }}>⚠️ EXPIRED</span>}
+                        </td>
+                        <td><span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>{p.size || '-'}</span></td>
+                        <td><span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>{p.category?.name || 'N/A'}</span></td>
+                        <td style={{ fontSize: '13px', color: '#64748b' }}>
+                          {p.supplier_name || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>No Supplier</span>}
+                        </td>
+                        <td>
+                          <span className="stock-badge ok" style={{ fontSize: '11px' }}>
+                            {p.unit || 'pcs'}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '10px', color: '#64748b' }}>
+                            <div>M: {p.mfg_date ? formatDate(p.mfg_date) : '-'}</div>
+                            <div style={{ color: isExpired ? '#e11d48' : '#64748b', fontWeight: isExpired ? '600' : 'normal' }}>
+                              E: {p.expiry_date ? formatDate(p.expiry_date) : '-'}
+                            </div>
+                          </div>
+                        </td>
 
-                      <td>
-                        <input
-                          type="number"
-                          value={p.unit_price || p.price || 0}
-                          onChange={e =>
-                            updatePrice(p.product_id || p.id, e.target.value)
-                          }
-                          style={{ width: "90px", padding: '6px', fontSize: '13px' }}
-                          disabled={loading}
-                        />
-                      </td>
+                        <td>
+                          <div style={{ fontWeight: 700, fontSize: '14px', color: p.total_stock === 0 ? '#dc2626' : '#0f172a' }}>
+                            {p.total_stock || 0} {p.unit || 'pcs'}
+                          </div>
+                          {p.low_stock_branches > 0 && (
+                            <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                              ⚠️ Low in {p.low_stock_branches} branch{p.low_stock_branches > 1 ? 'es' : ''}
+                            </div>
+                          )}
+                        </td>
 
-                      <td style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          className="primary-btn"
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
-                          onClick={() => loadDistribution(p)}
-                        >
-                          View Stock
-                        </button>
-                        <button
-                          onClick={() => deleteProduct(p.product_id || p.id)}
-                          disabled={loading}
-                          style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        <td style={{ textAlign: 'center' }}>
+                          <label style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', fontWeight: 600 }}>
+                            <input
+                              type="checkbox"
+                              checked={p.is_b1g1 || false}
+                              onChange={e => updateB1G1(p.product_id || p.id, e.target.checked)}
+                              disabled={loading}
+                              style={{ width: '16px', height: '16px', marginBottom: '2px', cursor: 'pointer' }}
+                            />
+                            <span style={{ color: p.is_b1g1 ? '#d97706' : '#94a3b8' }}>{p.is_b1g1 ? 'ACTIVE' : 'OFF'}</span>
+                          </label>
+                        </td>
+
+                        <td>
+                          <input
+                            type="number"
+                            value={p.unit_price || p.price || 0}
+                            onChange={e =>
+                              updatePrice(p.product_id || p.id, e.target.value)
+                            }
+                            style={{ width: "90px", padding: '6px', fontSize: '13px' }}
+                            disabled={loading}
+                          />
+                        </td>
+
+                        <td style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            className="primary-btn"
+                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                            onClick={() => loadDistribution(p)}
+                          >
+                            View Stock
+                          </button>
+                          <button
+                            onClick={() => openReturnModal(p)}
+                            className="secondary-btn"
+                            style={{
+                              background: '#e11d48',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '6px 12px',
+                              fontSize: '11.4px'
+                            }}
+                          >
+                            Return
+                          </button>
+                          <button
+                            onClick={() => deleteProduct(p.product_id || p.id)}
+                            disabled={loading}
+                            style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1016,9 +1198,29 @@ export default function AdminInventory() {
         <div className="table-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <h3>Import History</h3>
-            <button className="secondary-btn" onClick={loadImportHistory} disabled={historyLoading}>
-              {historyLoading ? "Refreshing..." : "🔄 Refresh"}
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={handleDownloadSample}
+                className="secondary-btn"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  color: '#475569',
+                  background: '#fff',
+                  border: '1px solid #e2e8f0',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  padding: '6px 12px',
+                  cursor: 'pointer'
+                }}
+              >
+                📥 Download Sample template
+              </button>
+              <button className="secondary-btn" onClick={loadImportHistory} disabled={historyLoading}>
+                {historyLoading ? "Refreshing..." : "🔄 Refresh"}
+              </button>
+            </div>
           </div>
 
           {importHistory.length === 0 ? (
@@ -1041,14 +1243,22 @@ export default function AdminInventory() {
                       <td>{new Date(file.uploaded_at).toLocaleString()}</td>
                       <td>{(file.size / 1024).toFixed(2)} KB</td>
                       <td>
-                        <a
-                          href={`http://127.0.0.1:5000/api/products/imports/${file.filename}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ color: '#0369a1', textDecoration: 'underline' }}
+                        <button
+                          onClick={() => handleDownloadFile(file.filename)}
+                          className="secondary-btn"
+                          style={{
+                            fontSize: '12px',
+                            padding: '4px 10px',
+                            display: 'inline-block',
+                            cursor: 'pointer',
+                            background: '#fff',
+                            border: '1px solid #e2e8f0',
+                            color: '#475569',
+                            fontWeight: 600
+                          }}
                         >
-                          Download
-                        </a>
+                          💾 Download File
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1113,6 +1323,9 @@ export default function AdminInventory() {
                               Transfer
                             </button>
                           </div>
+                        </td>
+                        <td style={{ fontSize: '13px', color: '#64748b' }}>
+                          {selectedProduct.supplier_name || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>No Supplier</span>}
                         </td>
                         <td>
                           <input
@@ -1183,6 +1396,82 @@ export default function AdminInventory() {
             >
               Close Distribution View
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= RETURN TO RETAILER MODAL ================= */}
+      {showReturnModal && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div className="chart-card" style={{ width: '400px', padding: '20px', background: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0 }}>Return Fixed to Retailer</h3>
+              <button onClick={() => setShowReturnModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+            </div>
+            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '15px' }}>
+              Record stock being returned to the retailer (e.g., due to expiration). This will deduct stock from the selected branch.
+            </p>
+            <form onSubmit={handleReturnSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '5px', fontWeight: 600 }}>Select Branch</label>
+                <select
+                  value={returnForm.branch_id}
+                  onChange={e => setReturnForm({ ...returnForm, branch_id: e.target.value })}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  required
+                >
+                  <option value="">Select Branch</option>
+                  {branches.map(b => (
+                    <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '5px', fontWeight: 600 }}>Select Supplier</label>
+                <select
+                  value={returnForm.supplier_id}
+                  onChange={e => setReturnForm({ ...returnForm, supplier_id: e.target.value })}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  required
+                >
+                  <option value="">Select Supplier</option>
+                  {suppliers.map(s => (
+                    <option key={s.supplier_id} value={s.supplier_id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '5px', fontWeight: 600 }}>Quantity to Return</label>
+                <input
+                  type="number"
+                  placeholder="Enter quantity"
+                  value={returnForm.quantity}
+                  onChange={e => setReturnForm({ ...returnForm, quantity: e.target.value })}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '5px', fontWeight: 600 }}>Reason</label>
+                <input
+                  placeholder="Reason for return"
+                  value={returnForm.reason}
+                  onChange={e => setReturnForm({ ...returnForm, reason: e.target.value })}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+              <button
+                type="submit"
+                className="primary-btn"
+                style={{ width: '100%', background: '#e11d48', marginTop: '10px' }}
+                disabled={returnLoading}
+              >
+                {returnLoading ? "Processing..." : "Confirm Return"}
+              </button>
+            </form>
           </div>
         </div>
       )}

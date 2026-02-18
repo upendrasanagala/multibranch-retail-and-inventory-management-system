@@ -12,6 +12,7 @@ from app.models.sales import SalesTransaction, TransactionItem
 from app.models.inventory import Inventory
 from app.models.product import Product
 from app.models.user import User
+from app.models.branch import Branch
 from app.utils.decorators import roles_required
 from app.routes import sales_bp
 
@@ -79,17 +80,26 @@ def create_sale():
     final_total = total_from_fe if total_from_fe is not None else (items_subtotal - discount)
 
     # Create transaction
+    # Create transaction
+    # First, get branch code
+    branch = Branch.query.get(user.branch_id)
+    branch_prefix = branch.branch_code if branch and branch.branch_code else "BR"
+
     transaction = SalesTransaction(
         branch_id=user.branch_id,
         staff_id=user_id,
         total_amount=final_total,
         discount=discount,
         payment_method=payment_method,
-        status="completed"
+        status="completed",
+        invoice_number="TEMP" # Temporary place holder
     )
     
     db.session.add(transaction)
     db.session.flush()  # Get transaction_id
+
+    # Generate final invoice number using ID
+    transaction.invoice_number = f"{branch_prefix}-{transaction.transaction_id:06d}"
     
     # Create transaction items and update inventory
     for item in validated_items:
@@ -110,6 +120,8 @@ def create_sale():
     return jsonify({
         "message": "Sale completed successfully",
         "transaction_id": transaction.transaction_id,
+        "invoice_number": transaction.invoice_number,
+        "uuid": transaction.transaction_uuid,
         "total_amount": final_total,
         "transaction_date": transaction.transaction_date.isoformat()
     }), 201
@@ -168,6 +180,8 @@ def get_sales():
         staff = User.query.get(t.staff_id)
         transactions.append({
             "transaction_id": t.transaction_id,
+            "invoice_number": t.invoice_number,
+            "uuid": t.transaction_uuid,
             "branch_id": t.branch_id,
             "staff_id": t.staff_id,
             "staff_name": staff.name if staff else None,
@@ -216,6 +230,8 @@ def get_sale(transaction_id):
     
     return jsonify({
         "transaction_id": transaction.transaction_id,
+        "invoice_number": transaction.invoice_number,
+        "uuid": transaction.transaction_uuid,
         "branch_id": transaction.branch_id,
         "staff_id": transaction.staff_id,
         "staff_name": staff.name if staff else None,
@@ -370,6 +386,8 @@ def get_sales_by_branch(branch_id):
 
         transactions.append({
             "transaction_id": t.transaction_id,
+            "invoice_number": t.invoice_number,
+            "uuid": t.transaction_uuid,
             "branch_id": t.branch_id,
             "staff_id": t.staff_id,
             "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,

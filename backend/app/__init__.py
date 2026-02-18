@@ -45,7 +45,8 @@ def create_app():
         inventory_bp,
         sales_bp,
         transfer_bp,
-        admin_bp
+        admin_bp,
+        supplier_bp
     )
 
     app.register_blueprint(auth_bp)
@@ -58,6 +59,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     from app.routes.manager import manager_bp
     app.register_blueprint(manager_bp)
+    app.register_blueprint(supplier_bp)
 
     # -----------------------------
     # Import Models (For Migrations)
@@ -71,7 +73,8 @@ def create_app():
         SalesTransaction,
         TransactionItem,
         StockTransfer,
-        InventoryAdjustment
+        InventoryAdjustment,
+        Supplier
     )
 
     # -----------------------------

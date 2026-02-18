@@ -10,6 +10,7 @@ from .inventory import Inventory
 from .sales import SalesTransaction, TransactionItem
 from .stock_transfer import StockTransfer
 from .adjustment import InventoryAdjustment
+from .supplier import Supplier
 
 __all__ = [
     "User",
@@ -21,4 +22,5 @@ __all__ = [
     "TransactionItem",
     "StockTransfer",
     "InventoryAdjustment",
+    "Supplier"
 ]

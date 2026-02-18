@@ -2,6 +2,26 @@ import { useEffect, useState } from "react";
 import api from "../../services/api";
 import { formatDate } from "../../utils/dateUtils";
 
+const tableStyle = `
+  .inventory-table tr {
+    transition: all 0.2s ease;
+  }
+  .inventory-table tr:hover {
+    background-color: #f8fafc !important;
+    transform: scale(1.002);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    z-index: 10;
+    position: relative;
+  }
+  .inventory-table th {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    font-weight: 700;
+  }
+`;
+
 export default function ManagerInventory() {
   const [inventory, setInventory] = useState([]);
   const [allProducts, setAllProducts] = useState([]); // For transfer dropdown
@@ -165,12 +185,14 @@ export default function ManagerInventory() {
               </button>
             </div>
 
+            <style>{tableStyle}</style>
+
             {inventory.length === 0 ? (
               <p style={{ padding: "20px", textAlign: "center", color: "#666" }}>
                 {loading ? "Loading stock..." : "No items found in inventory."}
               </p>
             ) : (
-              <table>
+              <table className="inventory-table">
                 <thead>
                   <tr>
                     <th>Product</th>
@@ -179,7 +201,8 @@ export default function ManagerInventory() {
                     <th>Unit Price</th>
                     <th>Stock Level</th>
                     <th>Value</th>
-                    <th>Expiry</th>
+                    <th>Mfg/Exp</th>
+                    <th>Supplier</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -195,7 +218,13 @@ export default function ManagerInventory() {
                       <td style={{ fontWeight: 'bold' }}>{p.quantity || 0}</td>
                       <td>₹{((p.quantity || 0) * (p.unit_price || 0)).toFixed(2)}</td>
                       <td>
-                        {p.expiry_date ? formatDate(p.expiry_date) : '-'}
+                        <div style={{ fontSize: '10px', color: '#64748b' }}>
+                          <div>M: {p.mfg_date ? formatDate(p.mfg_date) : '-'}</div>
+                          <div>E: {p.expiry_date ? formatDate(p.expiry_date) : '-'}</div>
+                        </div>
+                      </td>
+                      <td style={{ fontSize: '12px', color: '#64748b' }}>
+                        {p.supplier_name || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>N/A</span>}
                       </td>
                       <td>
                         {(p.quantity || 0) <= (p.min_threshold || 5) ? (

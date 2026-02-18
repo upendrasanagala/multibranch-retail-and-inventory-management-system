@@ -23,7 +23,9 @@ class Product(db.Model):
     size = db.Column(db.String(50))
     discount_percent = db.Column(db.Float, default=0.0)
     gst_percent = db.Column(db.Float, default=0.0)
+    mfg_date = db.Column(db.Date)
     expiry_date = db.Column(db.Date)
     is_b1g1 = db.Column(db.Boolean, default=False) # Buy 1 Get 1 Free Offer
+    supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.supplier_id"), nullable=False)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -353,7 +353,31 @@ const api = {
       apiRequest(`/manager/staff/${id}`, {
         method: "PUT",
         body: JSON.stringify(data)
-      })
+      }),
+  },
+
+  /* ===================== SUPPLIERS ===================== */
+  suppliers: {
+    getAll: () =>
+      apiRequest("/suppliers/"),
+
+    getById: (id) =>
+      apiRequest(`/suppliers/${id}`),
+
+    create: (data) =>
+      apiRequest("/suppliers/", {
+        method: "POST",
+        body: JSON.stringify(data)
+      }),
+
+    update: (id, data) =>
+      apiRequest(`/suppliers/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data)
+      }),
+
+    delete: (id) =>
+      apiRequest(`/suppliers/${id}`, { method: "DELETE" })
   }
 };
 

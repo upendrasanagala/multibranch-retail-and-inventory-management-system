@@ -11,6 +11,7 @@ from app.models.inventory import Inventory
 from app.models.product import Product
 from app.models.adjustment import InventoryAdjustment
 from app.models.user import User
+from app.models.supplier import Supplier
 from app.utils.decorators import roles_required
 from app.routes import inventory_bp
 
@@ -37,11 +38,13 @@ def get_inventory():
 
     from app.models.branch import Branch
     query = db.session.query(
-        Inventory, Product, Branch
+        Inventory, Product, Branch, Supplier.name
     ).join(
         Product, Inventory.product_id == Product.product_id
     ).join(
         Branch, Inventory.branch_id == Branch.branch_id
+    ).outerjoin(
+        Supplier, Product.supplier_id == Supplier.supplier_id
     )
     
     if branch_id:
@@ -57,7 +60,7 @@ def get_inventory():
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
     
     items = []
-    for inv, prod, branch in paginated.items:
+    for inv, prod, branch, supplier_name in paginated.items:
         items.append({
             "inventory_id": inv.inventory_id,
             "product_id": inv.product_id,
@@ -70,6 +73,8 @@ def get_inventory():
             "max_threshold": inv.max_threshold,
             "unit_price": prod.unit_price,
             "size": getattr(prod, 'size', None),
+            "supplier_name": supplier_name,
+            "mfg_date": prod.mfg_date.isoformat() if getattr(prod, 'mfg_date', None) else None,
             "expiry_date": prod.expiry_date.isoformat() if getattr(prod, 'expiry_date', None) else None,
             "last_updated": inv.last_updated.isoformat() if inv.last_updated else None
         })
@@ -96,15 +101,17 @@ def get_inventory_by_branch(branch_id):
         return jsonify({"message": "Access denied to other branch data"}), 403
 
     query = db.session.query(
-        Inventory, Product
+        Inventory, Product, Supplier.name
     ).join(
         Product, Inventory.product_id == Product.product_id
+    ).outerjoin(
+        Supplier, Product.supplier_id == Supplier.supplier_id
     ).filter(Inventory.branch_id == branch_id)
     
     results = query.all()
     
     items = []
-    for inv, prod in results:
+    for inv, prod, supplier_name in results:
         items.append({
             "inventory_id": inv.inventory_id,
             "product_id": inv.product_id,
@@ -117,6 +124,8 @@ def get_inventory_by_branch(branch_id):
             "max_threshold": inv.max_threshold,
             "unit_price": prod.unit_price,
             "size": getattr(prod, 'size', None),
+            "supplier_name": supplier_name,
+            "mfg_date": prod.mfg_date.isoformat() if getattr(prod, 'mfg_date', None) else None,
             "expiry_date": prod.expiry_date.isoformat() if getattr(prod, 'expiry_date', None) else None,
             "last_updated": inv.last_updated.isoformat() if inv.last_updated else None
         })
@@ -142,9 +151,11 @@ def get_low_stock():
             return jsonify({"message": "User not assigned to a branch"}), 403
 
     query = db.session.query(
-        Inventory, Product
+        Inventory, Product, Supplier.name
     ).join(
         Product, Inventory.product_id == Product.product_id
+    ).outerjoin(
+        Supplier, Product.supplier_id == Supplier.supplier_id
     ).filter(Inventory.quantity <= Inventory.min_threshold)
     
     if branch_id:
@@ -153,16 +164,18 @@ def get_low_stock():
     results = query.all()
     
     items = []
-    for inv, prod in results:
+    for inv, prod, supplier_name in results:
         items.append({
             "inventory_id": inv.inventory_id,
-            "product_id": inv.product_id,
             "product_name": prod.name,
             "sku": prod.sku,
             "branch_id": inv.branch_id,
             "quantity": inv.quantity,
             "min_threshold": inv.min_threshold,
-            "unit_price": prod.unit_price
+            "unit_price": prod.unit_price,
+            "supplier_name": supplier_name,
+            "mfg_date": prod.mfg_date.isoformat() if getattr(prod, 'mfg_date', None) else None,
+            "expiry_date": prod.expiry_date.isoformat() if getattr(prod, 'expiry_date', None) else None
         })
     
     return jsonify({"low_stock_items": items, "count": len(items)}), 200

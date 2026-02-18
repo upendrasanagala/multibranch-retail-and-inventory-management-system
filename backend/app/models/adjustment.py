@@ -26,6 +26,7 @@ class InventoryAdjustment(db.Model):
         db.Integer,
         db.ForeignKey("users.user_id")
     )
+    supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.supplier_id"), nullable=True)
 
     adjustment_date = db.Column(
         db.DateTime,

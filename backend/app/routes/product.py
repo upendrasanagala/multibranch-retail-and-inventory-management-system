@@ -72,6 +72,10 @@ def get_products():
             "low_stock_branches": low_stock_count,
             "image_path": p.image_path,
             "is_b1g1": p.is_b1g1, # Include B1G1 status
+            "mfg_date": p.mfg_date.isoformat() if p.mfg_date else None,
+            "expiry_date": p.expiry_date.isoformat() if p.expiry_date else None,
+            "supplier_id": p.supplier_id,
+            "supplier_name": p.supplier.name if p.supplier else None,
             "created_at": p.created_at.isoformat() if p.created_at else None
         })
     
@@ -122,9 +126,10 @@ def create_product():
         unit_price = data.get("unit_price")
         category_id = data.get("category_id")
         initial_quantity = data.get("initial_quantity", 0)
-        
-        if not name or unit_price is None or not category_id:
-            return jsonify({"message": "Name, unit_price, and category_id are required"}), 400
+        supplier_id = data.get("supplier_id")
+    
+        if not name or unit_price is None or not category_id or not supplier_id:
+            return jsonify({"message": "Name, Price, Category, and Supplier are required"}), 400
         
         # Check if SKU already exists or generate one
         sku = data.get("sku")
@@ -136,14 +141,21 @@ def create_product():
             import uuid
             sku = f"PROD-{str(uuid.uuid4())[:8].upper()}"
         
-        # Parse expiry date safely
+        # Parse dates safely
+        mfg_date = None
+        if data.get("mfg_date"):
+            try:
+                from datetime import datetime
+                mfg_date = datetime.strptime(data.get("mfg_date"), '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
         expiry_date = None
         if data.get("expiry_date"):
             try:
                 from datetime import datetime
                 expiry_date = datetime.strptime(data.get("expiry_date"), '%Y-%m-%d').date()
             except ValueError:
-                print("DEBUG: Invalid expiry date format")
                 pass
 
         product = Product(
@@ -159,8 +171,10 @@ def create_product():
             size=data.get("size"),
             discount_percent=data.get("discount_percent", 0.0),
             gst_percent=data.get("gst_percent", 0.0),
+            mfg_date=mfg_date,
             expiry_date=expiry_date,
-            is_b1g1=data.get("is_b1g1", False)
+            is_b1g1=data.get("is_b1g1", False),
+            supplier_id=data.get("supplier_id")
         )
         
         db.session.add(product)
@@ -235,21 +249,72 @@ def update_product(product_id):
     product.cost_price = data.get("cost_price", product.cost_price)
     product.unit = data.get("unit", product.unit)
     product.image_path = data.get("image_path", product.image_path)
+    product.supplier_id = data.get("supplier_id", product.supplier_id)
     
     product.size = data.get("size", product.size)
     product.discount_percent = data.get("discount_percent", product.discount_percent)
     product.gst_percent = data.get("gst_percent", product.gst_percent)
     product.is_b1g1 = data.get("is_b1g1", product.is_b1g1)
     
+    if data.get("mfg_date"):
+        try:
+            from datetime import datetime
+            product.mfg_date = datetime.strptime(data.get("mfg_date"), '%Y-%m-%d').date()
+        except ValueError:
+            pass
+            
     if "expiry_date" in data:
         try:
+             from datetime import datetime
              product.expiry_date = datetime.strptime(data.get("expiry_date"), '%Y-%m-%d').date() if data.get("expiry_date") else None
         except:
              pass
     
     db.session.commit()
-    
     return jsonify({"message": "Product updated successfully"}), 200
+
+# =============================
+# Return to Retailer (Admin/Manager)
+# =============================
+@product_bp.route("/return", methods=["POST"])
+@jwt_required()
+@roles_required("admin", "manager")
+def return_to_retailer():
+    from app.models.inventory import Inventory
+    from app.models.adjustment import InventoryAdjustment
+    from flask_jwt_extended import get_jwt_identity
+    
+    data = request.get_json() or {}
+    product_id = data.get("product_id")
+    branch_id = data.get("branch_id")
+    quantity = data.get("quantity")
+    reason = data.get("reason", "Returned to Retailer (Expired)")
+    
+    if not all([product_id, branch_id, quantity]):
+        return jsonify({"message": "Product ID, Branch ID, and Quantity are required"}), 400
+        
+    inventory = Inventory.query.filter_by(product_id=product_id, branch_id=branch_id).first()
+    if not inventory or inventory.quantity < int(quantity):
+        return jsonify({"message": "Insufficient stock in branch"}), 400
+        
+    # Deduct stock
+    inventory.quantity -= int(quantity)
+    
+    # Record adjustment
+    user_id = get_jwt_identity()
+    adjustment = InventoryAdjustment(
+        product_id=product_id,
+        branch_id=branch_id,
+        adjustment_type="Return to Supplier",
+        quantity=int(quantity),
+        reason=reason,
+        adjusted_by=user_id,
+        supplier_id=data.get("supplier_id")
+    )
+    db.session.add(adjustment)
+    db.session.commit()
+    
+    return jsonify({"message": "Stock returned to retailer successfully"}), 200
 
 
 # =============================
@@ -395,6 +460,17 @@ def import_products():
         categories = {c.name.lower(): c for c in Category.query.all()}
         branches = Branch.query.all()
         
+        # Normalize columns: lowercase and strip spaces
+        df.columns = [str(c).lower().strip() for c in df.columns]
+        
+        # Helper for flexible date parsing
+        def get_date_val(row, nicknames):
+            for nick in nicknames:
+                if nick in row and pd.notna(row[nick]):
+                    try: return pd.to_datetime(row[nick]).date()
+                    except: continue
+            return None
+        
         for index, row in df.iterrows():
             try:
                 # DEBUG: Log to file
@@ -471,20 +547,40 @@ def import_products():
                     # Update other fields if present
                     if 'barcode' in row and pd.notna(row['barcode']): existing_product.barcode = str(row['barcode'])
                     if 'description' in row and pd.notna(row['description']): existing_product.description = str(row['description'])
+                    if 'is_b1g1' in row and pd.notna(row['is_b1g1']):
+                         existing_product.is_b1g1 = str(row['is_b1g1']).lower() in ['true', '1', 'yes', 'y']
                     
+                    # Update new fields
+                    if any(x in row for x in ['mfg_date', 'manufacturing_date', 'mfg_date_manual', 'mfg date', 'manufacturing date', 'mfg. date']):
+                         val = get_date_val(row, ['mfg_date', 'manufacturing_date', 'mfg_date_manual', 'mfg date', 'manufacturing date', 'mfg. date'])
+                         if val: existing_product.mfg_date = val
+                         
+                    if any(x in row for x in ['expiry_date', 'exp_date', 'expiry date', 'exp date']):
+                         val = get_date_val(row, ['expiry_date', 'exp_date', 'expiry date', 'exp date'])
+                         if val: existing_product.expiry_date = val
+
+                    if 'cost_price' in row and pd.notna(row['cost_price']):
+                         existing_product.cost_price = pd.to_numeric(row['cost_price'], errors='coerce')
+                    if 'discount_percent' in row and pd.notna(row['discount_percent']):
+                         existing_product.discount_percent = pd.to_numeric(row['discount_percent'], errors='coerce')
+                    if 'gst_percent' in row and pd.notna(row['gst_percent']):
+                         existing_product.gst_percent = pd.to_numeric(row['gst_percent'], errors='coerce')
+                    if 'unit' in row and pd.notna(row['unit']):
+                         existing_product.unit = str(row['unit']).strip()
+
                     product = existing_product
                     
-                    # Update size if it was missing and now provided
-                    if size_str and not product.size:
+                    # Update size if provided
+                    if size_str:
                          product.size = size_str
                     
                     updated_count += 1
                 else:
-                    # Create New Product
                     try:
-                        expiry_val = row.get('expiry_date')
-                        expiry_date = pd.to_datetime(expiry_val).date() if pd.notna(expiry_val) else None
+                        mfg_date = get_date_val(row, ['mfg_date', 'manufacturing_date', 'mfg_date_manual', 'mfg date', 'manufacturing date'])
+                        expiry_date = get_date_val(row, ['expiry_date', 'exp_date', 'expiry date', 'exp date'])
                     except:
+                        mfg_date = None
                         expiry_date = None
 
                     product = Product(
@@ -500,7 +596,9 @@ def import_products():
                         size=size_str or None,
                         discount_percent=pd.to_numeric(row.get('discount_percent', 0), errors='coerce'),
                         gst_percent=pd.to_numeric(row.get('gst_percent', 0), errors='coerce'),
-                        expiry_date=expiry_date
+                        mfg_date=mfg_date,
+                        expiry_date=expiry_date,
+                        is_b1g1=str(row.get('is_b1g1', 'false')).lower() in ['true', '1', 'yes', 'y']
                     )
                     db.session.add(product)
                     db.session.flush()
@@ -592,3 +690,60 @@ def download_import_file(filename):
     
     upload_folder = os.path.join(os.getcwd(), 'uploads', 'imports')
     return send_from_directory(upload_folder, filename, as_attachment=True)
+
+# =============================
+# Download Sample Template (Admin/Manager)
+# =============================
+@product_bp.route("/download-sample", methods=["GET"])
+@jwt_required()
+def download_sample_template():
+    import os
+    import pandas as pd
+    from io import BytesIO
+    from flask import send_file
+
+    # Define sample data
+    data = [
+        {
+            "name": "Sample Product 1",
+            "sku": "SAMPLE-001",
+            "barcode": "123456789012",
+            "category": "Snacks",
+            "price": 50.0,
+            "cost_price": 35.0,
+            "unit": "pkt",
+            "size": "100g",
+            "quantity": 100,
+            "discount_percent": 0.0,
+            "gst_percent": 5.0,
+            "description": "Delicious snack example"
+        },
+        {
+            "name": "Sample Product 2",
+            "sku": "SAMPLE-002",
+            "barcode": "098765432109",
+            "category": "Dairy (Milk, Eggs, Cheese)",
+            "price": 60.0,
+            "cost_price": 45.0,
+            "unit": "L",
+            "size": "1L",
+            "quantity": 50,
+            "discount_percent": 5.0,
+            "gst_percent": 0.0,
+            "description": "Fresh milk example"
+        }
+    ]
+
+    df = pd.DataFrame(data)
+    
+    # Create an in-memory CSV
+    output = BytesIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="sample_inventory_template.csv"
+    )

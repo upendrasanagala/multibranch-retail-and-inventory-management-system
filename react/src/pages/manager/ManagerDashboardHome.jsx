@@ -32,7 +32,9 @@ export default function ManagerDashboardHome() {
         // Fetch total summary
         api.sales.getSummary(branchId ? { branch_id: branchId } : {}),
         // Fetch Daily Sales Report
-        api.admin.getReports('sales', { branch_id: branchId, period: 30 })
+        api.admin.getReports('sales', { branch_id: branchId, period: 30 }),
+        // Fetch Today's Breakdown
+        api.sales.getDailySummary(branchId)
       ]);
 
       // Inventory
@@ -56,10 +58,24 @@ export default function ManagerDashboardHome() {
       // Sales Summary (Totals)
       if (results[3].status === "fulfilled") {
         const summaryData = results[3].value;
-        setStats({
+        setStats(prev => ({
+          ...prev,
           totalSales: summaryData.total_sales || 0,
           transactionCount: summaryData.transaction_count || 0
-        });
+        }));
+      }
+
+      // Today's Breakdown
+      if (results[5].status === "fulfilled") {
+        const dailyData = results[5].value;
+        const breakdown = dailyData.payment_breakdown || {};
+        setStats(prev => ({
+          ...prev,
+          todayCash: breakdown.cash?.total || 0,
+          todayUpi: breakdown.upi?.total || 0,
+          todayQr: breakdown.qr?.total || 0,
+          todayCard: breakdown.card?.total || 0
+        }));
       }
 
       // Daily Sales Report
@@ -105,6 +121,21 @@ export default function ManagerDashboardHome() {
         <div className="data-box">
           <h4>Total Transactions</h4>
           <div className="value">{totalTransactions}</div>
+        </div>
+
+        <div className="data-box" style={{ background: '#f0fdf4', borderColor: '#22c55e' }}>
+          <h4 style={{ color: '#166534' }}>Today's Cash</h4>
+          <div className="value" style={{ color: '#166534' }}>₹{stats.todayCash?.toFixed(2) || '0.00'}</div>
+        </div>
+
+        <div className="data-box" style={{ background: '#eff6ff', borderColor: '#3b82f6' }}>
+          <h4 style={{ color: '#1e40af' }}>Today's UPI</h4>
+          <div className="value" style={{ color: '#1e40af' }}>₹{stats.todayUpi?.toFixed(2) || '0.00'}</div>
+        </div>
+
+        <div className="data-box" style={{ background: '#f0f9ff', borderColor: '#0ea5e9' }}>
+          <h4 style={{ color: '#0369a1' }}>Today's QR</h4>
+          <div className="value" style={{ color: '#0369a1' }}>₹{stats.todayQr?.toFixed(2) || '0.00'}</div>
         </div>
 
         <div className="data-box">

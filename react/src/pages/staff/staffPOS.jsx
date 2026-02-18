@@ -22,6 +22,7 @@ export default function StaffPOS() {
   // Real Payment Details
   const [utr, setUtr] = useState("");
   const [cardData, setCardData] = useState({ name: "", number: "", cvv: "" });
+  const [cashReceived, setCashReceived] = useState(""); // New state for Cash Tendered
 
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastSale, setLastSale] = useState(null);
@@ -245,6 +246,7 @@ export default function StaffPOS() {
     if (!paymentMethod) return alert("Select payment method");
     if (paymentMethod === 'upi' && !utr) return alert("Enter UTR for UPI");
     if (paymentMethod === 'card' && !cardData.name) return alert("Enter Card Details");
+    if (paymentMethod === 'cash' && Number(cashReceived) < total) return alert(`Insufficient Cash! Need ₹${(total - Number(cashReceived)).toFixed(2)} more.`);
 
     setLoading(true); // Assuming setLoading is used for processing state
     try {
@@ -284,6 +286,7 @@ export default function StaffPOS() {
         billOfferPercent: billOfferPercent, // Pass for display
         total,
         transaction_id: res.transaction_id,
+        invoice_number: res.invoice_number,
         transaction_date: formatDateTime(new Date())
       };
 
@@ -295,6 +298,7 @@ export default function StaffPOS() {
         setPaymentMethod("");
         setUtr("");
         setCardData({ name: "", number: "" });
+        setCashReceived("");
 
         printReceipt(printSaleData);
         loadInventory(); // Auto-refresh stock
@@ -401,7 +405,7 @@ export default function StaffPOS() {
           </div>
 
           <div class="meta">
-            <div>Bill No: ${sale.transaction_id}</div>
+            <div>Bill No: ${sale.invoice_number || sale.transaction_id}</div>
             <div class="right">Date: ${formatDate(new Date())}</div>
             <div>Cashier: ${user?.name || 'Staff'}</div>
             <div class="right">Time: ${new Date().toLocaleTimeString()}</div>
@@ -799,6 +803,8 @@ export default function StaffPOS() {
                       type="number"
                       value={billThreshold}
                       onChange={e => setBillThreshold(Number(e.target.value))}
+                      onWheel={(e) => e.target.blur()}
+                      onKeyDown={(e) => ["ArrowUp", "ArrowDown"].includes(e.key) && e.preventDefault()}
                       style={{ width: '50px', padding: '2px', fontSize: '11px' }}
                     />
                     <span style={{ fontSize: '11px' }}>Get</span>
@@ -806,6 +812,8 @@ export default function StaffPOS() {
                       type="number"
                       value={billOfferPercent}
                       onChange={e => setBillOfferPercent(Number(e.target.value))}
+                      onWheel={(e) => e.target.blur()}
+                      onKeyDown={(e) => ["ArrowUp", "ArrowDown"].includes(e.key) && e.preventDefault()}
                       style={{ width: '35px', padding: '2px', fontSize: '11px' }}
                     />
                     <span style={{ fontSize: '11px' }}>% Off</span>
@@ -827,6 +835,8 @@ export default function StaffPOS() {
                       className="disc-input"
                       value={discount}
                       onChange={e => setDiscount(Number(e.target.value))}
+                      onWheel={(e) => e.target.blur()}
+                      onKeyDown={(e) => ["ArrowUp", "ArrowDown"].includes(e.key) && e.preventDefault()}
                       placeholder="0"
                       max="100"
                     />
@@ -856,6 +866,27 @@ export default function StaffPOS() {
                   <option value="qr">QR Code Scan</option>
                   <option value="card">Debit/Credit Card</option>
                 </select>
+
+                {paymentMethod === 'cash' && (
+                  <div className="payment-extra" style={{ marginTop: '10px', background: '#f0fdf4', padding: '10px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#166534', display: 'block', marginBottom: '5px' }}>💵 Cash Received (₹)</label>
+                    <input
+                      type="number"
+                      placeholder="Amount Tendered"
+                      value={cashReceived}
+                      onChange={e => setCashReceived(e.target.value)}
+                      onWheel={(e) => e.target.blur()}
+                      onKeyDown={(e) => ["ArrowUp", "ArrowDown"].includes(e.key) && e.preventDefault()}
+                      style={{ width: '100%', padding: '8px', fontSize: '16px', fontWeight: 'bold', border: '2px solid #22c55e', borderRadius: '6px' }}
+                    />
+                    {Number(cashReceived) > total && (
+                      <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 'bold', color: '#15803d', display: 'flex', justifyContent: 'space-between', paddingTop: '5px', borderTop: '1px dashed #16a34a' }}>
+                        <span>Change to Return:</span>
+                        <span style={{ fontSize: '18px' }}>₹{(Number(cashReceived) - total).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {paymentMethod === 'upi' && (
                   <div className="payment-extra">

@@ -19,11 +19,23 @@ from app.routes import category_bp
 @jwt_required()
 def get_categories():
     print("DEBUG: GET /api/categories/ called")
-    categories = Category.query.all()
-    print(f"DEBUG: Found {len(categories)} categories")
+    all_categories = Category.query.all()
+    print(f"DEBUG: Found {len(all_categories)} raw categories")
     
+    # Filter out "test" and duplicates
+    unique_names = set()
     result = []
-    for cat in categories:
+    
+    for cat in all_categories:
+        # 1. Filter out "test" (case-insensitive)
+        if "test" in cat.name.lower():
+            continue
+            
+        # 2. Filter out duplicates by name
+        if cat.name.lower() in unique_names:
+            continue
+            
+        unique_names.add(cat.name.lower())
         result.append({
             "category_id": cat.category_id,
             "name": cat.name,

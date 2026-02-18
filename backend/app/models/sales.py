@@ -1,10 +1,14 @@
 from app.extensions import db
 from datetime import datetime
 
+import uuid
+
 class SalesTransaction(db.Model):
     __tablename__ = "sales_transactions"
 
     transaction_id = db.Column(db.Integer, primary_key=True)
+    transaction_uuid = db.Column(db.String(36), default=lambda: str(uuid.uuid4()))
+    invoice_number = db.Column(db.String(50), unique=True, nullable=False)
 
     branch_id = db.Column(
         db.Integer,

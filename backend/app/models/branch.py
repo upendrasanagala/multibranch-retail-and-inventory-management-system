@@ -5,6 +5,7 @@ class Branch(db.Model):
     __tablename__ = "branches"
 
     branch_id = db.Column(db.Integer, primary_key=True)
+    branch_code = db.Column(db.String(10), unique=True, nullable=False) # e.g. NY01
     name = db.Column(db.String(100), nullable=False)
     address = db.Column(db.Text)
     city = db.Column(db.String(50))

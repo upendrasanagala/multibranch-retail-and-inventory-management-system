@@ -6,6 +6,7 @@ import AdminInventory from "../admin/AdminInventory";
 import AdminStockTransfers from "../admin/adminStockTransfer";
 import AdminBranches from "../admin/AdminBranches";
 import AdminReports from "../admin/AdminReports";
+import SupplierManagement from "../admin/SupplierManagement";
 
 import api from "../../services/api";
 import { logout as authLogout, getCurrentUser } from "../../services/authService";
@@ -64,7 +65,9 @@ export default function AdminDashboard() {
             todayRevenue: statsRes.today_revenue || 0,
             todayCash: statsRes.today_cash || 0,
             todayUpi: statsRes.today_upi || 0,
-            criticalItems: statsRes.critical_items || []
+            todayQr: statsRes.today_qr || 0,
+            criticalItems: statsRes.critical_items || [],
+            branchPerformance: statsRes.branch_performance || []
           });
         }
 
@@ -227,6 +230,9 @@ export default function AdminDashboard() {
             <a className={activeSection === "transfers" ? "active" : ""}
               onClick={() => setActiveSection("transfers")}>Transfers</a>
 
+            <a className={activeSection === "suppliers" ? "active" : ""}
+              onClick={() => setActiveSection("suppliers")}>Suppliers</a>
+
             <a onClick={logout}>Logout</a>
           </nav>
 
@@ -269,10 +275,15 @@ export default function AdminDashboard() {
                   <h4>Today's UPI</h4>
                   <div className="value" style={{ color: '#2563eb' }}>₹{stats.todayUpi?.toLocaleString() || 0}</div>
                 </div>
+
+                <div className="data-box">
+                  <h4>Today's QR</h4>
+                  <div className="value" style={{ color: '#0d9488' }}>₹{stats.todayQr?.toLocaleString() || 0}</div>
+                </div>
               </div>
 
-              {/* ROW 3: Critical Tables Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
+              {/* ROW 3: Widgets Flow */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '30px' }}>
 
                 {/* LOW STOCK WIDGET */}
                 <div className="table-card" style={{ height: 'fit-content' }}>
@@ -317,6 +328,49 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                {/* BRANCH PERFORMANCE WIDGET */}
+                <div className="table-card" style={{ height: 'fit-content' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ margin: 0 }}>📊 Branch Sales Performance</h3>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Last 30 Days</span>
+                  </div>
+
+                  {!stats.branchPerformance || stats.branchPerformance.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                      <p>No sales data available for this period.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      {stats.branchPerformance
+                        .sort((a, b) => b.revenue - a.revenue)
+                        .map((branch, i) => {
+                          const maxRevenue = Math.max(...stats.branchPerformance.map(b => b.revenue)) || 1;
+                          const percentage = (branch.revenue / maxRevenue) * 100;
+
+                          return (
+                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                <span style={{ fontWeight: 600 }}>{branch.name}</span>
+                                <span style={{ color: '#059669', fontWeight: 700 }}>₹{branch.revenue.toLocaleString()}</span>
+                              </div>
+                              <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{
+                                  width: `${percentage}%`,
+                                  height: '100%',
+                                  background: i === 0 ? '#10b981' : (i === stats.branchPerformance.length - 1 ? '#f59e0b' : '#3b82f6'),
+                                  borderRadius: '4px',
+                                  transition: 'width 0.5s ease-in-out'
+                                }}></div>
+                              </div>
+                              {i === 0 && <span style={{ fontSize: '10px', color: '#059669', fontWeight: 600 }}>🏆 Highest Sales</span>}
+                              {i === stats.branchPerformance.length - 1 && stats.branchPerformance.length > 1 && <span style={{ fontSize: '10px', color: '#ca8a04', fontWeight: 600 }}>📉 Lowest Sales</span>}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+
                 {/* PENDING APPROVALS WIDGET */}
                 <div className="table-card" style={{ height: 'fit-content' }}>
                   <h3 style={{ marginBottom: '15px' }}>Pending User Approvals</h3>
@@ -358,7 +412,6 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </div>
-
               </div>
             </>
           )}
@@ -526,10 +579,11 @@ export default function AdminDashboard() {
           )
           }
 
-          {activeSection === "inventory" && <AdminInventory />}
+          {activeSection === "inventory" && <AdminInventory setActiveSection={setActiveSection} />}
           {activeSection === "branches" && <AdminBranches />}
           {activeSection === "reports" && <AdminReports />}
           {activeSection === "transfers" && <AdminStockTransfers />}
+          {activeSection === "suppliers" && <SupplierManagement />}
 
         </main>
       </div>

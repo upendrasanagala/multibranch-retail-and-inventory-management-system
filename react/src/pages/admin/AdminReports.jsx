@@ -331,7 +331,7 @@ export default function AdminReports() {
                     <tbody>
                       {reportData.transactions.slice(0, 50).map((t, i) => (
                         <tr key={i}>
-                          <td>#{t.transaction_id}</td>
+                          <td>{t.invoice_number || `#${t.transaction_id}`}</td>
                           <td>{t.transaction_date}</td>
                           <td>
                             <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>

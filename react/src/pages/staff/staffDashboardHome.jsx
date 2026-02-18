@@ -87,11 +87,16 @@ export default function StaffDashboardHome() {
       <header className="topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ margin: 0 }}>👋 Welcome, {user?.firstName || user?.name || 'Staff'}</h2>
-          {user?.employee_id && (
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-              Employee ID: <code style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>{user.employee_id}</code>
+          <div style={{ display: 'flex', gap: '15px', marginTop: '8px' }}>
+            {user?.employee_id && (
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                Employee ID: <code style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>{user.employee_id}</code>
+              </p>
+            )}
+            <p style={{ margin: 0, fontSize: '13px', color: '#059669', fontWeight: 700 }}>
+              🚀 Today's Sale #{summary.totalTransactions}
             </p>
-          )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -142,6 +147,11 @@ export default function StaffDashboardHome() {
           <div className="value">₹{summary.upi.toFixed(2)}</div>
         </div>
 
+        <div className="data-box" style={{ borderLeft: '4px solid #14b8a6' }}>
+          <h4>📷 QR Scan</h4>
+          <div className="value">₹{summary.qr.toFixed(2)}</div>
+        </div>
+
         <div className="data-box" style={{ borderLeft: '4px solid #ec4899' }}>
           <h4>💳 Card</h4>
           <div className="value">₹{summary.card.toFixed(2)}</div>
@@ -190,7 +200,11 @@ export default function StaffDashboardHome() {
                     <tbody>
                       {groupedTransactions[dateKey].map((s) => (
                         <tr key={s.transaction_id}>
-                          <td>TRNS-{s.transaction_id}</td>
+                          <td>
+                            <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                              {s.invoice_number || `TRNS-${s.transaction_id}`}
+                            </code>
+                          </td>
                           <td>{s.transaction_date ? new Date(s.transaction_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</td>
                           <td>
                             <span style={{

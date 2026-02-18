@@ -19,6 +19,7 @@ export default function ManagerTransactions() {
         const res = await api.sales.getByBranch(branchId);
 
         const mapped = res.transactions.map(t => ({
+          id: t.invoice_number || `#${t.transaction_id}`,
           date: formatDate(t.transaction_date),
           product: t.items ? t.items.map(i => i.product_name).join(", ") : "Item Details",
           quantity: t.items ? t.items.reduce((sum, i) => sum + i.quantity, 0) : 0,
@@ -53,6 +54,7 @@ export default function ManagerTransactions() {
           <table>
             <thead>
               <tr>
+                <th>ID</th>
                 <th>Date</th>
                 <th>Product</th>
                 <th>Qty</th>
@@ -64,6 +66,7 @@ export default function ManagerTransactions() {
             <tbody>
               {transactions.map((t, i) => (
                 <tr key={i}>
+                  <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>{t.id}</code></td>
                   <td>{t.date}</td>
                   <td>{t.product}</td>
                   <td>{t.quantity}</td>
