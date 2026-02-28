@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/dateUtils";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
+import DashboardFAQ from "../../components/DashboardFAQ";
 
 export default function StaffDashboardHome() {
   const user = getCurrentUser();
@@ -238,6 +239,40 @@ export default function StaffDashboardHome() {
         )}
       </div>
 
+      <DashboardFAQ faqs={[
+        {
+          question: "How do I process a sale?",
+          answer: "Navigate to the 'POS' section in the sidebar, scan or search for products to add them to the cart, then select a payment method and click 'Checkout'."
+        },
+        {
+          question: "How do I print a receipt for a past sale?",
+          answer: "Go to the 'Receipts' section, locate the transaction in the history list, and click the 'Print' icon to generate the receipt."
+        },
+        {
+          question: "How do I check if an item is in stock?",
+          answer: "Use the 'Inventory' tab to search for products. The list shows real-time availability for your specific branch."
+        },
+        {
+          question: "How do I update my profile?",
+          answer: "Click on the 'Profile' tab in the sidebar to view your employee information and update your system credentials."
+        },
+        {
+          question: "How do I search for a customer in POS?",
+          answer: "In the POS screen, use the customer search bar to find existing customers by mobile number or name before processing the bill."
+        },
+        {
+          question: "What if I make a mistake on an invoice?",
+          answer: "If an invoice is finalized with errors, please contact your Branch Manager to void or edit the transaction in the system."
+        },
+        {
+          question: "Can I see my total sales for today?",
+          answer: "Yes, the 'Welcome' header on this home page displays your current sales count, and the 'Total Sales' card shows the total revenue processed for the selected date."
+        },
+        {
+          question: "How do I add items without a scanner?",
+          answer: "You can click on the 'Search Products' field in the POS and type the product name or SKU to manually add items to the cart."
+        }
+      ]} />
     </div>
   );
 }

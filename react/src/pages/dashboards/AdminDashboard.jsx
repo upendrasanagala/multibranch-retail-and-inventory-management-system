@@ -11,6 +11,9 @@ import SupplierManagement from "../admin/SupplierManagement";
 import api from "../../services/api";
 import { logout as authLogout, getCurrentUser } from "../../services/authService";
 import LiveClock from "../../components/LiveClock";
+import DashboardFAQ from "../../components/DashboardFAQ";
+import ConfirmModal from "../../components/ConfirmModal";
+import Chart from "react-apexcharts";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -20,6 +23,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showAddManager, setShowAddManager] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [branches, setBranches] = useState([]); // Store branches for dropdown
 
   const [newManager, setNewManager] = useState({
@@ -39,22 +43,48 @@ export default function AdminDashboard() {
     totalUsers: 0,
     pendingUsers: 0,
     approvedUsers: 0,
-    totalBranches: 0
+    totalBranches: 0,
+    totalProducts: 0,
+    todayRevenue: 0,
+    todayCash: 0,
+    todayUpi: 0,
+    todayQr: 0,
+    criticalItems: [],
+    branchPerformance: []
   });
 
   /* ================= LOAD DATA FROM BACKEND ================= */
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      try {
-        // Load users
-        if (activeSection === "users" || activeSection === "dashboard") {
+
+      // Load users (independent)
+      if (activeSection === "users" || activeSection === "dashboard") {
+        try {
           const usersRes = await api.admin.getUsers();
           setUsers(usersRes.users || []);
+        } catch (err) {
+          console.error("Failed to load users:", err);
+          const usersData = JSON.parse(localStorage.getItem("users")) || [];
+          setUsers(usersData);
         }
+      }
 
-        // Load stats for dashboard
-        if (activeSection === "dashboard") {
+      // Load sales (independent)
+      if (activeSection === "dashboard") {
+        try {
+          const salesRes = await api.sales.getAll({ per_page: 50 });
+          setSales(salesRes.sales || []);
+        } catch (err) {
+          console.error("Failed to load sales:", err);
+          const salesData = JSON.parse(localStorage.getItem("sales")) || [];
+          setSales(salesData);
+        }
+      }
+
+      // Load stats (independent)
+      if (activeSection === "dashboard") {
+        try {
           const statsRes = await api.admin.getStats();
           setStats({
             totalUsers: statsRes.total_users || 0,
@@ -69,29 +99,23 @@ export default function AdminDashboard() {
             criticalItems: statsRes.critical_items || [],
             branchPerformance: statsRes.branch_performance || []
           });
+        } catch (err) {
+          console.error("Failed to load stats:", err);
         }
+      }
 
-        // Load branches for dropdown if needed
-        if (activeSection === "users") {
+      // Load branches for dropdown if needed
+      if (activeSection === "users") {
+        try {
           const branchRes = await api.branches.getAll();
           setBranches(branchRes.branches || []);
+        } catch (err) {
+          console.error("Failed to load branches:", err);
+          const branches = JSON.parse(localStorage.getItem("branches")) || [];
+          setBranches(branches);
         }
-      } catch (error) {
-        console.error("Failed to load data:", error);
-        // Fallback to localStorage if backend not available
-        const usersData = JSON.parse(localStorage.getItem("users")) || [];
-        const salesData = JSON.parse(localStorage.getItem("sales")) || [];
-        const branches = JSON.parse(localStorage.getItem("branches")) || [];
-
-        setUsers(usersData);
-        setSales(salesData);
-        setStats({
-          totalUsers: usersData.length,
-          pendingUsers: usersData.filter(u => u.status === "pending").length,
-          approvedUsers: usersData.filter(u => u.status === "approved").length,
-          totalBranches: branches.length
-        });
       }
+
       setLoading(false);
     };
 
@@ -120,12 +144,13 @@ export default function AdminDashboard() {
       setUsers(usersRes.users || []);
       // Refresh stats
       const statsRes = await api.admin.getStats();
-      setStats({
+      setStats(prev => ({
+        ...prev,
         totalUsers: statsRes.total_users || 0,
         pendingUsers: statsRes.pending_users || 0,
         approvedUsers: statsRes.approved_users || 0,
         totalBranches: statsRes.total_branches || 0
-      });
+      }));
     } catch (error) {
       console.error("Failed to approve user:", error);
       alert("Failed to approve user: " + (error.response?.data?.message || error.message));
@@ -144,12 +169,13 @@ export default function AdminDashboard() {
       setUsers(usersRes.users || []);
       // Refresh stats
       const statsRes = await api.admin.getStats();
-      setStats({
+      setStats(prev => ({
+        ...prev,
         totalUsers: statsRes.total_users || 0,
         pendingUsers: statsRes.pending_users || 0,
         approvedUsers: statsRes.approved_users || 0,
         totalBranches: statsRes.total_branches || 0
-      });
+      }));
     } catch (error) {
       console.error("Failed to delete user:", error);
       alert("Failed to delete user: " + error.message);
@@ -181,28 +207,10 @@ export default function AdminDashboard() {
   /* ================= LOGOUT ================= */
   const logout = () => {
     authLogout();
-    navigate("/login");
+    navigate("/");
   };
 
-  /* ================= SALES MAPS FOR CHARTS ================= */
-  const branchMap = {};
-  const productMap = {};
 
-  sales.forEach(s => {
-    const amount = Number(s.total_amount || s.amount || 0);
-    if (!amount) return;
-
-    const branchName = s.branch?.name || s.branch || "Unknown";
-    branchMap[branchName] = (branchMap[branchName] || 0) + amount;
-
-    // Count items sold
-    if (s.items) {
-      s.items.forEach(item => {
-        const productName = item.product?.name || item.product || "Unknown";
-        productMap[productName] = (productMap[productName] || 0) + (item.quantity || 1);
-      });
-    }
-  });
 
   /* ================= CHART OPTIONS ================= */
   return (
@@ -233,7 +241,7 @@ export default function AdminDashboard() {
             <a className={activeSection === "suppliers" ? "active" : ""}
               onClick={() => setActiveSection("suppliers")}>Suppliers</a>
 
-            <a onClick={logout}>Logout</a>
+            <a onClick={() => setShowLogoutModal(true)}>Logout</a>
           </nav>
 
           <LiveClock />
@@ -246,6 +254,71 @@ export default function AdminDashboard() {
             <h1>Admin Dashboard</h1>
             {loading && <span style={{ marginLeft: '10px', color: '#666' }}>Loading...</span>}
           </header>
+
+          {/* ================= ALERTS CENTER ================= */}
+          {stats.criticalItems?.length > 0 && (
+            <div className="alerts-center" style={{
+              marginBottom: '25px',
+              background: '#fef2f2',
+              border: '1px solid #fee2e2',
+              borderRadius: '12px',
+              padding: '16px',
+              display: 'flex',
+              gap: '15px',
+              alignItems: 'flex-start',
+              animation: 'slideDown 0.4s ease-out'
+            }}>
+              <div style={{
+                background: '#ef4444',
+                color: 'white',
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: '20px'
+              }}>
+                <i className="fas fa-exclamation-triangle"></i>
+              </div>
+              <div style={{ flex: 1 }}>
+                <h4 style={{ margin: '0 0 5px', color: '#991b1b', fontSize: '15px' }}>Critical Stock Alerts</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {stats.criticalItems.map((item, idx) => (
+                    <div key={idx} style={{
+                      background: 'white',
+                      border: '1px solid #fee2e2',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      color: '#4b5563'
+                    }}>
+                      <b style={{ color: '#b91c1c' }}>{item.product}</b> in {item.branch}:
+                      <span style={{ fontWeight: 800, marginLeft: '5px', color: item.qty <= 5 ? '#dc2626' : '#d97706' }}>
+                        {item.qty} left
+                      </span>
+                    </div>
+                  ))}
+                  {stats.criticalItems.length > 5 && (
+                    <button
+                      onClick={() => setActiveSection('inventory')}
+                      style={{ background: 'none', border: 'none', color: '#2563eb', padding: 0, fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      +{stats.criticalItems.length - 5} more...
+                    </button>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveSection('inventory')}
+                className="primary-btn"
+                style={{ background: '#ef4444', fontSize: '12px', padding: '8px 16px' }}
+              >
+                Manage Stock
+              </button>
+            </div>
+          )}
 
           {/* ================= DASHBOARD ================= */}
           {activeSection === "dashboard" && (
@@ -330,7 +403,7 @@ export default function AdminDashboard() {
 
                 {/* BRANCH PERFORMANCE WIDGET */}
                 <div className="table-card" style={{ height: 'fit-content' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <h3 style={{ margin: 0 }}>📊 Branch Sales Performance</h3>
                     <span style={{ fontSize: '11px', color: '#64748b' }}>Last 30 Days</span>
                   </div>
@@ -340,33 +413,57 @@ export default function AdminDashboard() {
                       <p>No sales data available for this period.</p>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      {stats.branchPerformance
-                        .sort((a, b) => b.revenue - a.revenue)
-                        .map((branch, i) => {
-                          const maxRevenue = Math.max(...stats.branchPerformance.map(b => b.revenue)) || 1;
-                          const percentage = (branch.revenue / maxRevenue) * 100;
-
-                          return (
-                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                <span style={{ fontWeight: 600 }}>{branch.name}</span>
-                                <span style={{ color: '#059669', fontWeight: 700 }}>₹{branch.revenue.toLocaleString()}</span>
-                              </div>
-                              <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{
-                                  width: `${percentage}%`,
-                                  height: '100%',
-                                  background: i === 0 ? '#10b981' : (i === stats.branchPerformance.length - 1 ? '#f59e0b' : '#3b82f6'),
-                                  borderRadius: '4px',
-                                  transition: 'width 0.5s ease-in-out'
-                                }}></div>
-                              </div>
-                              {i === 0 && <span style={{ fontSize: '10px', color: '#059669', fontWeight: 600 }}>🏆 Highest Sales</span>}
-                              {i === stats.branchPerformance.length - 1 && stats.branchPerformance.length > 1 && <span style={{ fontSize: '10px', color: '#ca8a04', fontWeight: 600 }}>📉 Lowest Sales</span>}
-                            </div>
-                          );
-                        })}
+                    <div style={{ minHeight: '300px' }}>
+                      <Chart
+                        type="bar"
+                        height={300}
+                        series={[{
+                          name: 'Revenue (₹)',
+                          data: stats.branchPerformance.map(b => b.revenue)
+                        }]}
+                        options={{
+                          chart: {
+                            toolbar: { show: false },
+                            fontFamily: 'Inter, sans-serif'
+                          },
+                          plotOptions: {
+                            bar: {
+                              borderRadius: 6,
+                              columnWidth: '45%',
+                              distributed: true,
+                              dataLabels: { position: 'top' }
+                            }
+                          },
+                          colors: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+                          dataLabels: {
+                            enabled: true,
+                            formatter: (val) => `₹${(val / 1000).toFixed(1)}k`,
+                            offsetY: -20,
+                            style: { fontSize: '11px', colors: ["#304758"] }
+                          },
+                          xaxis: {
+                            categories: stats.branchPerformance.map(b => b.name),
+                            labels: {
+                              style: { fontSize: '12px', fontWeight: 500 }
+                            }
+                          },
+                          yaxis: {
+                            labels: {
+                              formatter: (val) => `₹${val.toLocaleString()}`
+                            }
+                          },
+                          tooltip: {
+                            y: {
+                              formatter: (val) => `₹${val.toLocaleString()}`
+                            }
+                          },
+                          legend: { show: false },
+                          grid: {
+                            borderColor: '#f1f5f9',
+                            strokeDashArray: 4
+                          }
+                        }}
+                      />
                     </div>
                   )}
                 </div>
@@ -413,6 +510,41 @@ export default function AdminDashboard() {
                   )}
                 </div>
               </div>
+
+              <DashboardFAQ faqs={[
+                {
+                  question: "How do I approve new staff?",
+                  answer: "Go to the 'Users' tab in the sidebar. Staff waiting for approval will have a 'Pending' status and an 'Approve' button next to their details."
+                },
+                {
+                  question: "How to add a new branch?",
+                  answer: "Navigate to the 'Branches' tab and click the '+ Add Branch' button at the top right of the page."
+                },
+                {
+                  question: "Can I see global sales across all branches?",
+                  answer: "Yes, this Dashboard home provides a real-time system-wide revenue overview, and the 'Reports' tab offers detailed financial breakdowns."
+                },
+                {
+                  question: "How do I manage suppliers?",
+                  answer: "Use the 'Suppliers' tab to add, edit, or remove vendors for your inventory network."
+                },
+                {
+                  question: "What do the critical stock alerts mean?",
+                  answer: "The red alert bar at the top highlights items that have fallen below their minimum threshold across any branch. Click 'Manage Stock' to address these immediately."
+                },
+                {
+                  question: "How do I monitor branch performance?",
+                  answer: "The 'Branch Sales Performance' chart on this home page shows a 30-day revenue comparison. Detailed per-branch metrics are available in the 'Reports' section."
+                },
+                {
+                  question: "How do I update branch payment details?",
+                  answer: "Go to the 'Branches' tab, select the branch you wish to edit, and update their UPI ID or address in the branch settings modal."
+                },
+                {
+                  question: "What happens when I delete a user?",
+                  answer: "Deleting a user removes their login access immediately. Their transaction history remains in the system archives for reporting purposes."
+                }
+              ]} />
             </>
           )}
 
@@ -784,6 +916,14 @@ export default function AdminDashboard() {
           </div>
         )
       }
+
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of the Admin Panel? Security is paramount."
+        onConfirm={logout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </>
   );
 }

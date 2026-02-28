@@ -7,18 +7,20 @@ import StaffInventory from "./staffInventory";
 import StaffReceipts from "./staffReceipts";
 import StaffProfile from "./StaffProfile";
 import LiveClock from "../../components/LiveClock";
+import ConfirmModal from "../../components/ConfirmModal";
 
 import "../../styles/dashboard.css";
 
 export default function StaffDashboard() {
   const [active, setActive] = useState("dashboard");
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navigate = useNavigate();
   const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
 
   /* ================= LOGOUT ================= */
-  const logout = () => {
+  const handleLogout = () => {
     localStorage.removeItem("loggedInUser");
-    navigate("/login");
+    navigate("/");
   };
 
   return (
@@ -69,7 +71,7 @@ export default function StaffDashboard() {
             <i className="fas fa-user-circle"></i> Profile
           </a>
 
-          <a className="logout-link" onClick={logout}>
+          <a className="logout-link" onClick={() => setShowLogoutModal(true)}>
             <i className="fas fa-sign-out-alt"></i> Logout
           </a>
         </nav>
@@ -86,6 +88,13 @@ export default function StaffDashboard() {
         {active === "profile" && <StaffProfile />}
       </main>
 
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        title="Confirm Logout"
+        message="Are you sure you want to log out? Make sure all POS transactions are finalized."
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </div>
   );
 }

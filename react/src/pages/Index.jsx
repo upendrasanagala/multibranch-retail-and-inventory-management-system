@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "../styles/home.css";
 
 export default function Home() {
@@ -6,6 +6,55 @@ export default function Home() {
   useEffect(() => {
     // Optional: Add intersection observer for reveal animations if needed
   }, []);
+
+  const [activeIndex, setActiveIndex] = useState(null);
+
+  const faqData = [
+    {
+      question: "How many branches can I manage?",
+      answer: "InventoryPro Enterprise supports unlimited branches. You can scale your retail chain from two locations to hundreds without any performance degradation."
+    },
+    {
+      question: "Is the synchronization truly real-time?",
+      answer: "Yes. Our proprietary sync engine ensures that any stock change, sale, or transfer is updated across all connected devices in under 200 milliseconds."
+    },
+    {
+      question: "Can I transfer stock between branches?",
+      answer: "Yes, our 'Inter-Branch Transfer' (IBT) feature allows you to move stock between locations with one click, complete with digital transit tracking."
+    },
+    {
+      question: "Does it support barcode scanning?",
+      answer: "Absolutely. The system is compatible with standard USB/Bluetooth scanners and mobile camera scanning for fast checkouts and inventory audits."
+    },
+    {
+      question: "What kind of reports can I generate?",
+      answer: "You can generate detailed sales analytics, profit margin reports, tax summaries, and inventory turnover data for individual branches or the entire chain."
+    },
+    {
+      question: "Can I manage employee permissions?",
+      answer: "Yes. Use our granular Role-Based Access Control (RBAC) to define what Admin, Manager, and Staff users can see and modify in the system."
+    },
+    {
+      question: "Does it work offline?",
+      answer: "Yes, our 'Offline-First' architecture allows you to continue sales during internet outages. Data automatically syncs once the connection is restored."
+    },
+    {
+      question: "Can I use it on mobile devices?",
+      answer: "Absolutely. InventoryPro is a progressive web platform designed to work seamlessly on tablets, smartphones, and desktop computers."
+    },
+    {
+      question: "How secure is my business data?",
+      answer: "We use bank-grade AES-256 encryption for all data at rest and TLS 1.3 for data in transit. Your data is backed up hourly across multiple secure locations."
+    },
+    {
+      question: "Do you offer staff training?",
+      answer: "Yes, we provide comprehensive onboarding and 24/7 dedicated support for all Enterprise customers to ensure your team is proficient."
+    }
+  ];
+
+  const toggleFAQ = (index) => {
+    setActiveIndex(activeIndex === index ? null : index);
+  };
 
   return (
     <>
@@ -223,6 +272,32 @@ export default function Home() {
         </div>
       </section >
 
+      {/* ================= FAQ SECTION ================= */}
+      <section className="faq-section" id="faq">
+        <div className="section-head">
+          <h2>Got Questions? We have answers.</h2>
+          <p>Everything you need to know about scaling your retail operations.</p>
+        </div>
+
+        <div className="faq-container">
+          {faqData.map((item, index) => (
+            <div
+              key={index}
+              className={`faq-item ${activeIndex === index ? 'active' : ''}`}
+              onClick={() => toggleFAQ(index)}
+            >
+              <div className="faq-question">
+                <span>{item.question}</span>
+                <i className={`fas fa-chevron-${activeIndex === index ? 'up' : 'down'}`}></i>
+              </div>
+              <div className="faq-answer">
+                <p>{item.answer}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ================= FOOTER ================= */}
       < footer className="footer" >
         <div className="footer-inner">
@@ -232,35 +307,53 @@ export default function Home() {
               Empowering retail chains with next-generation management tools.
               Built for speed, security, and scale.
             </p>
+            <div className="footer-social">
+              <a href="#"><i className="fab fa-twitter"></i></a>
+              <a href="#"><i className="fab fa-linkedin"></i></a>
+              <a href="https://github.com/ravi9506301/multibranch-retail-and-inventory-management-system"><i className="fab fa-github"></i></a>
+              <a href="#"><i className="fab fa-instagram"></i></a>
+            </div>
           </div>
 
           <div className="footer-links">
             <h5>Product</h5>
             <ul>
-              <li><a href="#">Features</a></li>
+              <li><a href="#features">Features</a></li>
+              <li><a href="#faq">FAQ</a></li>
               <li><a href="#">Security</a></li>
               <li><a href="#">Enterprise</a></li>
-              <li><a href="#">Changelog</a></li>
             </ul>
           </div>
 
           <div className="footer-links">
             <h5>Company</h5>
             <ul>
-              <li><a href="#">About</a></li>
-              <li><a href="#">Careers</a></li>
-              <li><a href="#">Blog</a></li>
-              <li><a href="#">Contact</a></li>
+              <li><a href="#features">Our Mission</a></li>
+              <li><a href="#">Team</a></li>
+              <li><a href="#">Customers</a></li>
+              <li><a href="#">Contact Us</a></li>
             </ul>
           </div>
 
           <div className="footer-links">
             <h5>Legal</h5>
             <ul>
-              <li><a href="#">Privacy</a></li>
-              <li><a href="#">Terms</a></li>
-              <li><a href="#">Status</a></li>
+              <li><a href="/privacy">Privacy Policy</a></li>
+              <li><a href="/terms">Terms of Service</a></li>
+              <li><a href="#">Cookie Policy</a></li>
+              <li><a href="#">Security</a></li>
             </ul>
+          </div>
+
+          <div className="footer-newsletter">
+            <h5>Stay Updated</h5>
+            <p>Get the latest updates on inventory management.</p>
+            <form className="newsletter-form" onSubmit={(e) => e.preventDefault()}>
+              <input type="email" placeholder="Email address" required />
+              <button type="submit">
+                <i className="fas fa-paper-plane"></i>
+              </button>
+            </form>
           </div>
         </div>
         <div className="footer-bottom">

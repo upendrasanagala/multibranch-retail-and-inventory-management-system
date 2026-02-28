@@ -179,7 +179,19 @@ const api = {
         body: formData,
         // Let browser set Content-Type for FormData
         headers: {}
-      })
+      }),
+
+    getImportHistory: () =>
+      apiRequest("/products/imports"),
+
+    deleteImport: (filename) =>
+      apiRequest(`/products/imports/${encodeURIComponent(filename)}`, { method: "DELETE" }),
+
+    downloadImport: (filename) =>
+      `${API_BASE_URL}/products/imports/${encodeURIComponent(filename)}`,
+
+    updateGST: () =>
+      apiRequest("/products/update-gst", { method: "POST" })
   },
 
   /* ===================== INVENTORY ===================== */

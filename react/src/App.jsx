@@ -9,6 +9,9 @@ import AdminDashboard from "./pages/dashboards/AdminDashboard";
 import StaffDashboard from "./pages/staff/StaffDashboard";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
 
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -20,6 +23,8 @@ function App() {
         <Route path="/" element={<Index />} />
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
 
         {/* STAFF */}
         <Route

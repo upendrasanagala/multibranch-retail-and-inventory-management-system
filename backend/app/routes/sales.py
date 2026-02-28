@@ -80,7 +80,6 @@ def create_sale():
     final_total = total_from_fe if total_from_fe is not None else (items_subtotal - discount)
 
     # Create transaction
-    # Create transaction
     # First, get branch code
     branch = Branch.query.get(user.branch_id)
     branch_prefix = branch.branch_code if branch and branch.branch_code else "BR"
@@ -184,7 +183,7 @@ def get_sales():
             "uuid": t.transaction_uuid,
             "branch_id": t.branch_id,
             "staff_id": t.staff_id,
-            "staff_name": staff.name if staff else None,
+            "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,
             "total_amount": t.total_amount,
             "payment_method": t.payment_method,
             "status": t.status,
@@ -234,7 +233,7 @@ def get_sale(transaction_id):
         "uuid": transaction.transaction_uuid,
         "branch_id": transaction.branch_id,
         "staff_id": transaction.staff_id,
-        "staff_name": staff.name if staff else None,
+        "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,
         "total_amount": transaction.total_amount,
         "discount": transaction.discount,
         "payment_method": transaction.payment_method,

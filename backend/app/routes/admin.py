@@ -511,18 +511,83 @@ def sales_report():
     
     total_revenue = sum(t[0].total_amount for t in results)
     total_count = len(results)
+    total_discount = sum(t[0].discount for t in results if t[0].discount)
     
     delta = end_date - start_date
     actual_days = max(delta.days, 1)
+    avg_ticket = total_revenue / total_count if total_count > 0 else 0
+    
+    # Payment method breakdown
+    payment_breakdown = {}
+    for t, b_name in results:
+        pm = (t.payment_method or 'cash').lower()
+        if pm not in payment_breakdown:
+            payment_breakdown[pm] = {"method": pm.upper(), "count": 0, "total": 0}
+        payment_breakdown[pm]["count"] += 1
+        payment_breakdown[pm]["total"] += t.total_amount
+    
+    for pm in payment_breakdown.values():
+        pm["percentage"] = round((pm["total"] / total_revenue * 100) if total_revenue > 0 else 0, 1)
+    
+    sorted_payment = sorted(payment_breakdown.values(), key=lambda x: x["total"], reverse=True)
+    
+    # Top selling products (inline, no separate API call needed)
+    transaction_ids = [t[0].transaction_id for t in results]
+    top_products = []
+    if transaction_ids:
+        product_sales = db.session.query(
+            TransactionItem.product_id,
+            func.sum(TransactionItem.quantity).label("total_quantity"),
+            func.sum(TransactionItem.subtotal).label("total_revenue")
+        ).filter(
+            TransactionItem.transaction_id.in_(transaction_ids)
+        ).group_by(
+            TransactionItem.product_id
+        ).order_by(
+            func.sum(TransactionItem.subtotal).desc()
+        ).limit(10).all()
+        
+        for pid, total_qty, total_rev in product_sales:
+            product = Product.query.get(pid)
+            top_products.append({
+                "product_name": product.name if product else "Unknown",
+                "total_quantity": total_qty,
+                "total_revenue": float(total_rev or 0),
+                "gst_percent": product.gst_percent if product else 0
+            })
+    
+    # GST summary (breakup by slab)
+    gst_summary = {}
+    for t_id in transaction_ids:
+        items = TransactionItem.query.filter_by(transaction_id=t_id).all()
+        for item in items:
+            product = Product.query.get(item.product_id)
+            rate = product.gst_percent if product else 0
+            if rate not in gst_summary:
+                gst_summary[rate] = {"slab": f"{rate}%", "taxable": 0, "cgst": 0, "sgst": 0, "total_tax": 0}
+            item_total = float(item.subtotal or 0)
+            taxable = item_total / (1 + rate / 100) if rate > 0 else item_total
+            tax = item_total - taxable
+            gst_summary[rate]["taxable"] += round(taxable, 2)
+            gst_summary[rate]["cgst"] += round(tax / 2, 2)
+            gst_summary[rate]["sgst"] += round(tax / 2, 2)
+            gst_summary[rate]["total_tax"] += round(tax, 2)
+    
+    sorted_gst = sorted(gst_summary.values(), key=lambda x: float(x["slab"].replace('%','')))
     
     return jsonify({
         "period_days": actual_days,
         "total_revenue": total_revenue,
         "total_transactions": total_count,
         "average_per_day": total_revenue / actual_days,
+        "avg_ticket_size": round(avg_ticket, 2),
+        "total_discount": total_discount,
         "daily_breakdown": sorted_daily,
         "branch_breakdown": sorted_branch,
-        "transactions": sorted_transactions
+        "transactions": sorted_transactions,
+        "payment_breakdown": sorted_payment,
+        "top_products": top_products,
+        "gst_summary": sorted_gst
     }), 200
 
 
@@ -559,24 +624,63 @@ def inventory_report():
     
     total_items = len(results)
     total_stock_value = sum(inv.quantity * prod.unit_price for inv, prod, b_name in results)
-    low_stock_items = [
-        {
+    
+    # Full inventory list with severity
+    all_items = []
+    category_breakdown = {}
+    out_of_stock = 0
+    
+    for inv, prod, b_name in results:
+        qty = inv.quantity
+        threshold = inv.min_threshold
+        
+        # Severity levels
+        if qty == 0:
+            severity = "out_of_stock"
+            out_of_stock += 1
+        elif qty <= threshold:
+            severity = "critical"
+        elif qty <= threshold * 2:
+            severity = "warning"
+        else:
+            severity = "ok"
+        
+        item_value = qty * prod.unit_price
+        cat = prod.category or "Uncategorized"
+        
+        all_items.append({
             "product_id": prod.product_id,
             "product_name": prod.name,
+            "sku": prod.sku,
+            "category": cat,
             "branch_id": inv.branch_id,
             "branch_name": b_name,
-            "quantity": inv.quantity,
-            "min_threshold": inv.min_threshold
-        }
-        for inv, prod, b_name in results
-        if inv.quantity <= inv.min_threshold
-    ]
+            "quantity": qty,
+            "unit_price": prod.unit_price,
+            "stock_value": round(item_value, 2),
+            "gst_percent": prod.gst_percent or 0,
+            "min_threshold": threshold,
+            "severity": severity
+        })
+        
+        # Category breakdown
+        if cat not in category_breakdown:
+            category_breakdown[cat] = {"category": cat, "items": 0, "total_qty": 0, "total_value": 0}
+        category_breakdown[cat]["items"] += 1
+        category_breakdown[cat]["total_qty"] += qty
+        category_breakdown[cat]["total_value"] += round(item_value, 2)
+    
+    low_stock_items = [i for i in all_items if i["severity"] in ("critical", "out_of_stock")]
+    sorted_categories = sorted(category_breakdown.values(), key=lambda x: x["total_value"], reverse=True)
     
     return jsonify({
         "total_items": total_items,
         "total_stock_value": total_stock_value,
         "low_stock_count": len(low_stock_items),
-        "low_stock_items": low_stock_items
+        "out_of_stock_count": out_of_stock,
+        "low_stock_items": low_stock_items,
+        "all_items": all_items,
+        "category_breakdown": sorted_categories
     }), 200
 
 

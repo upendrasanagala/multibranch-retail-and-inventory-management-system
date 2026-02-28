@@ -81,7 +81,7 @@ export default function ManagerInventory() {
 
   /* ================= SEARCH ================= */
   const filteredInventory = inventory.filter(p =>
-    (p.product_name || p.name).toLowerCase().includes(search.toLowerCase()) ||
+    (p.product_name || p.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (p.sku || "").toLowerCase().includes(search.toLowerCase())
   );
 

@@ -1,0 +1,51 @@
+name,sku,price,category,size,unit,barcode,description,cost_price,discount_percent,gst_percent,expiry_date,is_b1g1,quantity,manufacturing_date
+Maggi 2-Minute Noodles,SNACK-008,16,Snacks,70g,pkt,8.90E+12,Masala noodles,12,0,0,14-08-2026,FALSE,2226,15-02-2026
+Amul Taaza Milk,DAIRY-001,74,"Dairy (Milk, Eggs, Cheese)",1L,L,8.90E+12,Fresh toned milk,60,0,0,20-02-2026,FALSE,288,15-02-2026
+Scotch Brite Scrub,HH-007,22,Household Items,1pc,pcs,8.90E+12,Durable scrub pad,15,0,0,14-08-2026,FALSE,1401,15-02-2026
+Robusta Banana,FRUIT-002,65,Fruits,1dz,dz,8.90E+12,Yellow ripe banana,45,0,0,14-08-2026,FALSE,567,15-02-2026
+Farm Fresh Eggs,DAIRY-006,94,"Dairy (Milk, Eggs, Cheese)",12pcs,dz,8.90E+12,Local poultry eggs,75,0,0,14-08-2026,FALSE,823,15-02-2026
+MDH Red Chilli Powder,SPICE-002,48,Spices & Oils,100g,pkt,8.90E+12,Spicy lal mirch,35,0,0,14-08-2026,FALSE,1176,15-02-2026
+Kelloggs Corn Flakes,GROC-002,345,Groceries,475g,pkt,8.90E+12,Breakfast cereal,280,0,0,14-08-2026,FALSE,400,15-02-2026
+Nescafe Classic Coffee,BEV-001,355,Beverages,100g,jar,8.90E+12,Rich aroma coffee,290,0,0,14-08-2026,FALSE,401,15-02-2026
+Potato,VEG-002,32,Vegetables,1kg,kg,8.90E+12,Fresh farm potato,22,0,0,14-08-2026,FALSE,1601,15-02-2026
+Amul Paneer,DAIRY-005,100,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8.90E+12,Soft fresh paneer,75,0,0,14-08-2026,FALSE,494,15-02-2026
+Kurkure Masala Munch,SNACK-006,22,Snacks,90g,pkt,8.90E+12,Tedha hai par mera hai,18,0,0,14-08-2026,FALSE,1767,15-02-2026
+Lux Rose Soap,PC-001,38,Personal Care,100g,pcs,8.90E+12,Soft skin soap,28,0,0,14-08-2026,FALSE,1368,15-02-2026
+Dove Shampoo,PC-003,195,Personal Care,340ml,btl,8.90E+12,Damage repair shampoo,155,0,0,14-08-2026,FALSE,702,15-02-2026
+Cocoa Cola,BEV-003,42,Beverages,750ml,btl,8.90E+12,Original taste,32,0,0,14-08-2026,FALSE,1068,15-02-2026
+Dettol Original Soap,PC-002,42,Personal Care,125g,pcs,8.90E+12,Germ protection soap,32,0,0,14-08-2026,FALSE,1434,15-02-2026
+Sprite,BEV-005,42,Beverages,750ml,btl,8.90E+12,Clear soda,32,0,0,14-08-2026,FALSE,1101,15-02-2026
+Britannia Cheese Block,DAIRY-003,250,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8.90E+12,Creamy cheese block,110,0,0,14-08-2026,FALSE,335,15-02-2026
+Ponds Talcum Powder,PC-005,235,Personal Care,400g,btl,8.90E+12,Floral freshness,185,0,0,14-08-2026,FALSE,435,15-02-2026
+Madhur Sugar,GRAIN-005,58,Grains & Pulses,1kg,kg,8.90E+12,Pure sulphur free sugar,45,0,0,14-08-2026,FALSE,2292,15-02-2026
+Aashirvaad Whole Wheat Atta,GRAIN-002,420,Grains & Pulses,5kg,kg,8.90E+12,Chakki fresh atta,198,0,0,14-08-2026,FALSE,934,15-02-2026
+Odonil Room Freshener,HH-005,65,Household Items,50g,pcs,8.90E+12,Bathroom freshener,50,0,0,14-08-2026,FALSE,867,15-02-2026
+Onion,VEG-001,42,Vegetables,1kg,kg,8.90E+12,Red medium onion,30,0,0,14-08-2026,FALSE,1400,15-02-2026
+Mother Dairy Curd,DAIRY-004,38,"Dairy (Milk, Eggs, Cheese)",400g,pkt,8.90E+12,Set curd,30,0,0,14-08-2026,FALSE,561,15-02-2026
+Dhara Mustard Oil,OIL-002,182,Spices & Oils,1L,L,8.90E+12,Kachi ghani oil,145,0,0,09-08-2027,FALSE,1022,15-02-2026
+Red Label Tea,BEV-002,315,Beverages,500g,pkt,8.90E+12,Strong chai,250,0,0,14-08-2026,FALSE,561,15-02-2026
+Parle-G Biscuits,SNACK-002,12,Bakery Items,130g,pkt,8.90E+12,Classic biscuits,9,0,0,14-08-2026,FALSE,2834,15-02-2026
+Daawat Basmati Rice,GRAIN-001,127,Grains & Pulses,1kg,kg,8.90E+12,Premium long grain rice,105,0,0,05-02-2028,FALSE,1425,15-02-2026
+Colgate Strong Teeth,PC-004,118,Personal Care,200g,tube,8.90E+12,Everyday protection,90,0,0,14-08-2026,FALSE,1101,15-02-2026
+Thums Up,BEV-004,42,Beverages,750ml,btl,8.90E+12,Taste the thunder,32,0,0,14-08-2026,FALSE,1035,15-02-2026
+Quaker Oats,GROC-003,195,Groceries,1kg,pkt,8.90E+12,Rolled oats,155,0,0,14-08-2026,FALSE,532,15-02-2026
+Duracell AA Batteries,HH-006,195,Household Items,4pcs,pkt,8.90E+12,Long lasting battery,150,0,0,14-08-2026,FALSE,532,15-02-2026
+Good Day Cashew,SNACK-003,22,Snacks,60g,pkt,8.90E+12,With real cashew,16,0,0,14-08-2026,FALSE,1400,15-02-2026
+Lizol Floor Cleaner,HH-003,215,Household Items,975ml,btl,8.90E+12,Germ kill formula,170,0,0,14-08-2026,FALSE,701,15-02-2026
+Haldiram Aloo Bhujia,SNACK-007,55,Snacks,200g,pkt,8.90E+12,Favorite namkeen,42,0,0,14-08-2026,FALSE,829,15-02-2026
+Vim Dishwash Gel,HH-002,195,Household Items,750ml,btl,8.90E+12,Grease removal gel,155,0,0,14-08-2026,FALSE,801,15-02-2026
+Tata Salt,GRAIN-004,28,Grains & Pulses,1kg,kg,8.90E+12,Desh ka namak,21,0,0,14-08-2026,FALSE,2946,15-02-2026
+Kissan Tomato Ketchup,GROC-001,135,Groceries,950g,btl,8.90E+12,Fresh tomato sauce,105,0,0,14-08-2026,FALSE,566,15-02-2026
+Everest Turmeric Powder,SPICE-001,38,Spices & Oils,100g,pkt,8.90E+12,Kitchen essential,28,0,0,14-08-2026,FALSE,1150,15-02-2026
+Fortune Refined Sunflower Oil,OIL-001,168,Spices & Oils,1L,L,8.90E+12,Light cooking oil,135,0,0,09-08-2027,FALSE,1166,15-02-2026
+Shimla Apple,FRUIT-001,215,Fruits,1kg,kg,8.90E+12,Fresh seasonal fruit,160,0,0,14-08-2026,FALSE,267,15-02-2026
+Oreo Vanilla Cream,SNACK-004,38,Snacks,120g,pkt,8.90E+12,Twist lick dunk,28,0,0,14-08-2026,FALSE,1167,15-02-2026
+Himalaya Face Wash,PC-006,165,Personal Care,100ml,tube,8.90E+12,Natural herbal care,130,0,0,14-08-2026,FALSE,566,15-02-2026
+Saffola Gold Oil,OIL-003,215,Spices & Oils,1L,L,8.90E+12,Heart healthy oil,175,0,0,09-08-2027,FALSE,669,15-02-2026
+Surf Excel Matic,HH-001,255,Household Items,1kg,pkt,8.90E+12,Machine wash detergent,200,0,0,14-08-2026,FALSE,834,15-02-2026
+Lays Magic Masala,SNACK-005,22,Snacks,50g,pkt,8.90E+12,Spicy potato chips,18,0,0,14-08-2026,FALSE,1728,15-02-2026
+Harpic Toilet Cleaner,HH-004,198,Household Items,1L,btl,8.90E+12,Bathroom cleaner,155,0,0,09-08-2027,FALSE,734,15-02-2026
+Tata Sampann Toor Dal,GRAIN-003,142,Grains & Pulses,1kg,kg,8.90E+12,Unpolished dal,115,0,0,14-08-2026,FALSE,585,15-02-2026
+Britannia Marie Gold,SNACK-001,32,Bakery Items,250g,pkt,8.90E+12,For tea time,24,0,0,14-08-2026,FALSE,1750,15-02-2026
+Tropicana Mixed Fruit,BEV-006,115,Beverages,1L,pkt,8.90E+12,Natural juice,90,0,0,14-08-2026,FALSE,402,15-02-2026
+Amul Butter,DAIRY-002,255,"Dairy (Milk, Eggs, Cheese)",500g,pkt,8.90E+12,Utterly butterly delicious,205,0,0,13-10-2026,FALSE,420,15-02-2026
