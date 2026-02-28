@@ -18,10 +18,7 @@ from app.routes import category_bp
 @category_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_categories():
-    print("DEBUG: GET /api/categories/ called")
     all_categories = Category.query.all()
-    print(f"DEBUG: Found {len(all_categories)} raw categories")
-    
     result = []
     
     for cat in all_categories:

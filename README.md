@@ -46,10 +46,17 @@ Streamlined workflow for moving stock between locations.
 
 ---
 
+### 6. 🏛️ Comprehensive FAQ & Support
+- **Integrated Knowledge Base**: Admins and Managers have access to an expanded FAQ section directly in the dashboard.
+- **Role-Specific Guidance**: Tailored help for approving staff, managing transfers, and understanding financial reports.
+
+---
+
 ## 📱 Universal Experience
-- **Fully Responsive**: Works perfectly on Desktop, Tablets, and Mobile phones.
+- **Fully Responsive**: Works perfectly on Desktop, Tablets, and Mobile phones (Enhanced layout for stats and grids).
 - **Internal Scrolling Tables**: Ensures that even large data tables are easy to read on small screens.
-- **Premium UI**: Uses a clean, modern design with smooth animations and glassmorphism effects.
+- **Premium UI**: Uses a clean, modern design with smooth animations, hero stat cards, and glassmorphism effect.
+- **Dynamic Stats**: Real-time business health monitoring via animated dashboard widgets and charts.
 
 ---
 

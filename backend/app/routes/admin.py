@@ -330,8 +330,9 @@ Admin Team
 """
             mail.send(msg)
             email_sent = True
-        except Exception as e:
-            print(f"Failed to send welcome email: {e}")
+        except Exception:
+            # Email failure shouldn't block user creation
+            pass
 
         return jsonify({
             "message": "User created successfully" + (" (Email sent)" if email_sent else " (Email failed, copy credentials below)"),
@@ -398,8 +399,9 @@ Employee ID: {user.employee_id}
         msg.body = body
         mail.send(msg)
         email_sent = True
-    except Exception as e:
-        print(f"Failed to send approval email: {e}")
+    except Exception:
+        # Email failure shouldn't block approval
+        pass
 
     db.session.commit()
     

@@ -215,11 +215,10 @@ Regards,
 Retail & Inventory Management System
 """
         mail.send(msg)
-        print(f"OTP sent to {user.email}")
         email_sent = True
-    except Exception as e:
-        print(f"Failed to send OTP email: {e}")
+    except Exception:
         # Fallback to returning OTP in response if email fails
+        pass
     
     if email_sent:
         return jsonify({"message": "OTP sent to your email. Please check your inbox."}), 200

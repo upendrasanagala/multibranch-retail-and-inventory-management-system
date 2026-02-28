@@ -73,15 +73,12 @@ def get_staff():
     manager = User.query.get(int(manager_id))
     
     if not manager or not manager.branch_id:
-        print(f"DEBUG: Manager {manager_id} not found or has no branch_id")
         return jsonify({"message": "Manager not associated with a branch"}), 400
         
     staff_members = User.query.filter_by(
         branch_id=manager.branch_id, 
         role="staff"
     ).all()
-    
-    print(f"DEBUG: Manager {manager.email} (Branch {manager.branch_id}) found {len(staff_members)} staff")
     
     users = []
     for s in staff_members:

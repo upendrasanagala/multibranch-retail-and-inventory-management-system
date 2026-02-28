@@ -118,10 +118,8 @@ def get_product(product_id):
 @product_bp.route("/", methods=["POST"])
 @jwt_required()
 @roles_required("admin", "manager")
-def create_product():
     try:
         data = request.get_json() or {}
-        print("DEBUG: Received create_product data:", data) # Debug log
 
         name = data.get("name")
         unit_price = data.get("unit_price")
@@ -219,9 +217,6 @@ def create_product():
 
     except Exception as e:
         db.session.rollback()
-        print(f"ERROR in create_product: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return jsonify({"message": f"Server Error: {str(e)}"}), 500
 
 
