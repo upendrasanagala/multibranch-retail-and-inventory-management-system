@@ -778,35 +778,21 @@ def download_sample_template():
     from io import BytesIO
     from flask import send_file
 
-    # Define sample data
+    # Define empty template structure
     data = [
         {
-            "name": "Sample Product 1",
-            "sku": "SAMPLE-001",
-            "barcode": "123456789012",
-            "category": "Snacks",
-            "price": 50.0,
-            "cost_price": 35.0,
-            "unit": "pkt",
-            "size": "100g",
-            "quantity": 100,
+            "name": "",
+            "sku": "",
+            "barcode": "",
+            "category": "",
+            "price": 0.0,
+            "cost_price": 0.0,
+            "unit": "",
+            "size": "",
+            "quantity": 0,
             "discount_percent": 0.0,
-            "gst_percent": 5.0,
-            "description": "Delicious snack example"
-        },
-        {
-            "name": "Sample Product 2",
-            "sku": "SAMPLE-002",
-            "barcode": "098765432109",
-            "category": "Dairy (Milk, Eggs, Cheese)",
-            "price": 60.0,
-            "cost_price": 45.0,
-            "unit": "L",
-            "size": "1L",
-            "quantity": 50,
-            "discount_percent": 5.0,
             "gst_percent": 0.0,
-            "description": "Fresh milk example"
+            "description": ""
         }
     ]
 

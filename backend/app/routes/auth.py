@@ -169,14 +169,6 @@ def update_profile():
     return jsonify({"message": "Profile updated successfully"}), 200
 
 
-# =============================
-# Admin Test Route
-# =============================
-@auth_bp.route("/admin-test", methods=["GET"])
-@jwt_required()
-@roles_required("admin")
-def admin_test():
-    return jsonify({"message": "Admin access granted"}), 200
 
 
 # =============================
