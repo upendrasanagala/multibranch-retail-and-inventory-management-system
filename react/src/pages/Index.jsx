@@ -121,27 +121,60 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ================= STATS ROW ================= */}
-      <div className="stats-strip">
-        <div className="stats-container">
-          <div className="stat-box">
-            <h3>2.5s</h3>
-            <p>Avg. Checkout Time</p>
+      {/* ================= REAL-TIME SCENARIOS ================= */}
+      <section className="scenarios-section">
+        <div className="section-head">
+          <span className="badge-scenario">REAL-WORLD IMPACT</span>
+          <h2>Solving Retail Complexity, Instantly.</h2>
+          <p>See how our intelligent engine handles your most critical operations in milliseconds.</p>
+        </div>
+
+        <div className="scenarios-grid">
+          <div className="scenario-card">
+            <div className="scenario-header">
+              <i className="fas fa-balance-scale"></i>
+              <h3>Stock Rebalancing</h3>
+            </div>
+            <p className="scenario-text">
+              "Branch A has 5 units of 'Product X' left, while Branch B has a surplus of 50. Our engine detects this imbalance and suggests an instant transfer to avoid stockouts without new purchases."
+            </p>
+            <div className="scenario-tag">Smart Redistribution</div>
           </div>
-          <div className="stat-box">
-            <h3>99.9%</h3>
-            <p>Inventory Accuracy</p>
+
+          <div className="scenario-card">
+            <div className="scenario-header">
+              <i className="fas fa-microchip"></i>
+              <h3>Instant Transparency</h3>
+            </div>
+            <p className="scenario-text">
+              "A sale happens at your suburban outlet. Within 200ms, the global dashboard reflects the updated revenue and inventory level across your entire headquarters and mobile apps."
+            </p>
+            <div className="scenario-tag">Zero Latency Sync</div>
           </div>
-          <div className="stat-box">
-            <h3>Unlimited</h3>
-            <p>Branch Support</p>
+
+          <div className="scenario-card highlight">
+            <div className="scenario-header">
+              <i className="fas fa-user-shield"></i>
+              <h3>Operational Security</h3>
+            </div>
+            <p className="scenario-text">
+              "A manager attempts to override a stock price. Every action is logged with timestamp, user ID, and branch location, ensuring complete accountability and fraud prevention."
+            </p>
+            <div className="scenario-tag">Enterprise Integrity</div>
           </div>
-          <div className="stat-box">
-            <h3>Real-Time</h3>
-            <p>Global Sync</p>
+
+          <div className="scenario-card">
+            <div className="scenario-header">
+              <i className="fas fa-file-invoice-dollar"></i>
+              <h3>Financial Precision</h3>
+            </div>
+            <p className="scenario-text">
+              "Tax season arrives. Instead of manual spreadsheets, you generate a branch-wise GST breakdown (CGST/SGST) across all 50 locations with a single click."
+            </p>
+            <div className="scenario-tag">One-Click Compliance</div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* ================= IMPACT POSTER ================= */}
       <section className="impact-section">
