@@ -173,6 +173,50 @@ export default function Home() {
             </p>
             <div className="scenario-tag">One-Click Compliance</div>
           </div>
+
+          <div className="scenario-card">
+            <div className="scenario-header">
+              <i className="fas fa-bell"></i>
+              <h3>Low Stock Intelligence</h3>
+            </div>
+            <p className="scenario-text">
+              "A high-demand item drops below 10% in three branches simultaneously. The system auto-generates procurement alerts and ranks them by urgency to prevent revenue loss."
+            </p>
+            <div className="scenario-tag">Smart Procurement</div>
+          </div>
+
+          <div className="scenario-card highlight">
+            <div className="scenario-header">
+              <i className="fas fa-qrcode"></i>
+              <h3>Dynamic UPI Payments</h3>
+            </div>
+            <p className="scenario-text">
+              "A customer at Branch 5 pays via UPI. The system generates a dynamic QR code specific to that branch's bank account, confirming the payment instantly in the POS flow."
+            </p>
+            <div className="scenario-tag">Seamless Checkout</div>
+          </div>
+
+          <div className="scenario-card">
+            <div className="scenario-header">
+              <i className="fas fa-user-plus"></i>
+              <h3>Instant Onboarding</h3>
+            </div>
+            <p className="scenario-text">
+              "Hiring 20 new staff for a holiday rush? Add them in seconds with auto-generated Employee IDs and temporary passwords, ready for their first shift immediately."
+            </p>
+            <div className="scenario-tag">Rapid Scaling</div>
+          </div>
+
+          <div className="scenario-card">
+            <div className="scenario-header">
+              <i className="fas fa-globe"></i>
+              <h3>Global Audit</h3>
+            </div>
+            <p className="scenario-text">
+              "Perform a surprise inventory audit across all branches. Staff update counts on mobile, and the Admin sees real-time discrepancies vs book values globally."
+            </p>
+            <div className="scenario-tag">Total Oversight</div>
+          </div>
         </div>
       </section>
 
@@ -255,6 +299,22 @@ export default function Home() {
               Automated low-stock alerts, expiry tracking, and one-click transfers
               between branches.
             </p>
+          </div>
+
+          <div className="bento-card">
+            <div className="bento-icon">
+              <i className="fas fa-qrcode"></i>
+            </div>
+            <h3>Dynamic UPI Integration</h3>
+            <p>Generate branch-specific QR codes for instant, error-free digital payments at every POS.</p>
+          </div>
+
+          <div className="bento-card">
+            <div className="bento-icon">
+              <i className="fas fa-robot"></i>
+            </div>
+            <h3>Auto-Procurement</h3>
+            <p>Intelligent restocking suggestions based on sales velocity and minimum stock thresholds.</p>
           </div>
         </div>
       </section>
