@@ -302,19 +302,18 @@ h5 {
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
+  /* More even spacing */
   text-align: center;
-  flex-wrap: wrap;
-  gap: 15px;
-  /* Reduced gap */
-  padding: 0 5%;
+  flex-wrap: nowrap;
+  /* Forced single row */
+  gap: 10px;
+  padding: 0 4%;
 }
 
 .stat-box {
   flex: 1;
-  min-width: 160px;
-  /* Reduced min-width */
-  padding: 10px;
+  padding: 10px 5px;
 }
 
 .stat-box h3 {
@@ -334,26 +333,31 @@ h5 {
 
 @media (max-width: 768px) {
   .stats-strip {
-    padding: 40px 0;
+    padding: 30px 0;
   }
 
-  .stats-container {
-    gap: 25px;
+  .stat-box h3 {
+    font-size: 24px;
   }
 
-  .stat-box {
-    min-width: 40%;
-    /* Allows 2 per row */
+  .stat-box p {
+    font-size: 11px;
   }
 }
 
 @media (max-width: 480px) {
   .stats-container {
-    flex-direction: column;
+    gap: 5px;
+    padding: 0 2%;
   }
 
-  .stat-box {
-    min-width: 100%;
+  .stat-box h3 {
+    font-size: 18px;
+  }
+
+  .stat-box p {
+    font-size: 9px;
+    letter-spacing: 0;
   }
 }
 
