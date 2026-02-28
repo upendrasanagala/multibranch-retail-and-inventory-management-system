@@ -305,13 +305,15 @@ h5 {
   justify-content: space-around;
   text-align: center;
   flex-wrap: wrap;
-  gap: 30px;
+  gap: 15px;
+  /* Reduced gap */
   padding: 0 5%;
 }
 
 .stat-box {
   flex: 1;
-  min-width: 220px;
+  min-width: 160px;
+  /* Reduced min-width */
   padding: 10px;
 }
 
@@ -336,8 +338,18 @@ h5 {
   }
 
   .stats-container {
+    gap: 25px;
+  }
+
+  .stat-box {
+    min-width: 40%;
+    /* Allows 2 per row */
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-container {
     flex-direction: column;
-    gap: 40px;
   }
 
   .stat-box {
