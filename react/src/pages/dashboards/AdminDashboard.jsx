@@ -320,232 +320,222 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ================= DASHBOARD ================= */}
+          {/* ================= DASHBOARD HOME ================= */}
           {activeSection === "dashboard" && (
-            <>
-              {/* ROW 1: System Overview */}
-              <div className="dashboard-grid" style={{ marginBottom: '20px' }}>
-                <div className="data-box"><h4>Total Users</h4><div className="value">{stats.totalUsers}</div></div>
-                <div className="data-box"><h4>Active Branches</h4><div className="value">{stats.totalBranches}</div></div>
-                <div className="data-box"><h4>Products</h4><div className="value">{stats.totalProducts}</div></div>
-                <div className="data-box"><h4>Approval Pending</h4><div className="value" style={{ color: stats.pendingUsers > 0 ? '#ca8a04' : 'inherit' }}>{stats.pendingUsers}</div></div>
-              </div>
+            <div className="dashboard-container-refined" style={{ animation: 'fadeIn 0.5s ease-out' }}>
 
-              {/* ROW 2: Today's Financials */}
-              <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', marginBottom: '30px' }}>
-                <div className="data-box" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white' }}>
-                  <h4 style={{ color: 'rgba(255,255,255,0.8)' }}>Today's Revenue</h4>
-                  <div className="value" style={{ color: 'white' }}>₹{stats.todayRevenue?.toLocaleString() || 0}</div>
-                  <div style={{ fontSize: '12px', marginTop: '5px', opacity: 0.9 }}>Across all branches</div>
+              {/* SECTION 1: SYSTEM STRIP (Mini metrics at the top) */}
+              <div className="stats-strip">
+                <div className="stat-card-mini">
+                  <span className="label">Total Users</span>
+                  <span className="count">{stats.totalUsers}</span>
                 </div>
-
-                <div className="data-box">
-                  <h4>Today's Cash</h4>
-                  <div className="value" style={{ color: '#059669' }}>₹{stats.todayCash?.toLocaleString() || 0}</div>
+                <div className="stat-card-mini">
+                  <span className="label">Active Branches</span>
+                  <span className="count">{stats.totalBranches}</span>
                 </div>
-
-                <div className="data-box">
-                  <h4>Today's UPI</h4>
-                  <div className="value" style={{ color: '#2563eb' }}>₹{stats.todayUpi?.toLocaleString() || 0}</div>
+                <div className="stat-card-mini">
+                  <span className="label">Total Products</span>
+                  <span className="count">{stats.totalProducts}</span>
                 </div>
-
-                <div className="data-box">
-                  <h4>Today's QR</h4>
-                  <div className="value" style={{ color: '#0d9488' }}>₹{stats.todayQr?.toLocaleString() || 0}</div>
+                <div className="stat-card-mini" style={{ borderLeft: stats.pendingUsers > 0 ? '4px solid #f59e0b' : '' }}>
+                  <span className="label">Pending Approvals</span>
+                  <span className="count" style={{ color: stats.pendingUsers > 0 ? '#d97706' : 'inherit' }}>
+                    {stats.pendingUsers}
+                  </span>
                 </div>
               </div>
 
-              {/* ROW 3: Widgets Flow */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+              {/* SECTION 2: HERO STATS (Financial Focus) */}
+              <div className="hero-stats-grid">
+                <div className="stat-card-hero primary">
+                  <span className="label">TODAY'S TOTAL REVENUE</span>
+                  <div className="value">₹{stats.todayRevenue?.toLocaleString() || 0}</div>
+                  <div className="trend">
+                    <i className="fas fa-chart-line"></i> Global performance across all branches
+                  </div>
+                </div>
 
-                {/* LOW STOCK WIDGET */}
-                <div className="table-card" style={{ height: 'fit-content' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                    <h3 style={{ margin: 0, color: '#dc2626' }}>⚠️ Critical Low Stock</h3>
-                    <span style={{ fontSize: '12px', background: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: '10px' }}>
-                      Top 5
-                    </span>
+                <div className="stat-card-hero secondary">
+                  <span className="label">Cash Payments</span>
+                  <div className="value" style={{ color: '#059669', fontSize: '24px' }}>₹{stats.todayCash?.toLocaleString() || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Physical Collections</div>
+                </div>
+
+                <div className="stat-card-hero secondary">
+                  <span className="label">UPI Transfers</span>
+                  <div className="value" style={{ color: '#2563eb', fontSize: '24px' }}>₹{stats.todayUpi?.toLocaleString() || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Digital Direct</div>
+                </div>
+
+                <div className="stat-card-hero secondary">
+                  <span className="label">QR Scans</span>
+                  <div className="value" style={{ color: '#0d9488', fontSize: '24px' }}>₹{stats.todayQr?.toLocaleString() || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Merchant QR</div>
+                </div>
+              </div>
+
+              {/* SECTION 3: MAIN OPERATIONAL GRID */}
+              <div className="dashboard-main-grid">
+
+                {/* LEFT COLUMN: Charts & Performance */}
+                <div className="left-column" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                  {/* PERFORMANCE CHART */}
+                  <div className="table-card" style={{ margin: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ margin: 0 }}>📊 Branch Sales Performance (Last 30 Days)</h3>
+                      <button className="primary-btn" onClick={() => setActiveSection('reports')} style={{ padding: '6px 12px', fontSize: '11px' }}>
+                        Deep Dive
+                      </button>
+                    </div>
+
+                    {!stats.branchPerformance || stats.branchPerformance.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                        <p>Waiting for sales data to generate analytics...</p>
+                      </div>
+                    ) : (
+                      <div style={{ minHeight: '300px' }}>
+                        <Chart
+                          type="bar"
+                          height={300}
+                          series={[{
+                            name: 'Revenue (₹)',
+                            data: stats.branchPerformance.map(b => b.revenue)
+                          }]}
+                          options={{
+                            chart: { toolbar: { show: false }, fontFamily: 'Outfit, sans-serif' },
+                            plotOptions: {
+                              bar: { borderRadius: 6, columnWidth: '40%', distributed: true, dataLabels: { position: 'top' } }
+                            },
+                            colors: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+                            dataLabels: {
+                              enabled: true,
+                              formatter: (val) => `₹${(val / 1000).toFixed(1)}k`,
+                              offsetY: -20,
+                              style: { fontSize: '11px', colors: ["#64748b"] }
+                            },
+                            xaxis: {
+                              categories: stats.branchPerformance.map(b => b.name),
+                              labels: { style: { fontSize: '12px', fontWeight: 600 } }
+                            },
+                            yaxis: { labels: { formatter: (val) => `₹${(val / 1000).toFixed(0)}k` } },
+                            grid: { borderColor: '#f1f5f9' }
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {(!stats.criticalItems || stats.criticalItems.length === 0) ? (
-                    <p style={{ color: '#64748b', fontSize: '14px' }}>All stock levels are healthy.</p>
-                  ) : (
-                    <table style={{ fontSize: '13px' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ padding: '8px' }}>Product</th>
-                          <th style={{ padding: '8px' }}>Branch</th>
-                          <th style={{ padding: '8px' }}>Qty / Min</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.criticalItems.map((item, i) => (
-                          <tr key={i}>
-                            <td style={{ padding: '8px' }}>{item.product}</td>
-                            <td style={{ padding: '8px' }}>{item.branch}</td>
-                            <td style={{ padding: '8px', fontWeight: 600, color: '#dc2626' }}>
-                              {item.qty} <span style={{ color: '#94a3b8', fontWeight: 400 }}>/ {item.min}</span>
-                            </td>
-                          </tr>
+                  {/* FAQ SECION */}
+                  <DashboardFAQ faqs={[
+                    {
+                      question: "How do I approve new staff?",
+                      answer: "Go to the 'Users' tab in the sidebar. Staff waiting for approval will have a 'Pending' status and an 'Approve' button next to their details."
+                    },
+                    {
+                      question: "How to add a new branch?",
+                      answer: "Navigate to the 'Branches' tab and click the '+ Add Branch' button at the top right of the page."
+                    },
+                    {
+                      question: "Can I see global sales across all branches?",
+                      answer: "Yes, this Dashboard home provides a real-time system-wide revenue overview, and the 'Reports' tab offers detailed financial breakdowns."
+                    },
+                    {
+                      question: "How do I manage suppliers?",
+                      answer: "Use the 'Suppliers' tab to add, edit, or remove vendors for your inventory network."
+                    },
+                    {
+                      question: "What do the critical stock alerts mean?",
+                      answer: "The red alert bar at the top highlights items that have fallen below their minimum threshold across any branch. Click 'Manage Stock' to address these immediately."
+                    },
+                    {
+                      question: "How do I monitor branch performance?",
+                      answer: "The 'Branch Sales Performance' chart on this home page shows a 30-day revenue comparison. Detailed per-branch metrics are available in the 'Reports' section."
+                    },
+                    {
+                      question: "How do I initiate a stock transfer?",
+                      answer: "Go to the 'Transfers' tab. You can create a new request by selecting the source and destination branches along with the products to be moved."
+                    },
+                    {
+                      question: "Can I export or print reports?",
+                      answer: "Yes, in the 'Reports' tab, you can filter by date and branch, then use the 'Print' button to generate a physical or PDF copy of the financial data."
+                    },
+                    {
+                      question: "How do I update branch payment details?",
+                      answer: "Go to the 'Branches' tab, select 'Edit' on the desired branch, and you can update their UPI ID, Address, or Mobile number."
+                    },
+                    {
+                      question: "What happens when I delete a user?",
+                      answer: "Deleting a user removes their login access immediately. However, their past transaction signatures remain in the system for auditing and integrity."
+                    }
+                  ]} />
+                </div>
+
+                {/* RIGHT COLUMN: Critical Actions & Alerts */}
+                <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                  {/* CRITICAL STOCK WIDGET */}
+                  <div className="table-card" style={{ margin: 0, borderTop: '4px solid #dc2626' }}>
+                    <div style={{ marginBottom: '15px' }}>
+                      <h3 style={{ margin: 0, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fas fa-exclamation-triangle"></i> Low Stock Alerts
+                      </h3>
+                    </div>
+
+                    {(!stats.criticalItems || stats.criticalItems.length === 0) ? (
+                      <div style={{ textAlign: 'center', padding: '20px', background: '#f0fdf4', borderRadius: '12px', color: '#166534' }}>
+                        <i className="fas fa-check-circle" style={{ fontSize: '24px', marginBottom: '8px' }}></i>
+                        <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>All stocks healthy</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {stats.criticalItems.slice(0, 5).map((item, i) => (
+                          <div key={i} style={{ padding: '10px', background: '#fef2f2', borderRadius: '10px', border: '1px solid #fee2e2' }}>
+                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#991b1b' }}>{item.product}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#b91c1c', marginTop: '4px' }}>
+                              <span>{item.branch}</span>
+                              <span style={{ fontWeight: 800 }}>{item.qty} left</span>
+                            </div>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                  )}
-                  <div style={{ marginTop: '10px', textAlign: 'right' }}>
-                    <button
-                      onClick={() => setActiveSection('inventory')}
-                      style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '12px' }}
-                    >
-                      View All Inventory →
-                    </button>
-                  </div>
-                </div>
-
-                {/* BRANCH PERFORMANCE WIDGET */}
-                <div className="table-card" style={{ height: 'fit-content' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <h3 style={{ margin: 0 }}>📊 Branch Sales Performance</h3>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>Last 30 Days</span>
+                        <button className="secondary-btn" onClick={() => setActiveSection('inventory')} style={{ width: '100%', marginTop: '5px', fontSize: '12px' }}>
+                          View Full Stock Report
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {!stats.branchPerformance || stats.branchPerformance.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                      <p>No sales data available for this period.</p>
-                    </div>
-                  ) : (
-                    <div style={{ minHeight: '300px' }}>
-                      <Chart
-                        type="bar"
-                        height={300}
-                        series={[{
-                          name: 'Revenue (₹)',
-                          data: stats.branchPerformance.map(b => b.revenue)
-                        }]}
-                        options={{
-                          chart: {
-                            toolbar: { show: false },
-                            fontFamily: 'Inter, sans-serif'
-                          },
-                          plotOptions: {
-                            bar: {
-                              borderRadius: 6,
-                              columnWidth: '45%',
-                              distributed: true,
-                              dataLabels: { position: 'top' }
-                            }
-                          },
-                          colors: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
-                          dataLabels: {
-                            enabled: true,
-                            formatter: (val) => `₹${(val / 1000).toFixed(1)}k`,
-                            offsetY: -20,
-                            style: { fontSize: '11px', colors: ["#304758"] }
-                          },
-                          xaxis: {
-                            categories: stats.branchPerformance.map(b => b.name),
-                            labels: {
-                              style: { fontSize: '12px', fontWeight: 500 }
-                            }
-                          },
-                          yaxis: {
-                            labels: {
-                              formatter: (val) => `₹${val.toLocaleString()}`
-                            }
-                          },
-                          tooltip: {
-                            y: {
-                              formatter: (val) => `₹${val.toLocaleString()}`
-                            }
-                          },
-                          legend: { show: false },
-                          grid: {
-                            borderColor: '#f1f5f9',
-                            strokeDashArray: 4
-                          }
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
+                  {/* PENDING APPROVALS WIDGET */}
+                  <div className="table-card" style={{ margin: 0 }}>
+                    <h3 style={{ marginBottom: '15px' }}>Pending Approvals</h3>
+                    {users.filter(u => u.status === 'pending').length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', background: '#f8fafc', borderRadius: '12px' }}>
+                        <p style={{ margin: 0, fontSize: '12px' }}>No users awaiting action</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {users.filter(u => u.status === 'pending' && u.email !== 'admin@retail.com').slice(0, 3).map((u, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '13px' }}>{u.firstName || u.first_name}</div>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>{u.role} | {u.branch_name}</div>
+                            </div>
+                            <button onClick={() => approveUser(u.user_id || u.id)} className="primary-btn" style={{ padding: '5px 10px', fontSize: '11px' }}>
+                              Approve
+                            </button>
+                          </div>
+                        ))}
+                        <button className="secondary-btn" onClick={() => setActiveSection('users')} style={{ width: '100%', fontSize: '12px' }}>
+                          Manage All Users
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-                {/* PENDING APPROVALS WIDGET */}
-                <div className="table-card" style={{ height: 'fit-content' }}>
-                  <h3 style={{ marginBottom: '15px' }}>Pending User Approvals</h3>
-                  {users.filter(u => u.status === 'pending').length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
-                      <p>✅ All users approved</p>
-                    </div>
-                  ) : (
-                    <div className="table-responsive">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Name</th>
-                            <th>Role</th>
-                            <th>Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {users.filter(u => u.status === 'pending' && u.email !== 'admin@retail.com').slice(0, 5).map((u, i) => (
-                            <tr key={u.user_id || u.id || i}>
-                              <td>
-                                <div>{u.firstName || u.first_name}</div>
-                                <div style={{ fontSize: '10px', color: '#64748b' }}>{u.branch_name}</div>
-                              </td>
-                              <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
-                              <td>
-                                <button
-                                  onClick={() => approveUser(u.user_id || u.id)}
-                                  className="primary-btn"
-                                  style={{ padding: '4px 8px', fontSize: '11px' }}
-                                >
-                                  Approve
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
                 </div>
               </div>
-
-              <DashboardFAQ faqs={[
-                {
-                  question: "How do I approve new staff?",
-                  answer: "Go to the 'Users' tab in the sidebar. Staff waiting for approval will have a 'Pending' status and an 'Approve' button next to their details."
-                },
-                {
-                  question: "How to add a new branch?",
-                  answer: "Navigate to the 'Branches' tab and click the '+ Add Branch' button at the top right of the page."
-                },
-                {
-                  question: "Can I see global sales across all branches?",
-                  answer: "Yes, this Dashboard home provides a real-time system-wide revenue overview, and the 'Reports' tab offers detailed financial breakdowns."
-                },
-                {
-                  question: "How do I manage suppliers?",
-                  answer: "Use the 'Suppliers' tab to add, edit, or remove vendors for your inventory network."
-                },
-                {
-                  question: "What do the critical stock alerts mean?",
-                  answer: "The red alert bar at the top highlights items that have fallen below their minimum threshold across any branch. Click 'Manage Stock' to address these immediately."
-                },
-                {
-                  question: "How do I monitor branch performance?",
-                  answer: "The 'Branch Sales Performance' chart on this home page shows a 30-day revenue comparison. Detailed per-branch metrics are available in the 'Reports' section."
-                },
-                {
-                  question: "How do I update branch payment details?",
-                  answer: "Go to the 'Branches' tab, select the branch you wish to edit, and update their UPI ID or address in the branch settings modal."
-                },
-                {
-                  question: "What happens when I delete a user?",
-                  answer: "Deleting a user removes their login access immediately. Their transaction history remains in the system archives for reporting purposes."
-                }
-              ]} />
-            </>
+            </div>
           )}
 
           {/* ================= USERS ================= */}
