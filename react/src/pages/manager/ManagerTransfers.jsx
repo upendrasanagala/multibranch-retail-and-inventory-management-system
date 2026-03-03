@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 import { formatDate } from "../../utils/dateUtils";
+import { useToast } from "../../components/ToastContext";
+import { useConfirm } from "../../components/ConfirmContext";
 
 export default function ManagerTransfers() {
+  const { showToast } = useToast();
+  const { showConfirm, showPrompt } = useConfirm();
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("incoming"); // incoming | outgoing
@@ -28,25 +32,25 @@ export default function ManagerTransfers() {
   };
 
   const handleApprove = async (id) => {
-    if (!window.confirm("Approve this transfer? Stock will be deducted from your branch.")) return;
+    if (!(await showConfirm("Approve this transfer? Stock will be deducted from your branch.", "Approve Transfer"))) return;
     try {
       await api.transfers.approve(id);
-      alert("Transfer approved!");
+      showToast("Transfer approved!", "success");
       loadTransfers();
     } catch (err) {
-      alert("Failed to approve: " + (err.response?.data?.message || err.message));
+      showToast("Failed to approve: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
   const handleReject = async (id) => {
-    const reason = prompt("Enter rejection reason:");
+    const reason = await showPrompt("Enter rejection reason:", "Reject Transfer", "Reason...");
     if (!reason) return;
     try {
       await api.transfers.reject(id, reason);
-      alert("Transfer rejected.");
+      showToast("Transfer rejected.", "info");
       loadTransfers();
     } catch (err) {
-      alert("Failed to reject: " + (err.response?.data?.message || err.message));
+      showToast("Failed to reject: " + (err.response?.data?.message || err.message), "error");
     }
   };
 

@@ -113,11 +113,46 @@ def get_product(product_id):
 
 
 # =============================
+# Get Product Inventory Across Branches
+# =============================
+@product_bp.route("/<int:product_id>/inventory", methods=["GET"])
+@jwt_required()
+def get_product_inventory_branches(product_id):
+    from app.models.inventory import Inventory
+    from app.models.branch import Branch
+    
+    product = Product.query.get_or_404(product_id)
+    inventory_records = db.session.query(
+        Inventory, Branch.name.label("branch_name")
+    ).join(
+        Branch, Inventory.branch_id == Branch.branch_id
+    ).filter(
+        Inventory.product_id == product_id
+    ).all()
+    
+    distribution = [{
+        "branch_id": inv.branch_id,
+        "branch_name": branch_name,
+        "quantity": inv.quantity,
+        "min_threshold": inv.min_threshold,
+        "max_threshold": inv.max_threshold
+    } for inv, branch_name in inventory_records]
+    
+    return jsonify({
+        "product_id": product.product_id,
+        "product_name": product.name,
+        "sku": product.sku,
+        "inventory": distribution
+    }), 200
+
+
+# =============================
 # Create Product (Admin/Manager)
 # =============================
 @product_bp.route("/", methods=["POST"])
 @jwt_required()
 @roles_required("admin", "manager")
+def create_product():
     try:
         data = request.get_json() or {}
 

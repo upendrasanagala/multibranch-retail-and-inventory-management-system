@@ -24,7 +24,9 @@ from app.routes import sales_bp
 @jwt_required()
 @roles_required("admin", "manager", "staff")
 def create_sale():
+    from flask import current_app
     user_id = get_jwt_identity()
+    current_app.logger.info(f"Sale transaction initiated by User ID: {user_id}")
     user = User.query.get(user_id)
     
     if not user or not user.branch_id:

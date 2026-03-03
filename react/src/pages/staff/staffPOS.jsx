@@ -3,8 +3,10 @@ import "../../styles/dashboard.css";
 import { formatDate, formatDateTime } from "../../utils/dateUtils";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
+import { useToast } from "../../components/ToastContext";
 
 export default function StaffPOS() {
+  const { showToast } = useToast();
   const user = getCurrentUser();
 
   const [products, setProducts] = useState([]);
@@ -98,10 +100,10 @@ export default function StaffPOS() {
           addToCart(product);
           setBarcode("");
         } else {
-          alert("Out of stock!");
+          showToast("Out of stock!", "warning");
         }
       } else {
-        alert("Product not found!");
+        showToast("Product not found!", "error");
       }
     }
   };
@@ -155,24 +157,25 @@ export default function StaffPOS() {
 
   /* ================= CART LOGIC ================= */
   const addToCart = (product) => {
+    // Pre-check stock before updating state
+    const existing = cart.find(i => i.productId === (product.product_id || product.id));
+    if (existing) {
+      const productInInventory = products.find(p => p.productId === (product.product_id || product.id));
+      if (existing.qty + 1 > productInInventory.stock) {
+        showToast("Cannot exceed available stock!", "warning");
+        return;
+      }
+    } else if (product.stock <= 0) {
+      showToast("Product is out of stock!", "warning");
+      return;
+    }
     setCart(prev => {
-      const existing = prev.find(i => i.productId === (product.product_id || product.id));
-      if (existing) {
-        // Check stock before incrementing
-        const productInInventory = products.find(p => p.productId === (product.product_id || product.id));
-        if (existing.qty + 1 > productInInventory.stock) {
-          alert("Cannot exceed available stock!");
-          return prev; // Return previous state if stock limit reached
-        }
+      const ex = prev.find(i => i.productId === (product.product_id || product.id));
+      if (ex) {
         return prev.map(i => i.productId === (product.product_id || product.id)
           ? { ...i, qty: i.qty + 1 }
           : i
         );
-      }
-      // Check stock for new item
-      if (product.stock <= 0) {
-        alert("Product is out of stock!");
-        return prev; // Return previous state if out of stock
       }
       return [...prev, {
         productId: product.product_id || product.id,
@@ -196,7 +199,7 @@ export default function StaffPOS() {
     const product = products.find(p => p.productId === id);
     const item = cart.find(i => i.productId === id);
     if (delta > 0 && item.qty >= product.stock) {
-      alert("Cannot exceed available stock!");
+      showToast("Cannot exceed available stock!", "warning");
       return;
     }
     setCart(cart.map(i => i.productId === id ? { ...i, qty: i.qty + delta } : i).filter(i => i.qty > 0));
@@ -243,11 +246,11 @@ export default function StaffPOS() {
 
   /* ================= COMPLETE PAYMENT ================= */
   const completePayment = async () => {
-    if (cart.length === 0) return alert("Cart is empty");
-    if (!paymentMethod) return alert("Select payment method");
-    if (paymentMethod === 'upi' && !utr) return alert("Enter UTR for UPI");
-    if (paymentMethod === 'card' && !cardData.name) return alert("Enter Card Details");
-    if (paymentMethod === 'cash' && Number(cashReceived) < total) return alert(`Insufficient Cash! Need ₹${(total - Number(cashReceived)).toFixed(2)} more.`);
+    if (cart.length === 0) { showToast("Cart is empty", "warning"); return; }
+    if (!paymentMethod) { showToast("Select payment method", "warning"); return; }
+    if (paymentMethod === 'upi' && !utr) { showToast("Enter UTR for UPI", "warning"); return; }
+    if (paymentMethod === 'card' && !cardData.name) { showToast("Enter Card Details", "warning"); return; }
+    if (paymentMethod === 'cash' && Number(cashReceived) < total) { showToast(`Insufficient Cash! Need ₹${(total - Number(cashReceived)).toFixed(2)} more.`, "error"); return; }
 
     setLoading(true); // Assuming setLoading is used for processing state
     try {
@@ -312,7 +315,7 @@ export default function StaffPOS() {
       }, 2000);
 
     } catch (err) {
-      alert("Current Sale Failed: " + err.message);
+      showToast("Current Sale Failed: " + err.message, "error");
     }
     setLoading(false);
   };
@@ -323,7 +326,7 @@ export default function StaffPOS() {
     const printWindow = window.open("", "", "width=350,height=600");
 
     if (!printWindow) {
-      alert("Receipt printing was blocked by your browser.\nPlease allow popups for this site.");
+      showToast("Receipt printing was blocked. Please allow popups for this site.", "warning");
       return;
     }
 
@@ -530,7 +533,7 @@ export default function StaffPOS() {
       setSearch("");
       setShowResults(false);
     } else {
-      alert("Product out of stock!");
+      showToast("Product out of stock!", "warning");
     }
   };
 

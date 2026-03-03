@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../styles/dashboard.css";
+import { useToast } from "../../components/ToastContext";
+import { useConfirm } from "../../components/ConfirmContext";
 
 import AdminInventory from "../admin/AdminInventory";
 import AdminStockTransfers from "../admin/adminStockTransfer";
@@ -16,6 +18,8 @@ import ConfirmModal from "../../components/ConfirmModal";
 import Chart from "react-apexcharts";
 
 export default function AdminDashboard() {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const navigate = useNavigate();
 
   const [activeSection, setActiveSection] = useState("dashboard");
@@ -24,6 +28,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState("");
   const [showAddManager, setShowAddManager] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [branches, setBranches] = useState([]); // Store branches for dropdown
 
   const [newManager, setNewManager] = useState({
@@ -137,7 +142,7 @@ export default function AdminDashboard() {
         msg += `\n\n⚠️ IMPORTANT: Share these credentials. They must change this password on first login.`;
       }
 
-      alert(msg);
+      showToast(msg, "success");
 
       // Reload users
       const usersRes = await api.admin.getUsers();
@@ -153,21 +158,20 @@ export default function AdminDashboard() {
       }));
     } catch (error) {
       console.error("Failed to approve user:", error);
-      alert("Failed to approve user: " + (error.response?.data?.message || error.message));
+      showToast("Failed to approve user: " + (error.response?.data?.message || error.message), "error");
     } finally {
       setProcessingId(null);
     }
   };
 
-  const deleteUser = async (userId) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+  const deactivateUser = async (userId) => {
+    if (!(await showConfirm("Are you sure you want to deactivate this user? They will no longer be able to log in, but all their records will be preserved.", "Deactivate User"))) return;
 
     try {
       await api.admin.deleteUser(userId);
-      // Reload users
+      showToast("User deactivated successfully", "success");
       const usersRes = await api.admin.getUsers();
       setUsers(usersRes.users || []);
-      // Refresh stats
       const statsRes = await api.admin.getStats();
       setStats(prev => ({
         ...prev,
@@ -177,21 +181,35 @@ export default function AdminDashboard() {
         totalBranches: statsRes.total_branches || 0
       }));
     } catch (error) {
-      console.error("Failed to delete user:", error);
-      alert("Failed to delete user: " + error.message);
+      console.error("Failed to deactivate user:", error);
+      showToast("Failed to deactivate user: " + error.message, "error");
+    }
+  };
+
+  const reactivateUser = async (userId) => {
+    if (!(await showConfirm("Reactivate this user? They will be able to log in again.", "Reactivate User"))) return;
+
+    try {
+      await api.admin.reactivateUser(userId);
+      showToast("User reactivated successfully", "success");
+      const usersRes = await api.admin.getUsers();
+      setUsers(usersRes.users || []);
+    } catch (error) {
+      console.error("Failed to reactivate user:", error);
+      showToast("Failed to reactivate user: " + error.message, "error");
     }
   };
 
   const handleAddManagerSubmit = async (e) => {
     e.preventDefault();
     if (!newManager.branch_id) {
-      alert("Please select a branch");
+      showToast("Please select a branch", "warning");
       return;
     }
 
     try {
       const res = await api.admin.createUser(newManager);
-      alert(`✅ Manager Created!\n\nEmail: ${res.user.email}\nTemp Password: ${res.user.temp_password}\n\n⚠️ They will be required to change this password on first login.`);
+      showToast(`Manager Created! Email: ${res.user.email} | Temp Password: ${res.user.temp_password} — They must change it on first login.`, "success");
       setShowAddManager(false);
       setNewManager({ firstName: "", lastName: "", email: "", mobile: "", address: "", branch_id: "", password: "" });
 
@@ -200,7 +218,7 @@ export default function AdminDashboard() {
       setUsers(usersRes.users || []);
     } catch (err) {
       console.error("Failed to create manager:", err);
-      alert("❌ Error: " + (err.response?.data?.message || err.message));
+      showToast("Error: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
@@ -546,18 +564,45 @@ export default function AdminDashboard() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                     <span style={{ background: '#6366f1', color: '#fff', padding: '2px 10px', borderRadius: '12px', fontSize: '13px' }}>Managers</span>
-                    Branch Managers ({users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && u.status !== 'suspended').length})
+                    Branch Managers ({users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length})
                   </h3>
-                  <button
-                    className="primary-btn"
-                    style={{ fontSize: '13px', padding: '6px 14px' }}
-                    onClick={() => setShowAddManager(true)}
-                  >
-                    + Add Manager
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => setShowInactive(v => !v)}
+                      style={{
+                        fontSize: '12px', padding: '8px 18px',
+                        borderRadius: '20px',
+                        border: showInactive ? '1.5px solid #fca5a5' : '1.5px solid #cbd5e1',
+                        cursor: 'pointer',
+                        background: showInactive
+                          ? 'linear-gradient(135deg, #fef2f2, #fff1f2)'
+                          : 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+                        color: showInactive ? '#b91c1c' : '#475569',
+                        fontWeight: 700,
+                        letterSpacing: '0.3px',
+                        boxShadow: showInactive
+                          ? '0 2px 8px rgba(239, 68, 68, 0.15)'
+                          : '0 1px 4px rgba(0, 0, 0, 0.06)',
+                        transition: 'all 0.25s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <i className={`fas ${showInactive ? 'fa-eye-slash' : 'fa-eye'}`} style={{ fontSize: '11px' }}></i>
+                      {showInactive ? 'Hide Inactive' : 'Show Inactive'}
+                    </button>
+                    <button
+                      className="primary-btn"
+                      style={{ fontSize: '13px', padding: '6px 14px' }}
+                      onClick={() => setShowAddManager(true)}
+                    >
+                      + Add Manager
+                    </button>
+                  </div>
                 </div>
 
-                {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && u.status !== 'suspended').length > 0 ? (
+                {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length > 0 ? (
                   <div className="table-responsive">
                     <table>
                       <thead>
@@ -571,7 +616,7 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && u.status !== 'suspended').map((u, i) => (
+                        {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).map((u, i) => (
                           <tr key={u.user_id || i}>
                             <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{u.employee_id || '—'}</code></td>
                             <td>{u.first_name || u.firstName} {u.last_name || u.lastName}</td>
@@ -580,7 +625,9 @@ export default function AdminDashboard() {
                             <td>
                               {u.status === "approved"
                                 ? <span style={{ color: "#10b981", fontWeight: 700 }}>Approved</span>
-                                : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
+                                : u.status === "suspended"
+                                  ? <span style={{ color: "#ef4444", fontWeight: 700 }}>Inactive</span>
+                                  : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
                             </td>
                             <td style={{ display: 'flex', gap: '8px' }}>
                               <button onClick={() => {
@@ -598,7 +645,11 @@ export default function AdminDashboard() {
                                 </button>
                               )}
 
-                              <button onClick={() => deleteUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Delete</button>
+                              {u.status === "suspended" ? (
+                                <button onClick={() => reactivateUser(u.user_id)} style={{ background: '#d1fae5', color: '#065f46' }}>Reactivate</button>
+                              ) : (
+                                <button onClick={() => deactivateUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Deactivate</button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -614,7 +665,7 @@ export default function AdminDashboard() {
               <div className="table-card">
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ background: '#0ea5e9', color: '#fff', padding: '2px 10px', borderRadius: '12px', fontSize: '13px' }}>Staff</span>
-                  Staff Members ({users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com').length})
+                  Staff Members ({users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length})
                 </h3>
 
                 {users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com').length > 0 ? (
@@ -626,48 +677,24 @@ export default function AdminDashboard() {
                           <th>Name</th>
                           <th>Email</th>
                           <th>Branch</th>
-                          <th>Interviewer</th>
-                          <th>Interview Progress</th>
-                          <th>Score</th>
                           <th>Status</th>
                           <th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com').map((u, i) => (
+                        {users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).map((u, i) => (
                           <tr key={u.user_id || i}>
                             <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{u.employee_id || '—'}</code></td>
                             <td>{u.first_name || u.firstName} {u.last_name || u.lastName}</td>
                             <td>{u.email}</td>
                             <td>{u.branch_name || u.branch || 'N/A'}</td>
-                            <td>{u.interviewer_name || 'N/A'}</td>
-
-                            <td>
-                              <span style={{
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                background: u.interview_status === 'completed' ? '#d1fae5' : '#f1f5f9',
-                                color: u.interview_status === 'completed' ? '#065f46' : '#475569',
-                                fontWeight: 700
-                              }}>
-                                {(u.interview_status || 'not_started').replace('_', ' ').toUpperCase()}
-                              </span>
-                            </td>
-
-                            <td>
-                              <span style={{
-                                fontWeight: 800,
-                                color: u.score >= 70 ? '#10b981' : (u.score >= 40 ? '#f59e0b' : '#ef4444')
-                              }}>
-                                {u.score || 0}%
-                              </span>
-                            </td>
 
                             <td>
                               {u.status === "approved"
                                 ? <span style={{ color: "#10b981", fontWeight: 700 }}>Approved</span>
-                                : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
+                                : u.status === "suspended"
+                                  ? <span style={{ color: "#ef4444", fontWeight: 700 }}>Inactive</span>
+                                  : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
                             </td>
 
                             <td style={{ display: 'flex', gap: '8px' }}>
@@ -686,7 +713,11 @@ export default function AdminDashboard() {
                                 </button>
                               )}
 
-                              <button onClick={() => deleteUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Delete</button>
+                              {u.status === "suspended" ? (
+                                <button onClick={() => reactivateUser(u.user_id)} style={{ background: '#d1fae5', color: '#065f46' }}>Reactivate</button>
+                              ) : (
+                                <button onClick={() => deactivateUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Deactivate</button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -758,8 +789,8 @@ export default function AdminDashboard() {
               <div className="info-row">
                 <span className="info-label">Current Status</span>
                 <span className="info-value">
-                  <span style={{ color: selectedUser.status === 'approved' ? '#10b981' : '#f59e0b', fontWeight: 700 }}>
-                    {selectedUser.status?.toUpperCase()}
+                  <span style={{ color: selectedUser.status === 'approved' ? '#10b981' : selectedUser.status === 'suspended' ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>
+                    {selectedUser.status === 'suspended' ? 'INACTIVE' : selectedUser.status?.toUpperCase()}
                   </span>
                 </span>
               </div>

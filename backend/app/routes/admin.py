@@ -206,7 +206,7 @@ def update_user(user_id):
 
 
 # =============================
-# Delete User
+# Deactivate User (Soft Delete)
 # =============================
 @admin_bp.route("/users/<int:user_id>", methods=["DELETE"])
 @jwt_required()
@@ -228,6 +228,28 @@ def delete_user(user_id):
         return jsonify({"message": f"Failed to delete user: {str(e)}"}), 500
     
     return jsonify({"message": "User deactivated successfully"}), 200
+
+
+# =============================
+# Reactivate User
+# =============================
+@admin_bp.route("/users/<int:user_id>/reactivate", methods=["PUT"])
+@jwt_required()
+@roles_required("admin")
+def reactivate_user(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    if user.status != 'suspended':
+        return jsonify({"message": "User is not suspended"}), 400
+    
+    try:
+        user.status = 'approved'
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Failed to reactivate user: {str(e)}"}), 500
+    
+    return jsonify({"message": "User reactivated successfully"}), 200
 
 
 # =============================
@@ -774,6 +796,49 @@ def top_products_report():
     return jsonify({
         "top_products": top_products,
         "period_days": actual_days
+    }), 200
+
+
+# =============================
+# Profit Margin Analysis Report
+# =============================
+@admin_bp.route("/reports/profit-margins", methods=["GET"])
+@jwt_required()
+@roles_required("admin")
+def profit_margin_report():
+    # Calculate profit margin for all products: (unit_price - cost_price) / unit_price
+    products = Product.query.all()
+    
+    analysis = []
+    for p in products:
+        cost = p.cost_price or 0
+        price = p.unit_price or 0
+        
+        profit_per_unit = price - cost
+        margin_percent = (profit_per_unit / price * 100) if price > 0 else 0
+        
+        # Get total units sold for this product (all-time or optional period)
+        total_sold = db.session.query(func.sum(TransactionItem.quantity)).filter_by(product_id=p.product_id).scalar() or 0
+        total_profit = profit_per_unit * total_sold
+        
+        analysis.append({
+            "product_id": p.product_id,
+            "name": p.name,
+            "sku": p.sku,
+            "cost_price": cost,
+            "unit_price": price,
+            "profit_per_unit": round(profit_per_unit, 2),
+            "margin_percent": round(margin_percent, 2),
+            "total_sold": total_sold,
+            "total_profit": round(total_profit, 2)
+        })
+    
+    # Sort by total profit descending
+    analysis.sort(key=lambda x: x["total_profit"], reverse=True)
+    
+    return jsonify({
+        "report_date": datetime.now().isoformat(),
+        "analysis": analysis
     }), 200
 
 

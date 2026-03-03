@@ -228,10 +228,16 @@ export default function ManagerStaffActivity() {
                   <td>
                     <button
                       className="secondary-btn"
-                      style={{ padding: '5px 10px', fontSize: '12px' }}
+                      style={{
+                        padding: '5px 10px', fontSize: '12px',
+                        opacity: s.interview_status === 'completed' ? 0.5 : 1,
+                        cursor: s.interview_status === 'completed' ? 'not-allowed' : 'pointer'
+                      }}
                       onClick={() => handleEdit(s)}
+                      disabled={s.interview_status === 'completed'}
+                      title={s.interview_status === 'completed' ? 'Interview completed — details locked' : 'Edit staff details'}
                     >
-                      Edit Details
+                      {s.interview_status === 'completed' ? '🔒 Locked' : 'Edit Details'}
                     </button>
                   </td>
                 </tr>

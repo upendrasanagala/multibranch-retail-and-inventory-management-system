@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/dateUtils";
 import api from "../../services/api";
+import { useToast } from "../../components/ToastContext";
+import { useConfirm } from "../../components/ConfirmContext";
 
 const tableStyles = `
   .inventory-row:hover {
@@ -32,6 +34,8 @@ const tableStyles = `
 
 
 export default function AdminInventory({ setActiveSection }) {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [branches, setBranches] = useState([]); // New: Branches for stock distribution
@@ -130,7 +134,7 @@ export default function AdminInventory({ setActiveSection }) {
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} products? This cannot be undone.`)) return;
+    if (!(await showConfirm(`Are you sure you want to delete ${selectedIds.size} products? This cannot be undone.`, "Bulk Delete"))) return;
 
     setLoading(true);
     try {
@@ -230,13 +234,13 @@ export default function AdminInventory({ setActiveSection }) {
       }
       setMessage(msg);
       if (res.errors && res.errors.length > 0) {
-        alert("Import Errors:\n" + res.errors.join("\n"));
+        showToast("Import Errors: " + res.errors.join(", "), "warning");
       }
       loadProducts();
       // Reload categories too as new ones might be added
       loadCategories();
     } catch (err) {
-      alert("Import Failed: " + (err.response?.data?.message || err.message));
+      showToast("Import Failed: " + (err.response?.data?.message || err.message), "error");
     }
     setImportLoading(false);
     // Reset input
@@ -267,7 +271,7 @@ export default function AdminInventory({ setActiveSection }) {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Download Failed: " + err.message);
+      showToast("Download Failed: " + err.message, "error");
     }
   };
   const handleDownloadFile = async (filename) => {
@@ -290,7 +294,7 @@ export default function AdminInventory({ setActiveSection }) {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Download Failed: " + err.message);
+      showToast("Download Failed: " + err.message, "error");
     }
   };
 
@@ -299,13 +303,13 @@ export default function AdminInventory({ setActiveSection }) {
 
   /* ========== DELETE IMPORT FILE ========== */
   const handleDeleteImport = async (filename) => {
-    if (!window.confirm(`Delete import file "${filename}"? This cannot be undone.`)) return;
+    if (!(await showConfirm(`Delete import file "${filename}"? This cannot be undone.`, "Delete File"))) return;
     try {
       await api.products.deleteImport(filename);
-      alert('File deleted successfully!');
+      showToast("File deleted successfully!", "success");
       loadImportHistory();
     } catch (err) {
-      alert('Delete failed: ' + (err.message || 'Unknown error'));
+      showToast("Delete failed: " + (err.message || "Unknown error"), "error");
     }
   };
 
@@ -347,7 +351,7 @@ export default function AdminInventory({ setActiveSection }) {
   const handleReturnSubmit = async (e) => {
     e.preventDefault();
     if (!returnForm.branch_id || !returnForm.quantity) {
-      alert("Please select branch and quantity");
+      showToast("Please select branch and quantity", "warning");
       return;
     }
     setReturnLoading(true);
@@ -364,14 +368,14 @@ export default function AdminInventory({ setActiveSection }) {
       });
       const data = await res.json();
       if (res.ok) {
-        alert("✅ " + data.message);
+        showToast(data.message, "success");
         setShowReturnModal(false);
         loadProducts();
       } else {
-        alert("❌ " + data.message);
+        showToast(data.message, "error");
       }
     } catch (err) {
-      alert("❌ Error processing return");
+      showToast("Error processing return", "error");
     }
     setReturnLoading(false);
   };
@@ -385,7 +389,7 @@ export default function AdminInventory({ setActiveSection }) {
       setMessage("✅ Thresholds updated successfully");
       loadDistribution(selectedProduct);
     } catch (err) {
-      alert("Update failed: " + (err.response?.data?.message || err.message));
+      showToast("Update failed: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
@@ -397,7 +401,7 @@ export default function AdminInventory({ setActiveSection }) {
   const submitAdjustment = async (e) => {
     e.preventDefault();
     if (!adjustForm.quantity || Number(adjustForm.quantity) < 0) {
-      alert("Please enter a valid quantity");
+      showToast("Please enter a valid quantity", "warning");
       return;
     }
 
@@ -416,7 +420,7 @@ export default function AdminInventory({ setActiveSection }) {
       setMessage("✅ Stock adjusted successfully");
       loadProducts(); // Update main list counts
     } catch (err) {
-      alert("Adjustment failed: " + (err.response?.data?.message || err.message));
+      showToast("Adjustment failed: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
@@ -452,7 +456,7 @@ export default function AdminInventory({ setActiveSection }) {
       await loadSuggestions();
       await loadProducts();
     } catch (err) {
-      alert("Transfer failed: " + (err.response?.data?.message || err.message));
+      showToast("Transfer failed: " + (err.response?.data?.message || err.message), "error");
     }
     setSugLoading(false);
   };
@@ -597,7 +601,7 @@ export default function AdminInventory({ setActiveSection }) {
 
   /* ================= DELETE PRODUCT ================= */
   const deleteProduct = async (id) => {
-    if (!window.confirm("Delete this product?")) return;
+    if (!(await showConfirm("Delete this product?", "Delete Product"))) return;
 
     setLoading(true);
     try {
@@ -639,7 +643,7 @@ export default function AdminInventory({ setActiveSection }) {
               whiteSpace: 'nowrap'
             }}
             onClick={async () => {
-              if (!window.confirm('Update GST rates for ALL existing products based on their category?\n\nThis will apply:\n• Fruits, Vegetables → 0%\n• Dairy, Grains, Bakery, Snacks, Spices → 5%\n• Beverages, Household, Personal Care, Frozen → 18%')) return;
+              if (!(await showConfirm('Update GST rates for ALL existing products based on their category? This will apply: Fruits/Vegetables → 0%, Dairy/Grains/Bakery/Snacks/Spices → 5%, Beverages/Household/Personal Care/Frozen → 18%', 'Sync GST Rates'))) return;
               try {
                 const res = await api.products.updateGST();
                 setMessage(`✅ ${res.message}`);

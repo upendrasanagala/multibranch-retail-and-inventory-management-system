@@ -204,6 +204,34 @@ export default function AdminReports() {
     w.print();
   };
 
+  /* ================= EXPORT TO CSV ================= */
+  const exportToCSV = (data, filename) => {
+    if (!data || data.length === 0) return;
+
+    const headers = Object.keys(data[0]);
+    const csvRows = [];
+    csvRows.push(headers.join(','));
+
+    for (const row of data) {
+      const values = headers.map(header => {
+        const val = row[header];
+        const escaped = ('' + val).replace(/"/g, '""');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
     <div className="chart-card">
       <h3>System Reports</h3>
@@ -269,6 +297,17 @@ export default function AdminReports() {
 
         <button onClick={printFullReport} disabled={loading || !reportData} style={{ background: '#f1f5f9', color: '#475569', padding: '10px 20px', fontWeight: 700 }}>
           Print Report
+        </button>
+
+        <button
+          onClick={() => {
+            const dataToExport = reportType === 'sales' ? reportData.transactions : reportData.all_items;
+            exportToCSV(dataToExport, `${reportType}_report`);
+          }}
+          disabled={loading || !reportData}
+          style={{ background: '#ecfdf5', color: '#059669', padding: '10px 20px', fontWeight: 700, border: '1px solid #10b981' }}
+        >
+          Export CSV
         </button>
       </div>
 

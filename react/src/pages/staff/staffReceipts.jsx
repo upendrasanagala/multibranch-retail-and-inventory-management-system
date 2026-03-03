@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
 import { formatDate } from "../../utils/dateUtils";
+import { useToast } from "../../components/ToastContext";
 
 export default function StaffReceipts() {
+  const { showToast } = useToast();
   const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -101,7 +103,7 @@ export default function StaffReceipts() {
     const win = window.open("", "_blank", "width=350,height=600");
 
     if (!win) {
-      alert("Receipt printing was blocked by your browser.\nPlease allow popups for this site.");
+      showToast("Receipt printing was blocked. Please allow popups for this site.", "warning");
       return;
     }
 

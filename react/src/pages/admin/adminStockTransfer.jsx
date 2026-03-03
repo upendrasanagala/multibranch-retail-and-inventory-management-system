@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { useToast } from "../../components/ToastContext";
+import { useConfirm } from "../../components/ConfirmContext";
 
 export default function AdminStockTransfers() {
+  const { showToast } = useToast();
+  const { showPrompt } = useConfirm();
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -34,14 +38,14 @@ export default function AdminStockTransfers() {
       await api.transfers.approve(transferId);
       await loadData();
     } catch (err) {
-      alert("Failed to approve transfer: " + err.message);
+      showToast("Failed to approve transfer: " + err.message, "error");
     }
     setLoading(false);
   };
 
   /* ================= REJECT REQUEST ================= */
   const rejectRequest = async (id) => {
-    const reason = prompt("Enter reason for rejection:");
+    const reason = await showPrompt("Enter reason for rejection:", "Reject Transfer", "Reason...");
     if (reason === null) return;
 
     setLoading(true);
@@ -49,7 +53,7 @@ export default function AdminStockTransfers() {
       await api.transfers.reject(id, reason);
       await loadData();
     } catch (err) {
-      alert("Failed to reject transfer: " + err.message);
+      showToast("Failed to reject transfer: " + err.message, "error");
     }
     setLoading(false);
   };

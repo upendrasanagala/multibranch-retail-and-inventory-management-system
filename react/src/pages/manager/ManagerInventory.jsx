@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 import { formatDate } from "../../utils/dateUtils";
+import { useToast } from "../../components/ToastContext";
 
 const tableStyle = `
   .inventory-table tr {
@@ -23,6 +24,7 @@ const tableStyle = `
 `;
 
 export default function ManagerInventory() {
+  const { showToast } = useToast();
   const [inventory, setInventory] = useState([]);
   const [allProducts, setAllProducts] = useState([]); // For transfer dropdown
   const [search, setSearch] = useState("");
@@ -90,7 +92,7 @@ export default function ManagerInventory() {
     e.preventDefault();
 
     if (!transfer.productId || !transfer.quantity || !transfer.toBranch) {
-      alert("All transfer fields required");
+      showToast("All transfer fields required", "warning");
       return;
     }
 
@@ -104,11 +106,11 @@ export default function ManagerInventory() {
         reason: "Stock replenishment"
       });
 
-      alert("Stock transfer request sent successfully");
+      showToast("Stock transfer request sent successfully", "success");
       setTransfer({ productId: "", quantity: "", toBranch: "" });
     } catch (err) {
       console.error("Transfer failed", err);
-      alert("Failed to send transfer request: " + (err.response?.data?.message || err.message));
+      showToast("Failed to send transfer request: " + (err.response?.data?.message || err.message), "error");
     }
     setLoading(false);
   };

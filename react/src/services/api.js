@@ -324,6 +324,9 @@ const api = {
     deleteUser: (id) =>
       apiRequest(`/admin/users/${id}`, { method: "DELETE" }),
 
+    reactivateUser: (id) =>
+      apiRequest(`/admin/users/${id}/reactivate`, { method: "PUT" }),
+
     getStats: () =>
       apiRequest("/admin/stats"),
 

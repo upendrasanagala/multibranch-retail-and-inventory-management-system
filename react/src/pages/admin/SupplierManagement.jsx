@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { useConfirm } from "../../components/ConfirmContext";
 
 export default function SupplierManagement() {
+    const { showConfirm } = useConfirm();
     const [suppliers, setSuppliers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
@@ -66,7 +68,7 @@ export default function SupplierManagement() {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this supplier?")) return;
+        if (!(await showConfirm("Are you sure you want to delete this supplier?", "Delete Supplier"))) return;
         try {
             await api.suppliers.delete(id);
             setMessage("✅ Supplier deleted");
