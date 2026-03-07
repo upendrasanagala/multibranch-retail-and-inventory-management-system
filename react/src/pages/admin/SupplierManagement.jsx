@@ -38,6 +38,13 @@ export default function SupplierManagement() {
         e.preventDefault();
         setLoading(true);
         try {
+            if (form.phone && !/^[6-9]\d{9}$/.test(form.phone)) {
+                setMessage("❌ Invalid mobile number. Must be 10 digits starting with 6,7,8,9");
+                setLoading(false);
+                setTimeout(() => setMessage(""), 3000);
+                return;
+            }
+
             if (editingSupplier) {
                 await api.suppliers.update(editingSupplier.supplier_id, form);
                 setMessage("✅ Supplier updated successfully");

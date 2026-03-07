@@ -270,14 +270,21 @@ export default function ManagerInventory() {
                   {adjustments.map(adj => (
                     <tr key={adj.adjustment_id}>
                       <td>{new Date(adj.adjustment_date).toLocaleString()}</td>
-                      <td>Branch #{adj.branch_id} (Prod #{adj.product_id})</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{adj.product_name || `ID: ${adj.product_id}`}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>By: {adj.adjusted_by}</div>
+                      </td>
                       <td>
                         <span style={{
                           textTransform: 'uppercase',
                           fontSize: '11px',
                           fontWeight: '700',
-                          color: adj.adjustment_type === 'add' ? '#15803d' : adj.adjustment_type === 'subtract' ? '#b91c1c' : '#1d4ed8',
-                          background: adj.adjustment_type === 'add' ? '#dcfce7' : adj.adjustment_type === 'subtract' ? '#fee2e2' : '#dbeafe',
+                          color: adj.adjustment_type === 'add' ? '#15803d' :
+                            adj.adjustment_type === 'subtract' ? '#b91c1c' :
+                              adj.adjustment_type === 'return' ? '#9333ea' : '#1d4ed8',
+                          background: adj.adjustment_type === 'add' ? '#dcfce7' :
+                            adj.adjustment_type === 'subtract' ? '#fee2e2' :
+                              adj.adjustment_type === 'return' ? '#f3e8ff' : '#dbeafe',
                           padding: '2px 6px',
                           borderRadius: '4px'
                         }}>
@@ -285,7 +292,7 @@ export default function ManagerInventory() {
                         </span>
                       </td>
                       <td style={{ fontWeight: 'bold' }}>
-                        {adj.adjustment_type === 'add' ? '+' : adj.adjustment_type === 'subtract' ? '-' : ''}{adj.quantity}
+                        {adj.adjustment_type === 'add' || adj.adjustment_type === 'return' ? '+' : adj.adjustment_type === 'subtract' ? '-' : ''}{adj.quantity}
                       </td>
                       <td style={{ color: '#666', fontSize: '13px' }}>{adj.reason || 'N/A'}</td>
                     </tr>

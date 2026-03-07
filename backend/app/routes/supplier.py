@@ -4,6 +4,7 @@ from app.extensions import db
 from app.models.supplier import Supplier
 from app.utils.decorators import roles_required
 from app.routes import supplier_bp
+from app.utils.validators import is_valid_indian_mobile
 
 @supplier_bp.route("/", methods=["GET"])
 @jwt_required()
@@ -18,6 +19,10 @@ def create_supplier():
     data = request.get_json() or {}
     if not data.get("name"):
         return jsonify({"message": "Supplier name is required"}), 400
+        
+    phone = data.get("phone")
+    if phone and not is_valid_indian_mobile(phone):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
         
     supplier = Supplier(
         name=data.get("name"),
@@ -45,7 +50,12 @@ def update_supplier(supplier_id):
     
     supplier.name = data.get("name", supplier.name)
     supplier.contact_person = data.get("contact_person", supplier.contact_person)
-    supplier.phone = data.get("phone", supplier.phone)
+    
+    new_phone = data.get("phone", supplier.phone)
+    if new_phone and not is_valid_indian_mobile(new_phone):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
+    supplier.phone = new_phone
+    
     supplier.email = data.get("email", supplier.email)
     supplier.address = data.get("address", supplier.address)
     

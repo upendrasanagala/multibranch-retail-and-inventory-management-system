@@ -27,6 +27,7 @@ class SalesTransaction(db.Model):
     discount = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(30), default="completed")
 
+    customer_mobile = db.Column(db.String(15), nullable=True)
     transaction_date = db.Column(
         db.DateTime,
         default=datetime.now
@@ -51,3 +52,6 @@ class TransactionItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Float, nullable=False)
     subtotal = db.Column(db.Float, nullable=False)
+    
+    is_returned = db.Column(db.Boolean, default=False)
+    return_date = db.Column(db.DateTime, nullable=True)

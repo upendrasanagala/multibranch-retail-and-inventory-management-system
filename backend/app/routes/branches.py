@@ -6,6 +6,7 @@ from app.models.branch import Branch
 from app.models.inventory import Inventory
 from app.utils.decorators import roles_required
 from app.routes import branch_bp
+from app.utils.validators import is_valid_indian_mobile
 
 
 # =============================
@@ -65,6 +66,10 @@ def create_branch():
     if not data.get("name"):
         return {"error": "Branch name is required"}, 400
 
+    phone = data.get("phone")
+    if phone and not is_valid_indian_mobile(phone):
+        return {"error": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}, 400
+
     branch = Branch(
         name=data.get("name"),
         address=data.get("address"),
@@ -97,7 +102,12 @@ def update_branch(id):
     branch.address = data.get("address", branch.address)
     branch.city = data.get("city", branch.city)
     branch.state = data.get("state", branch.state)
-    branch.phone = data.get("phone", branch.phone)
+    
+    new_phone = data.get("phone", branch.phone)
+    if new_phone and not is_valid_indian_mobile(new_phone):
+        return {"error": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}, 400
+    branch.phone = new_phone
+    
     branch.upi_id = data.get("upi_id", branch.upi_id)
     branch.status = data.get("status", branch.status)
 

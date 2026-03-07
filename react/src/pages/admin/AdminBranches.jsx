@@ -10,11 +10,13 @@ export default function AdminBranches() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [upiId, setUpiId] = useState("");
+  const [phone, setPhone] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({
     name: "",
     city: "",
-    upi_id: ""
+    upi_id: "",
+    phone: ""
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -48,6 +50,11 @@ export default function AdminBranches() {
       return;
     }
 
+    if (phone && !/^[6-9]\d{9}$/.test(phone)) {
+      setError("Invalid mobile number. Must be 10 digits starting with 6,7,8,9");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -55,7 +62,8 @@ export default function AdminBranches() {
       await api.branches.create({
         name: name.trim(),
         city: location.trim(),
-        upi_id: upiId.trim()
+        upi_id: upiId.trim(),
+        phone: phone.trim()
       });
 
       // Reload branches
@@ -63,6 +71,7 @@ export default function AdminBranches() {
       setName("");
       setLocation("");
       setUpiId("");
+      setPhone("");
     } catch (err) {
       setError(err.message || "Failed to add branch");
     }
@@ -127,12 +136,18 @@ export default function AdminBranches() {
       return;
     }
 
+    if (editData.phone && !/^[6-9]\d{9}$/.test(editData.phone)) {
+      showToast("Invalid mobile number. Must be 10 digits starting with 6,7,8,9", "warning");
+      return;
+    }
+
     setLoading(true);
     try {
       await api.branches.update(branchId, {
         name: editData.name.trim(),
         city: editData.city.trim(),
-        upi_id: editData.upi_id.trim()
+        upi_id: editData.upi_id.trim(),
+        phone: editData.phone.trim()
       });
       await loadBranches();
       setEditingId(null);
@@ -164,6 +179,13 @@ export default function AdminBranches() {
         />
 
         <input
+          placeholder="Phone Number"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
+          disabled={loading}
+        />
+
+        <input
           placeholder="UPI ID (e.g. store@upi)"
           value={upiId}
           onChange={e => setUpiId(e.target.value)}
@@ -186,6 +208,7 @@ export default function AdminBranches() {
               <tr>
                 <th>Branch</th>
                 <th>Location</th>
+                <th>Phone</th>
                 <th>UPI ID (Pay To)</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -219,6 +242,17 @@ export default function AdminBranches() {
                   <td>
                     {editingId === b.branch_id ? (
                       <input
+                        value={editData.phone}
+                        onChange={e => setEditData({ ...editData, phone: e.target.value })}
+                        style={{ padding: '6px', fontSize: '13px', width: '100%' }}
+                      />
+                    ) : (
+                      b.phone || 'N/A'
+                    )}
+                  </td>
+                  <td>
+                    {editingId === b.branch_id ? (
+                      <input
                         value={editData.upi_id}
                         onChange={e => setEditData({ ...editData, upi_id: e.target.value })}
                         style={{ padding: '6px', fontSize: '13px', width: '100%' }}
@@ -246,7 +280,8 @@ export default function AdminBranches() {
                             setEditData({
                               name: b.name || "",
                               city: b.city || b.location || "",
-                              upi_id: b.upi_id || ""
+                              upi_id: b.upi_id || "",
+                              phone: b.phone || ""
                             });
                           }}
                           style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px' }}

@@ -17,6 +17,7 @@ from app.models.sales import SalesTransaction, TransactionItem
 from app.models.stock_transfer import StockTransfer
 from app.utils.decorators import roles_required
 from app.routes import admin_bp
+from app.utils.validators import is_valid_indian_mobile
 from flask_mail import Message
 from app.extensions import mail
 
@@ -162,7 +163,7 @@ def get_users():
             "interview_status": u.interview_status,
             "interviewer_name": (
                 f"{int_user.first_name} {int_user.last_name}" 
-                if (int_user := User.query.get(u.interviewer_id)) 
+                if u.interviewer_id and (int_user := User.query.get(u.interviewer_id)) 
                 else (
                     f"{bm.first_name} {bm.last_name}" 
                     if (bm := User.query.filter_by(branch_id=u.branch_id, role='manager').first()) 
@@ -195,7 +196,12 @@ def update_user(user_id):
     user.branch_id = data.get("branch_id", user.branch_id)
     user.first_name = data.get("firstName", user.first_name)
     user.last_name = data.get("lastName", user.last_name)
-    user.phone = data.get("phone", user.phone)
+    
+    new_phone = data.get("phone", user.phone)
+    if new_phone and not is_valid_indian_mobile(new_phone):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
+    user.phone = new_phone
+    
     user.address = data.get("address", user.address)
     user.upi_id = data.get("upi_id", user.upi_id)
     user.status = data.get("status", user.status)
@@ -266,6 +272,9 @@ def create_user():
     for field in required_fields:
         if not data.get(field):
             return jsonify({"message": f"Missing required field: {field}"}), 400
+
+    if not is_valid_indian_mobile(data.get("mobile")):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
 
     # Check if email exists
     existing_user = User.query.filter_by(email=data["email"]).first()

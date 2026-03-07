@@ -3,11 +3,16 @@ import "../styles/home.css";
 
 export default function Home() {
 
-  useEffect(() => {
-    // Optional: Add intersection observer for reveal animations if needed
-  }, []);
-
   const [activeIndex, setActiveIndex] = useState(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const faqData = [
     {
@@ -61,7 +66,7 @@ export default function Home() {
       <div className="bg-mesh"></div>
 
       {/* ================= NAVBAR ================= */}
-      <header className="navbar">
+      <header className={`navbar ${scrolled ? "scrolled" : ""}`}>
         <div className="nav-left">
           <div className="logo">
             <i className="fas fa-layer-group"></i>
@@ -77,146 +82,50 @@ export default function Home() {
         </nav>
       </header>
 
-      {/* ================= HERO SECTION ================= */}
-      <section className="hero-wrapper">
-        <div className="hero-content">
+      {/* ================= UNIFIED HERO ================= */}
+      <section className="unified-hero">
+        <div style={{ animation: 'fadeInUp 0.8s ease-out forwards' }}>
           <div className="badge-new">
-            <span>NEW</span> Multi-Branch Sync
+            <span>LIVE</span> Enterprise Network Status
           </div>
-
-          <h1 className="hero-headline">
-            Retail Management <br />
-            Reimagined.
-          </h1>
-
+          <h1>Management at Scale.</h1>
           <p className="subheadline">
-            The all-in-one platform for modern retail chains. Control inventory,
-            sales, and staff across unlimited locations in real-time.
+            One platform for every branch, every item, and every sale.
+            Real-time synchronization across your entire retail empire.
           </p>
 
           <div className="btn-group">
-            <a href="/login" className="btn-primary">
-              Launch Console
-            </a>
-            <a href="#features" className="btn-secondary">
-              Explore Features
-            </a>
+            <a href="/login" className="btn-primary">Launch Console</a>
           </div>
         </div>
 
-        <div className="hero-visual">
-          <div className="dashboard-card" style={{ padding: 0, background: 'none' }}>
-            <img
-              src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2426&auto=format&fit=crop"
-              alt="InventoryPro Dashboard"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                borderRadius: '12px',
-                display: 'block'
-              }}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ================= REAL-TIME SCENARIOS ================= */}
-      <section className="scenarios-section">
-        <div className="section-head">
-          <span className="badge-scenario">REAL-WORLD IMPACT</span>
-          <h2>Solving Retail Complexity, Instantly.</h2>
-          <p>See how our intelligent engine handles your most critical operations in milliseconds.</p>
-        </div>
-
-        <div className="scenarios-grid">
-          <div className="scenario-card">
-            <div className="scenario-header">
-              <i className="fas fa-balance-scale"></i>
-              <h3>Stock Rebalancing</h3>
+        <div className="branch-grid">
+          {[
+            { id: 'BH-01', name: 'Smart Store', loc: 'vijayawada Central', rev: '$12,450', stock: '8,240', status: 'online' },
+            { id: 'BH-02', name: 'City Outlet', loc: 'Guntur West', rev: '$4,280', stock: '2,150', status: 'online' },
+            { id: 'BH-03', name: 'Asia Hub', loc: 'Hyderabad Metro', rev: '$9,120', stock: '5,400', status: 'online' }
+          ].map((branch, i) => (
+            <div key={branch.id} className="branch-card" style={{ animationDelay: `${i * 0.15}s` }}>
+              <div className="status-indicator">
+                <span className={`dot-pulse ${branch.status}`}></span>
+                {branch.status}
+              </div>
+              <div className="branch-info">
+                <h3>{branch.name}</h3>
+                <p><i className="fas fa-map-marker-alt" style={{ marginRight: '6px' }}></i>{branch.loc}</p>
+              </div>
+              <div className="branch-stats">
+                <div className="b-stat">
+                  <span className="label">Daily Rev</span>
+                  <span className="value">{branch.rev}</span>
+                </div>
+                <div className="b-stat">
+                  <span className="label">Total Stock</span>
+                  <span className="value">{branch.stock}</span>
+                </div>
+              </div>
             </div>
-            <p className="scenario-text">
-              "Branch A has 5 units of 'Product X' left, while Branch B has a surplus of 50. Our engine detects this imbalance and suggests an instant transfer to avoid stockouts without new purchases."
-            </p>
-            <div className="scenario-tag">Smart Redistribution</div>
-          </div>
-
-          <div className="scenario-card">
-            <div className="scenario-header">
-              <i className="fas fa-microchip"></i>
-              <h3>Instant Transparency</h3>
-            </div>
-            <p className="scenario-text">
-              "A sale happens at your suburban outlet. Within 200ms, the global dashboard reflects the updated revenue and inventory level across your entire headquarters and mobile apps."
-            </p>
-            <div className="scenario-tag">Zero Latency Sync</div>
-          </div>
-
-          <div className="scenario-card highlight">
-            <div className="scenario-header">
-              <i className="fas fa-user-shield"></i>
-              <h3>Operational Security</h3>
-            </div>
-            <p className="scenario-text">
-              "A manager attempts to override a stock price. Every action is logged with timestamp, user ID, and branch location, ensuring complete accountability and fraud prevention."
-            </p>
-            <div className="scenario-tag">Enterprise Integrity</div>
-          </div>
-
-          <div className="scenario-card">
-            <div className="scenario-header">
-              <i className="fas fa-file-invoice-dollar"></i>
-              <h3>Financial Precision</h3>
-            </div>
-            <p className="scenario-text">
-              "Tax season arrives. Instead of manual spreadsheets, you generate a branch-wise GST breakdown (CGST/SGST) across all 50 locations with a single click."
-            </p>
-            <div className="scenario-tag">One-Click Compliance</div>
-          </div>
-
-          <div className="scenario-card">
-            <div className="scenario-header">
-              <i className="fas fa-bell"></i>
-              <h3>Low Stock Intelligence</h3>
-            </div>
-            <p className="scenario-text">
-              "A high-demand item drops below 10% in three branches simultaneously. The system auto-generates procurement alerts and ranks them by urgency to prevent revenue loss."
-            </p>
-            <div className="scenario-tag">Smart Procurement</div>
-          </div>
-
-          <div className="scenario-card highlight">
-            <div className="scenario-header">
-              <i className="fas fa-qrcode"></i>
-              <h3>Dynamic UPI Payments</h3>
-            </div>
-            <p className="scenario-text">
-              "A customer at Branch 5 pays via UPI. The system generates a dynamic QR code specific to that branch's bank account, confirming the payment instantly in the POS flow."
-            </p>
-            <div className="scenario-tag">Seamless Checkout</div>
-          </div>
-
-          <div className="scenario-card">
-            <div className="scenario-header">
-              <i className="fas fa-user-plus"></i>
-              <h3>Instant Onboarding</h3>
-            </div>
-            <p className="scenario-text">
-              "Hiring 20 new staff for a holiday rush? Add them in seconds with auto-generated Employee IDs and temporary passwords, ready for their first shift immediately."
-            </p>
-            <div className="scenario-tag">Rapid Scaling</div>
-          </div>
-
-          <div className="scenario-card">
-            <div className="scenario-header">
-              <i className="fas fa-globe"></i>
-              <h3>Global Audit</h3>
-            </div>
-            <p className="scenario-text">
-              "Perform a surprise inventory audit across all branches. Staff update counts on mobile, and the Admin sees real-time discrepancies vs book values globally."
-            </p>
-            <div className="scenario-tag">Total Oversight</div>
-          </div>
+          ))}
         </div>
       </section>
 

@@ -344,7 +344,13 @@ def get_adjustments():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     
-    query = InventoryAdjustment.query
+    query = db.session.query(
+        InventoryAdjustment, Product, User
+    ).join(
+        Product, InventoryAdjustment.product_id == Product.product_id
+    ).join(
+        User, InventoryAdjustment.adjusted_by == User.user_id
+    )
     
     if branch_id:
         query = query.filter(InventoryAdjustment.branch_id == branch_id)
@@ -356,15 +362,16 @@ def get_adjustments():
     ).paginate(page=page, per_page=per_page, error_out=False)
     
     adjustments = []
-    for adj in paginated.items:
+    for adj, prod, user in paginated.items:
         adjustments.append({
             "adjustment_id": adj.adjustment_id,
             "product_id": adj.product_id,
+            "product_name": prod.name,
             "branch_id": adj.branch_id,
             "adjustment_type": adj.adjustment_type,
             "quantity": adj.quantity,
             "reason": adj.reason,
-            "adjusted_by": adj.adjusted_by,
+            "adjusted_by": f"{user.first_name} {user.last_name}",
             "adjustment_date": adj.adjustment_date.isoformat() if adj.adjustment_date else None
         })
     

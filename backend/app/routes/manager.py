@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash
 from app.extensions import db
 from app.models.user import User
 from app.utils.decorators import roles_required
+from app.utils.validators import is_valid_indian_mobile
 
 manager_bp = Blueprint("manager", __name__, url_prefix="/api/manager")
 
@@ -30,6 +31,9 @@ def create_staff():
     
     if not first_name or not last_name or not email:
         return jsonify({"message": "Missing required fields"}), 400
+
+    if phone and not is_valid_indian_mobile(phone):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
 
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already registered"}), 409
@@ -190,7 +194,12 @@ def update_staff(user_id):
     staff.first_name = data.get("firstName", staff.first_name)
     staff.last_name = data.get("lastName", staff.last_name)
     staff.email = data.get("email", staff.email)
-    staff.phone = data.get("mobile", staff.phone)
+    
+    new_phone = data.get("mobile", staff.phone)
+    if new_phone and not is_valid_indian_mobile(new_phone):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
+    staff.phone = new_phone
+    
     staff.address = data.get("address", staff.address)
     staff.status = data.get("status", staff.status)
     staff.bank_name = data.get("bank_name", staff.bank_name)

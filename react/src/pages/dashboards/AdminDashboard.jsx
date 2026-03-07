@@ -207,6 +207,11 @@ export default function AdminDashboard() {
       return;
     }
 
+    if (!/^[6-9]\d{9}$/.test(newManager.mobile)) {
+      showToast("Invalid mobile number. Must be 10 digits starting with 6,7,8,9", "warning");
+      return;
+    }
+
     try {
       const res = await api.admin.createUser(newManager);
       showToast(`Manager Created! Email: ${res.user.email} | Temp Password: ${res.user.temp_password} — They must change it on first login.`, "success");

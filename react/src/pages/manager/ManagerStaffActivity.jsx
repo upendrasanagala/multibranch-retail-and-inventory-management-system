@@ -65,8 +65,8 @@ export default function ManagerStaffActivity() {
     setLoading(true);
     setMessage("");
 
-    if (formData.mobile && !/^\d{10}$/.test(formData.mobile)) {
-      setMessage("Mobile number must be exactly 10 digits.");
+    if (formData.mobile && !/^[6-9]\d{9}$/.test(formData.mobile)) {
+      setMessage("❌ Invalid mobile number. Must be 10 digits starting with 6,7,8,9.");
       setLoading(false);
       return;
     }

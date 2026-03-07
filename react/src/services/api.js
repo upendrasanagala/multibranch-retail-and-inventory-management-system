@@ -259,6 +259,9 @@ const api = {
     refund: (id) =>
       apiRequest(`/sales/${id}/refund`, { method: "POST" }),
 
+    returnItem: (itemId) =>
+      apiRequest(`/sales/items/${itemId}/return`, { method: "POST" }),
+
     getDailySummary: (branchId, date) => {
       const params = new URLSearchParams();
       if (branchId) params.append("branch_id", branchId);

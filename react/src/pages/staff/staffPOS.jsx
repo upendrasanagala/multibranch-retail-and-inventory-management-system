@@ -247,6 +247,8 @@ export default function StaffPOS() {
   /* ================= COMPLETE PAYMENT ================= */
   const completePayment = async () => {
     if (cart.length === 0) { showToast("Cart is empty", "warning"); return; }
+    if (!mobile || mobile.length < 10) { showToast("Customer mobile number is mandatory (10 digits)", "warning"); return; }
+    if (!/^[6-9]/.test(mobile)) { showToast("Mobile number must start with 6, 7, 8, or 9", "warning"); return; }
     if (!paymentMethod) { showToast("Select payment method", "warning"); return; }
     if (paymentMethod === 'upi' && !utr) { showToast("Enter UTR for UPI", "warning"); return; }
     if (paymentMethod === 'card' && !cardData.name) { showToast("Enter Card Details", "warning"); return; }
@@ -256,6 +258,7 @@ export default function StaffPOS() {
     try {
       const saleData = {
         branch_id: user?.branch_id,
+        customer_mobile: mobile,
         items: cart.map(item => ({
           product_id: item.productId,
           quantity: item.qty,
@@ -656,8 +659,28 @@ export default function StaffPOS() {
 
         <div className="pos-customer-bar">
           <div className="input-group">
-            <label>Customer Mobile</label>
-            <input placeholder="Mobile Number" value={mobile} onChange={e => setMobile(e.target.value)} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label>Customer Mobile</label>
+              <span style={{
+                fontSize: '11px',
+                color: mobile.length === 10 && /^[6-9]/.test(mobile) ? '#10b981' : (mobile.length > 0 && !/^[6-9]/.test(mobile) ? '#ef4444' : '#64748b'),
+                fontWeight: mobile.length === 10 ? 700 : 400
+              }}>
+                {mobile.length > 0 && !/^[6-9]/.test(mobile) ? 'Invalid start (Must be 6,7,8,9)' : `${mobile.length} / 10 digits`}
+              </span>
+            </div>
+            <input
+              placeholder="Enter Mobile Number"
+              value={mobile}
+              onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                if (val.length > 0 && !['6', '7', '8', '9'].includes(val[0])) {
+                  // If they try to type an invalid first digit, we can either block it or show error
+                  // Let's allow typing but the UI/Validation will catch it
+                }
+                setMobile(val.slice(0, 10));
+              }}
+            />
           </div>
           <div className="input-group">
             <label>Scan Barcode</label>

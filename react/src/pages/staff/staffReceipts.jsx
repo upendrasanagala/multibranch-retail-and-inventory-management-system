@@ -10,10 +10,12 @@ export default function StaffReceipts() {
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [searchMobile, setSearchMobile] = useState("");
   const [summary, setSummary] = useState({ count: 0, total: 0 });
 
   const user = getCurrentUser();
   const branchId = user?.branch_id;
+  const canSearchMobile = ["admin", "manager"].includes(user?.role);
 
   useEffect(() => {
     if (branchId) {
@@ -22,11 +24,16 @@ export default function StaffReceipts() {
   }, [branchId, startDate, endDate]);
 
   const loadReceipts = async () => {
+    if (searchMobile && !/^[6-9]\d{9}$/.test(searchMobile)) {
+      showToast("Invalid mobile number for search. Must be 10 digits starting with 6,7,8,9", "error");
+      return;
+    }
     setLoading(true);
     try {
       const params = {
         date_from: startDate,
-        date_to: endDate
+        date_to: endDate,
+        ...(searchMobile && { customer_mobile: searchMobile })
       };
 
       const salesRes = await api.sales.getByBranch(branchId, params);
@@ -169,9 +176,12 @@ export default function StaffReceipts() {
       const gstTag = (i.gst_percent || 0) + '%';
       itemLines += sno + '. ' + name;
       if (i.is_b1g1) itemLines += ' (B1G1)';
+      if (i.is_returned) itemLines += ' [RETURNED]';
       itemLines += '\n';
       itemLines += '   ' + qty + ' x ' + price.toFixed(2) + ' = ' + amt + '  [' + gstTag + ']\n';
     });
+
+    const isPartialReturn = items.some(i => i.is_returned);
 
     // GST breakup lines
     let gstLines = '';
@@ -216,7 +226,7 @@ export default function StaffReceipts() {
       center('4-143, Srinagar Colony, Vijayawada - 520001') + '\n' +
       center('GSTIN: 37XXXXX0000X1ZX') + '\n' +
       dblLine + '\n' +
-      center('TAX INVOICE') + '\n' +
+      center('TAX INVOICE' + (isPartialReturn ? ' (PARTIAL RETURN)' : '')) + '\n' +
       dblLine + '\n' +
       leftRight('Bill No: ' + transaction_id, 'Date: ' + dateStr) + '\n' +
       leftRight('Cashier: ' + (user?.name || 'Staff'), 'Time: ' + timeStr) + '\n' +
@@ -279,7 +289,7 @@ export default function StaffReceipts() {
   return (
     <div style={{ padding: '0 20px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>🧾 Sales Receipts</h2>
+        <h2>🧾 My Sales Receipts</h2>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
             <span style={{ fontSize: '12px', color: '#64748b' }}>From:</span>
@@ -299,6 +309,18 @@ export default function StaffReceipts() {
               style={{ padding: '4px', border: 'none', fontSize: '13px' }}
             />
           </div>
+          {canSearchMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+              <span style={{ fontSize: '12px', color: '#64748b' }}><i className="fas fa-search"></i> Mobile:</span>
+              <input
+                type="text"
+                placeholder="Search Mobile..."
+                value={searchMobile}
+                onChange={(e) => setSearchMobile(e.target.value)}
+                style={{ padding: '4px', border: 'none', fontSize: '13px', width: '120px' }}
+              />
+            </div>
+          )}
           <button className="secondary-btn" onClick={printAllSales} disabled={loading || !receipts.length} style={{ padding: '8px 15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <i className="fas fa-print"></i> Print All Sales
           </button>
@@ -353,7 +375,11 @@ export default function StaffReceipts() {
                         {r.payment_method}
                       </span>
                     </td>
-                    <td>{r.items?.length || 0} items</td>
+                    <td>{r.items?.length || 0} items
+                      {r.items?.some(i => i.is_returned) && (
+                        <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 600 }}> (Partial Return)</div>
+                      )}
+                    </td>
                     <td style={{ fontWeight: 700 }}>₹{r.total_amount.toFixed(2)}</td>
                     <td>
                       <button

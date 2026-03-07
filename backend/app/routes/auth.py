@@ -10,6 +10,7 @@ from app.extensions import db
 from app.models.user import User
 from app.routes import auth_bp
 from app.utils.decorators import roles_required
+from app.utils.validators import is_valid_indian_mobile
 
 
 # =============================
@@ -30,6 +31,9 @@ def register():
 
     if not first_name or not last_name or not email or not password:
         return jsonify({"message": "Missing required fields"}), 400
+
+    if phone and not is_valid_indian_mobile(phone):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
 
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already exists"}), 409
@@ -156,7 +160,12 @@ def update_profile():
     user.first_name = data.get("firstName", user.first_name)
     user.last_name = data.get("lastName", user.last_name)
     user.email = data.get("email", user.email)
-    user.phone = data.get("phone", user.phone)
+    
+    new_phone = data.get("phone", user.phone)
+    if new_phone and not is_valid_indian_mobile(new_phone):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
+    user.phone = new_phone
+    
     user.address = data.get("address", user.address)
     
     # Allow staff to update their own bank details for now
