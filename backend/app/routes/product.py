@@ -105,8 +105,14 @@ def get_product(product_id):
         "unit_price": product.unit_price,
         "cost_price": product.cost_price if product.cost_price is not None and not (isinstance(product.cost_price, float) and math.isnan(product.cost_price)) else None,
         "unit": product.unit,
+        "size": product.size,
         "image_path": product.image_path,
         "is_b1g1": product.is_b1g1,
+        "discount_percent": product.discount_percent,
+        "gst_percent": product.gst_percent,
+        "mfg_date": product.mfg_date.isoformat() if product.mfg_date else None,
+        "expiry_date": product.expiry_date.isoformat() if product.expiry_date else None,
+        "supplier_id": product.supplier_id,
         "created_at": product.created_at.isoformat() if product.created_at else None
     }), 200
 

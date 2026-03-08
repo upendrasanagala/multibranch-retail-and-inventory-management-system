@@ -1289,6 +1289,7 @@ export default function AdminInventory({ setActiveSection }) {
                       <th>Current Stock</th>
                       <th>Min Threshold</th>
                       <th>Max Threshold</th>
+                      <th>Mfg/Exp</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -1324,9 +1325,6 @@ export default function AdminInventory({ setActiveSection }) {
                             </button>
                           </div>
                         </td>
-                        <td style={{ fontSize: '13px', color: '#64748b' }}>
-                          {selectedProduct.supplier_name || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>No Supplier</span>}
-                        </td>
                         <td>
                           <input
                             type="number"
@@ -1334,6 +1332,12 @@ export default function AdminInventory({ setActiveSection }) {
                             onBlur={(e) => updateThresholds(item.inventory_id, item.min_threshold, e.target.value)}
                             style={{ width: '80px', padding: '4px' }}
                           />
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '10px', color: '#64748b' }}>
+                            <div>M: {selectedProduct.mfg_date ? formatDate(selectedProduct.mfg_date) : '-'}</div>
+                            <div>E: {selectedProduct.expiry_date ? formatDate(selectedProduct.expiry_date) : '-'}</div>
+                          </div>
                         </td>
                         <td>
                           <button

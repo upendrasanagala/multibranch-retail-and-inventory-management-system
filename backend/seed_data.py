@@ -41,41 +41,56 @@ def seed_database(include_sample_data=False):
             print("No sample data added as requested.")
             return
 
-        # --- Seeding Logic ---
+        # --- Branches ---
         print("Seeding sample data...")
         branch1 = Branch(name='Gayathri retails', branch_code='GR01', city='Unknown', state='Unknown', status='active')
         db.session.add(branch1)
         db.session.flush()
 
-        manager1 = User(
-            email='upendrasanagala13@gmail.com',
-            password_hash=generate_password_hash('123456'),
-            role='manager',
-            first_name='Upendra',
-            last_name='Sanagala',
-            employee_id='EMP-M001',
-            branch_id=branch1.branch_id,
-            status='active'
+        # --- Categories ---
+        cat1 = Category(name='Snacks', description='Snacks and munchies')
+        cat2 = Category(name='Dairy (Milk, Eggs, Cheese)', description='Dairy products')
+        db.session.add_all([cat1, cat2])
+        db.session.flush()
+
+        # --- Supplier ---
+        sup1 = Supplier(name='Global Foods Ltd', contact_person='John Doe', email='john@globalfoods.com', phone='1234567890', address='123 Food St')
+        db.session.add(sup1)
+        db.session.flush()
+
+        # --- Products ---
+        from datetime import date, timedelta
+        prod1 = Product(
+            name='Sample Chips',
+            sku='CHIPS-001',
+            category_id=cat1.category_id,
+            unit_price=20.0,
+            cost_price=15.0,
+            unit='pkt',
+            size='50g',
+            mfg_date=date.today() - timedelta(days=30),
+            expiry_date=date.today() + timedelta(days=180),
+            supplier_id=sup1.supplier_id
         )
-        db.session.add(manager1)
+        prod2 = Product(
+            name='Fresh Milk',
+            sku='MILK-001',
+            category_id=cat2.category_id,
+            unit_price=60.0,
+            cost_price=45.0,
+            unit='L',
+            size='1L',
+            mfg_date=date.today() - timedelta(days=2),
+            expiry_date=date.today() + timedelta(days=5),
+            supplier_id=sup1.supplier_id
+        )
+        db.session.add_all([prod1, prod2])
         db.session.flush()
-        branch1.manager_id = manager1.user_id
 
-        staff1a = User(email='upendrasanagala0906@gmail.com', password_hash=generate_password_hash('Keerthi123@'), role='staff', first_name='Keerthi', last_name='User', employee_id='EMP-S001', branch_id=branch1.branch_id, status='active')
-        staff1b = User(email='manipriyakoppula@gmail.com', password_hash=generate_password_hash('ManiPriy@18'), role='staff', first_name='Mani', last_name='Priya', employee_id='EMP-S002', branch_id=branch1.branch_id, status='active')
-        db.session.add_all([staff1a, staff1b])
-
-        branch2 = Branch(name='Edubot.in', branch_code='EB01', city='Unknown', state='Unknown', status='active')
-        db.session.add(branch2)
-        db.session.flush()
-
-        manager2 = User(email='kingthor803@gmail.com', password_hash=generate_password_hash('123456'), role='manager', first_name='King', last_name='Thor', employee_id='EMP-M002', branch_id=branch2.branch_id, status='active')
-        db.session.add(manager2)
-        db.session.flush()
-        branch2.manager_id = manager2.user_id
-
-        staff2 = User(email='sontijagadeesh088@gmail.com', password_hash=generate_password_hash('Jagadeesh1@'), role='staff', first_name='Jagadeesh', last_name='Sonti', employee_id='EMP-S003', branch_id=branch2.branch_id, status='active')
-        db.session.add(staff2)
+        # --- Inventory ---
+        inv1 = Inventory(product_id=prod1.product_id, branch_id=branch1.branch_id, quantity=100, min_threshold=10)
+        inv2 = Inventory(product_id=prod2.product_id, branch_id=branch1.branch_id, quantity=50, min_threshold=5)
+        db.session.add_all([inv1, inv2])
 
         db.session.commit()
         print("Data seeding completed successfully!")

@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import "../styles/auth.css";
-
-const API_BASE = "http://127.0.0.1:5000/api/auth";
+import api from "../services/api";
 
 export default function ResetPassword() {
     const navigate = useNavigate();
@@ -35,14 +34,9 @@ export default function ResetPassword() {
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/forgot-password`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email })
-            });
-            const data = await res.json();
+            const data = await api.auth.forgotPassword({ email });
 
-            if (res.ok) {
+            if (data) {
                 alert(data.message); // Show OTP for testing
                 setMessage(data.message);
                 setStep(2);
@@ -92,14 +86,9 @@ export default function ResetPassword() {
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/reset-password`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, otp, new_password: newPassword })
-            });
-            const data = await res.json();
+            const data = await api.auth.resetPassword({ email, otp, new_password: newPassword });
 
-            if (res.ok) {
+            if (data) {
                 setMessage("🎉 Password reset successfully!");
                 setError("");
                 setTimeout(() => navigate("/login"), 2000);

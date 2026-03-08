@@ -1,0 +1,51 @@
+name,sku,price,category,size,unit,barcode,description,cost_price,discount_percent,gst_percent,mfg_date,expiry_date,is_b1g1,quantity,manufacturing_date
+Maggi 2-Minute Noodles,SNACK-008,16.0,Snacks,70g,pkt,8901234567913,Masala noodles,12.0,0.0,0.0,,2026-07-31,False,2226,2026-02-01
+Amul Taaza Milk,DAIRY-001,74.0,"Dairy (Milk, Eggs, Cheese)",1L,L,8901234567900,Fresh toned milk,60.0,0.0,0.0,,2026-02-06,False,288,2026-02-01
+Scotch Brite Scrub,HH-007,22.0,Household Items,1pc,pcs,8901234567935,Durable scrub pad,15.0,0.0,0.0,,2026-07-31,False,1401,2026-02-01
+Robusta Banana,FRUIT-002,65.0,Fruits,1dz,dz,8901234567937,Yellow ripe banana,45.0,0.0,0.0,,2026-07-31,False,567,2026-02-01
+Farm Fresh Eggs,DAIRY-006,94.0,"Dairy (Milk, Eggs, Cheese)",12pcs,dz,8901234567905,Local poultry eggs,75.0,0.0,0.0,,2026-07-31,False,823,2026-02-01
+MDH Red Chilli Powder,SPICE-002,48.0,Spices & Oils,100g,pkt,8901234567899,Spicy lal mirch,35.0,0.0,0.0,,2026-07-31,False,1176,2026-02-01
+Kelloggs Corn Flakes,GROC-002,345.0,Groceries,475g,pkt,8901234567915,Breakfast cereal,280.0,0.0,0.0,,2026-07-31,False,400,2026-02-01
+Nescafe Classic Coffee,BEV-001,355.0,Beverages,100g,jar,8901234567917,Rich aroma coffee,290.0,0.0,0.0,,2026-07-31,False,401,2026-02-01
+Potato,VEG-002,32.0,Vegetables,1kg,kg,8901234567939,Fresh farm potato,22.0,0.0,0.0,,2026-07-31,False,1601,2026-02-01
+Amul Paneer,DAIRY-005,100.0,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8901234567904,Soft fresh paneer,75.0,0.0,0.0,,2026-07-31,False,494,2026-02-01
+Kurkure Masala Munch,SNACK-006,22.0,Snacks,90g,pkt,8901234567911,Tedha hai par mera hai,18.0,0.0,0.0,,2026-07-31,False,1767,2026-02-01
+Lux Rose Soap,PC-001,38.0,Personal Care,100g,pcs,8901234567923,Soft skin soap,28.0,0.0,0.0,,2026-07-31,False,1368,2026-02-01
+Dove Shampoo,PC-003,195.0,Personal Care,340ml,btl,8901234567925,Damage repair shampoo,155.0,0.0,0.0,,2026-07-31,False,702,2026-02-01
+Cocoa Cola,BEV-003,42.0,Beverages,750ml,btl,8901234567919,Original taste,32.0,0.0,0.0,,2026-07-31,False,1068,2026-02-01
+Dettol Original Soap,PC-002,42.0,Personal Care,125g,pcs,8901234567924,Germ protection soap,32.0,0.0,0.0,,2026-07-31,False,1434,2026-02-01
+Sprite,BEV-005,42.0,Beverages,750ml,btl,8901234567921,Clear soda,32.0,0.0,0.0,,2026-07-31,False,1101,2026-02-01
+Britannia Cheese Block,DAIRY-003,250.0,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8901234567902,Creamy cheese block,110.0,0.0,0.0,,2026-07-31,False,335,2026-02-01
+Ponds Talcum Powder,PC-005,235.0,Personal Care,400g,btl,8901234567927,Floral freshness,185.0,0.0,0.0,,2026-07-31,False,435,2026-02-01
+Madhur Sugar,GRAIN-005,58.0,Grains & Pulses,1kg,kg,8901234567897,Pure sulphur free sugar,45.0,0.0,0.0,,2026-07-31,False,2292,2026-02-01
+Aashirvaad Whole Wheat Atta,GRAIN-002,420.0,Grains & Pulses,5kg,kg,8901234567891,Chakki fresh atta,198.0,0.0,0.0,,2026-07-31,False,934,2026-02-01
+Odonil Room Freshener,HH-005,65.0,Household Items,50g,pcs,8901234567933,Bathroom freshener,50.0,0.0,0.0,,2026-07-31,False,867,2026-02-01
+Onion,VEG-001,42.0,Vegetables,1kg,kg,8901234567938,Red medium onion,30.0,0.0,0.0,,2026-07-31,False,1400,2026-02-01
+Mother Dairy Curd,DAIRY-004,38.0,"Dairy (Milk, Eggs, Cheese)",400g,pkt,8901234567903,Set curd,30.0,0.0,0.0,,2026-07-31,False,561,2026-02-01
+Dhara Mustard Oil,OIL-002,182.0,Spices & Oils,1L,L,8901234567894,Kachi ghani oil,145.0,0.0,0.0,,2027-07-26,False,1022,2026-02-01
+Red Label Tea,BEV-002,315.0,Beverages,500g,pkt,8901234567918,Strong chai,250.0,0.0,0.0,,2026-07-31,False,561,2026-02-01
+Parle-G Biscuits,SNACK-002,12.0,Bakery Items,130g,pkt,8901234567907,Classic biscuits,9.0,0.0,0.0,,2026-07-31,False,2834,2026-02-01
+Daawat Basmati Rice,GRAIN-001,127.0,Grains & Pulses,1kg,kg,8901234567890,Premium long grain rice,105.0,0.0,0.0,,2028-01-22,False,1425,2026-02-01
+Colgate Strong Teeth,PC-004,118.0,Personal Care,200g,tube,8901234567926,Everyday protection,90.0,0.0,0.0,,2026-07-31,False,1101,2026-02-01
+Thums Up,BEV-004,42.0,Beverages,750ml,btl,8901234567920,Taste the thunder,32.0,0.0,0.0,,2026-07-31,False,1035,2026-02-01
+Quaker Oats,GROC-003,195.0,Groceries,1kg,pkt,8901234567916,Rolled oats,155.0,0.0,0.0,,2026-07-31,False,532,2026-02-01
+Duracell AA Batteries,HH-006,195.0,Household Items,4pcs,pkt,8901234567934,Long lasting battery,150.0,0.0,0.0,,2026-07-31,False,532,2026-02-01
+Good Day Cashew,SNACK-003,22.0,Snacks,60g,pkt,8901234567908,With real cashew,16.0,0.0,0.0,,2026-07-31,False,1400,2026-02-01
+Lizol Floor Cleaner,HH-003,215.0,Household Items,975ml,btl,8901234567931,Germ kill formula,170.0,0.0,0.0,,2026-07-31,False,701,2026-02-01
+Haldiram Aloo Bhujia,SNACK-007,55.0,Snacks,200g,pkt,8901234567912,Favorite namkeen,42.0,0.0,0.0,,2026-07-31,False,829,2026-02-01
+Vim Dishwash Gel,HH-002,195.0,Household Items,750ml,btl,8901234567930,Grease removal gel,155.0,0.0,0.0,,2026-07-31,False,801,2026-02-01
+Tata Salt,GRAIN-004,28.0,Grains & Pulses,1kg,kg,8901234567896,Desh ka namak,21.0,0.0,0.0,,2026-07-31,False,2946,2026-02-01
+Kissan Tomato Ketchup,GROC-001,135.0,Groceries,950g,btl,8901234567914,Fresh tomato sauce,105.0,0.0,0.0,,2026-07-31,False,566,2026-02-01
+Everest Turmeric Powder,SPICE-001,38.0,Spices & Oils,100g,pkt,8901234567898,Kitchen essential,28.0,0.0,0.0,,2026-07-31,False,1150,2026-02-01
+Fortune Refined Sunflower Oil,OIL-001,168.0,Spices & Oils,1L,L,8901234567893,Light cooking oil,135.0,0.0,0.0,,2027-07-26,False,1166,2026-02-01
+Shimla Apple,FRUIT-001,215.0,Fruits,1kg,kg,8901234567936,Fresh seasonal fruit,160.0,0.0,0.0,,2026-07-31,False,267,2026-02-01
+Oreo Vanilla Cream,SNACK-004,38.0,Snacks,120g,pkt,8901234567909,Twist lick dunk,28.0,0.0,0.0,,2026-07-31,False,1167,2026-02-01
+Himalaya Face Wash,PC-006,165.0,Personal Care,100ml,tube,8901234567928,Natural herbal care,130.0,0.0,0.0,,2026-07-31,False,566,2026-02-01
+Saffola Gold Oil,OIL-003,215.0,Spices & Oils,1L,L,8901234567895,Heart healthy oil,175.0,0.0,0.0,,2027-07-26,False,669,2026-02-01
+Surf Excel Matic,HH-001,255.0,Household Items,1kg,pkt,8901234567929,Machine wash detergent,200.0,0.0,0.0,,2026-07-31,False,834,2026-02-01
+Lays Magic Masala,SNACK-005,22.0,Snacks,50g,pkt,8901234567910,Spicy potato chips,18.0,0.0,0.0,,2026-07-31,False,1728,2026-02-01
+Harpic Toilet Cleaner,HH-004,198.0,Household Items,1L,btl,8901234567932,Bathroom cleaner,155.0,0.0,0.0,,2027-07-26,False,734,2026-02-01
+Tata Sampann Toor Dal,GRAIN-003,142.0,Grains & Pulses,1kg,kg,8901234567892,Unpolished dal,115.0,0.0,0.0,,2026-07-31,False,585,2026-02-01
+Britannia Marie Gold,SNACK-001,32.0,Bakery Items,250g,pkt,8901234567906,For tea time,24.0,0.0,0.0,,2026-07-31,False,1750,2026-02-01
+Tropicana Mixed Fruit,BEV-006,115.0,Beverages,1L,pkt,8901234567922,Natural juice,90.0,0.0,0.0,,2026-07-31,False,402,2026-02-01
+Amul Butter,DAIRY-002,255.0,"Dairy (Milk, Eggs, Cheese)",500g,pkt,8901234567901,Utterly butterly delicious,205.0,0.0,0.0,,2026-09-29,False,420,2026-02-01
