@@ -191,7 +191,19 @@ const api = {
         body: formData,
         // Let browser set Content-Type for FormData
         headers: {}
-      })
+      }),
+
+    getImportHistory: () =>
+      apiRequest("/products/imports"),
+
+    deleteImport: (filename) =>
+      apiRequest(`/products/imports/${encodeURIComponent(filename)}`, { method: "DELETE" }),
+
+    downloadImport: (filename) =>
+      `${API_BASE_URL}/products/imports/${encodeURIComponent(filename)}`,
+
+    updateGST: () =>
+      apiRequest("/products/update-gst", { method: "POST" })
   },
 
   /* ===================== INVENTORY ===================== */
@@ -259,6 +271,9 @@ const api = {
     refund: (id) =>
       apiRequest(`/sales/${id}/refund`, { method: "POST" }),
 
+    returnItem: (itemId) =>
+      apiRequest(`/sales/items/${itemId}/return`, { method: "POST" }),
+
     getDailySummary: (branchId, date) => {
       const params = new URLSearchParams();
       if (branchId) params.append("branch_id", branchId);
@@ -323,6 +338,9 @@ const api = {
 
     deleteUser: (id) =>
       apiRequest(`/admin/users/${id}`, { method: "DELETE" }),
+
+    reactivateUser: (id) =>
+      apiRequest(`/admin/users/${id}/reactivate`, { method: "PUT" }),
 
     getStats: () =>
       apiRequest("/admin/stats"),

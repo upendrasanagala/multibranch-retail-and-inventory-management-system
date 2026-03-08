@@ -58,8 +58,8 @@ export default function Register() {
     if (!formData.email) err.email = "Required";
     if (!formData.mobile) {
       err.mobile = "Required";
-    } else if (!/^\d{10}$/.test(formData.mobile)) {
-      err.mobile = "Mobile number must be exactly 10 digits";
+    } else if (!/^[6-9]\d{9}$/.test(formData.mobile)) {
+      err.mobile = "Invalid mobile number. Must be 10 digits starting with 6, 7, 8, or 9.";
     }
     if (!formData.password) err.password = "Required";
     if (!formData.confirmPassword) err.confirmPassword = "Required";

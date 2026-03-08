@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../styles/dashboard.css";
+import { useToast } from "../../components/ToastContext";
+import { useConfirm } from "../../components/ConfirmContext";
 
 import AdminInventory from "../admin/AdminInventory";
 import AdminStockTransfers from "../admin/adminStockTransfer";
@@ -11,8 +13,13 @@ import SupplierManagement from "../admin/SupplierManagement";
 import api from "../../services/api";
 import { logout as authLogout, getCurrentUser } from "../../services/authService";
 import LiveClock from "../../components/LiveClock";
+import DashboardFAQ from "../../components/DashboardFAQ";
+import ConfirmModal from "../../components/ConfirmModal";
+import Chart from "react-apexcharts";
 
 export default function AdminDashboard() {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const navigate = useNavigate();
 
   const [activeSection, setActiveSection] = useState("dashboard");
@@ -20,6 +27,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showAddManager, setShowAddManager] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [branches, setBranches] = useState([]); // Store branches for dropdown
 
   const [newManager, setNewManager] = useState({
@@ -39,22 +48,48 @@ export default function AdminDashboard() {
     totalUsers: 0,
     pendingUsers: 0,
     approvedUsers: 0,
-    totalBranches: 0
+    totalBranches: 0,
+    totalProducts: 0,
+    todayRevenue: 0,
+    todayCash: 0,
+    todayUpi: 0,
+    todayQr: 0,
+    criticalItems: [],
+    branchPerformance: []
   });
 
   /* ================= LOAD DATA FROM BACKEND ================= */
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      try {
-        // Load users
-        if (activeSection === "users" || activeSection === "dashboard") {
+
+      // Load users (independent)
+      if (activeSection === "users" || activeSection === "dashboard") {
+        try {
           const usersRes = await api.admin.getUsers();
           setUsers(usersRes.users || []);
+        } catch (err) {
+          console.error("Failed to load users:", err);
+          const usersData = JSON.parse(localStorage.getItem("users")) || [];
+          setUsers(usersData);
         }
+      }
 
-        // Load stats for dashboard
-        if (activeSection === "dashboard") {
+      // Load sales (independent)
+      if (activeSection === "dashboard") {
+        try {
+          const salesRes = await api.sales.getAll({ per_page: 50 });
+          setSales(salesRes.sales || []);
+        } catch (err) {
+          console.error("Failed to load sales:", err);
+          const salesData = JSON.parse(localStorage.getItem("sales")) || [];
+          setSales(salesData);
+        }
+      }
+
+      // Load stats (independent)
+      if (activeSection === "dashboard") {
+        try {
           const statsRes = await api.admin.getStats();
           setStats({
             totalUsers: statsRes.total_users || 0,
@@ -69,29 +104,23 @@ export default function AdminDashboard() {
             criticalItems: statsRes.critical_items || [],
             branchPerformance: statsRes.branch_performance || []
           });
+        } catch (err) {
+          console.error("Failed to load stats:", err);
         }
+      }
 
-        // Load branches for dropdown if needed
-        if (activeSection === "users") {
+      // Load branches for dropdown if needed
+      if (activeSection === "users") {
+        try {
           const branchRes = await api.branches.getAll();
           setBranches(branchRes.branches || []);
+        } catch (err) {
+          console.error("Failed to load branches:", err);
+          const branches = JSON.parse(localStorage.getItem("branches")) || [];
+          setBranches(branches);
         }
-      } catch (error) {
-        console.error("Failed to load data:", error);
-        // Fallback to localStorage if backend not available
-        const usersData = JSON.parse(localStorage.getItem("users")) || [];
-        const salesData = JSON.parse(localStorage.getItem("sales")) || [];
-        const branches = JSON.parse(localStorage.getItem("branches")) || [];
-
-        setUsers(usersData);
-        setSales(salesData);
-        setStats({
-          totalUsers: usersData.length,
-          pendingUsers: usersData.filter(u => u.status === "pending").length,
-          approvedUsers: usersData.filter(u => u.status === "approved").length,
-          totalBranches: branches.length
-        });
       }
+
       setLoading(false);
     };
 
@@ -113,59 +142,79 @@ export default function AdminDashboard() {
         msg += `\n\n⚠️ IMPORTANT: Share these credentials. They must change this password on first login.`;
       }
 
-      alert(msg);
+      showToast(msg, "success");
 
       // Reload users
       const usersRes = await api.admin.getUsers();
       setUsers(usersRes.users || []);
       // Refresh stats
       const statsRes = await api.admin.getStats();
-      setStats({
+      setStats(prev => ({
+        ...prev,
         totalUsers: statsRes.total_users || 0,
         pendingUsers: statsRes.pending_users || 0,
         approvedUsers: statsRes.approved_users || 0,
         totalBranches: statsRes.total_branches || 0
-      });
+      }));
     } catch (error) {
       console.error("Failed to approve user:", error);
-      alert("Failed to approve user: " + (error.response?.data?.message || error.message));
+      showToast("Failed to approve user: " + (error.response?.data?.message || error.message), "error");
     } finally {
       setProcessingId(null);
     }
   };
 
-  const deleteUser = async (userId) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+  const deactivateUser = async (userId) => {
+    if (!(await showConfirm("Are you sure you want to deactivate this user? They will no longer be able to log in, but all their records will be preserved.", "Deactivate User"))) return;
 
     try {
       await api.admin.deleteUser(userId);
-      // Reload users
+      showToast("User deactivated successfully", "success");
       const usersRes = await api.admin.getUsers();
       setUsers(usersRes.users || []);
-      // Refresh stats
       const statsRes = await api.admin.getStats();
-      setStats({
+      setStats(prev => ({
+        ...prev,
         totalUsers: statsRes.total_users || 0,
         pendingUsers: statsRes.pending_users || 0,
         approvedUsers: statsRes.approved_users || 0,
         totalBranches: statsRes.total_branches || 0
-      });
+      }));
     } catch (error) {
-      console.error("Failed to delete user:", error);
-      alert("Failed to delete user: " + error.message);
+      console.error("Failed to deactivate user:", error);
+      showToast("Failed to deactivate user: " + error.message, "error");
+    }
+  };
+
+  const reactivateUser = async (userId) => {
+    if (!(await showConfirm("Reactivate this user? They will be able to log in again.", "Reactivate User"))) return;
+
+    try {
+      await api.admin.reactivateUser(userId);
+      showToast("User reactivated successfully", "success");
+      const usersRes = await api.admin.getUsers();
+      setUsers(usersRes.users || []);
+    } catch (error) {
+      console.error("Failed to reactivate user:", error);
+      showToast("Failed to reactivate user: " + error.message, "error");
     }
   };
 
   const handleAddManagerSubmit = async (e) => {
     e.preventDefault();
     if (!newManager.branch_id) {
-      alert("Please select a branch");
+      showToast("Please select a branch", "warning");
+      return;
+    }
+
+    if (!/^[6-9]\d{9}$/.test(newManager.mobile)) {
+      showToast("Invalid mobile number. Must be 10 digits starting with 6,7,8,9", "warning");
       return;
     }
 
     try {
       const res = await api.admin.createUser(newManager);
-      alert(`✅ Manager Created!\n\nEmail: ${res.user.email}\nTemp Password: ${res.user.temp_password}\n\n⚠️ They will be required to change this password on first login.`);
+      showToast(`Manager Created! Email: ${res.user.email} | Temp Password: ${res.user.temp_password} — They must change it on first login.`, "success");
       setShowAddManager(false);
       setNewManager({ firstName: "", lastName: "", email: "", mobile: "", address: "", branch_id: "", password: "" });
 
@@ -174,35 +223,17 @@ export default function AdminDashboard() {
       setUsers(usersRes.users || []);
     } catch (err) {
       console.error("Failed to create manager:", err);
-      alert("❌ Error: " + (err.response?.data?.message || err.message));
+      showToast("Error: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
   /* ================= LOGOUT ================= */
   const logout = () => {
     authLogout();
-    navigate("/login");
+    navigate("/");
   };
 
-  /* ================= SALES MAPS FOR CHARTS ================= */
-  const branchMap = {};
-  const productMap = {};
 
-  sales.forEach(s => {
-    const amount = Number(s.total_amount || s.amount || 0);
-    if (!amount) return;
-
-    const branchName = s.branch?.name || s.branch || "Unknown";
-    branchMap[branchName] = (branchMap[branchName] || 0) + amount;
-
-    // Count items sold
-    if (s.items) {
-      s.items.forEach(item => {
-        const productName = item.product?.name || item.product || "Unknown";
-        productMap[productName] = (productMap[productName] || 0) + (item.quantity || 1);
-      });
-    }
-  });
 
   /* ================= CHART OPTIONS ================= */
   return (
@@ -233,7 +264,7 @@ export default function AdminDashboard() {
             <a className={activeSection === "suppliers" ? "active" : ""}
               onClick={() => setActiveSection("suppliers")}>Suppliers</a>
 
-            <a onClick={logout}>Logout</a>
+            <a onClick={() => setShowLogoutModal(true)}>Logout</a>
           </nav>
 
           <LiveClock />
@@ -247,173 +278,287 @@ export default function AdminDashboard() {
             {loading && <span style={{ marginLeft: '10px', color: '#666' }}>Loading...</span>}
           </header>
 
-          {/* ================= DASHBOARD ================= */}
-          {activeSection === "dashboard" && (
-            <>
-              {/* ROW 1: System Overview */}
-              <div className="dashboard-grid" style={{ marginBottom: '20px' }}>
-                <div className="data-box"><h4>Total Users</h4><div className="value">{stats.totalUsers}</div></div>
-                <div className="data-box"><h4>Active Branches</h4><div className="value">{stats.totalBranches}</div></div>
-                <div className="data-box"><h4>Products</h4><div className="value">{stats.totalProducts}</div></div>
-                <div className="data-box"><h4>Approval Pending</h4><div className="value" style={{ color: stats.pendingUsers > 0 ? '#ca8a04' : 'inherit' }}>{stats.pendingUsers}</div></div>
+          {/* ================= ALERTS CENTER ================= */}
+          {stats.criticalItems?.length > 0 && (
+            <div className="alerts-center" style={{
+              marginBottom: '25px',
+              background: '#fef2f2',
+              border: '1px solid #fee2e2',
+              borderRadius: '12px',
+              padding: '16px',
+              display: 'flex',
+              gap: '15px',
+              alignItems: 'flex-start',
+              animation: 'slideDown 0.4s ease-out'
+            }}>
+              <div style={{
+                background: '#ef4444',
+                color: 'white',
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: '20px'
+              }}>
+                <i className="fas fa-exclamation-triangle"></i>
               </div>
-
-              {/* ROW 2: Today's Financials */}
-              <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', marginBottom: '30px' }}>
-                <div className="data-box" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white' }}>
-                  <h4 style={{ color: 'rgba(255,255,255,0.8)' }}>Today's Revenue</h4>
-                  <div className="value" style={{ color: 'white' }}>₹{stats.todayRevenue?.toLocaleString() || 0}</div>
-                  <div style={{ fontSize: '12px', marginTop: '5px', opacity: 0.9 }}>Across all branches</div>
-                </div>
-
-                <div className="data-box">
-                  <h4>Today's Cash</h4>
-                  <div className="value" style={{ color: '#059669' }}>₹{stats.todayCash?.toLocaleString() || 0}</div>
-                </div>
-
-                <div className="data-box">
-                  <h4>Today's UPI</h4>
-                  <div className="value" style={{ color: '#2563eb' }}>₹{stats.todayUpi?.toLocaleString() || 0}</div>
-                </div>
-
-                <div className="data-box">
-                  <h4>Today's QR</h4>
-                  <div className="value" style={{ color: '#0d9488' }}>₹{stats.todayQr?.toLocaleString() || 0}</div>
-                </div>
-              </div>
-
-              {/* ROW 3: Widgets Flow */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-
-                {/* LOW STOCK WIDGET */}
-                <div className="table-card" style={{ height: 'fit-content' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                    <h3 style={{ margin: 0, color: '#dc2626' }}>⚠️ Critical Low Stock</h3>
-                    <span style={{ fontSize: '12px', background: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: '10px' }}>
-                      Top 5
-                    </span>
-                  </div>
-
-                  {(!stats.criticalItems || stats.criticalItems.length === 0) ? (
-                    <p style={{ color: '#64748b', fontSize: '14px' }}>All stock levels are healthy.</p>
-                  ) : (
-                    <table style={{ fontSize: '13px' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ padding: '8px' }}>Product</th>
-                          <th style={{ padding: '8px' }}>Branch</th>
-                          <th style={{ padding: '8px' }}>Qty / Min</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.criticalItems.map((item, i) => (
-                          <tr key={i}>
-                            <td style={{ padding: '8px' }}>{item.product}</td>
-                            <td style={{ padding: '8px' }}>{item.branch}</td>
-                            <td style={{ padding: '8px', fontWeight: 600, color: '#dc2626' }}>
-                              {item.qty} <span style={{ color: '#94a3b8', fontWeight: 400 }}>/ {item.min}</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                  <div style={{ marginTop: '10px', textAlign: 'right' }}>
+              <div style={{ flex: 1 }}>
+                <h4 style={{ margin: '0 0 5px', color: '#991b1b', fontSize: '15px' }}>Critical Stock Alerts</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {stats.criticalItems.map((item, idx) => (
+                    <div key={idx} style={{
+                      background: 'white',
+                      border: '1px solid #fee2e2',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      color: '#4b5563'
+                    }}>
+                      <b style={{ color: '#b91c1c' }}>{item.product}</b> in {item.branch}:
+                      <span style={{ fontWeight: 800, marginLeft: '5px', color: item.qty <= 5 ? '#dc2626' : '#d97706' }}>
+                        {item.qty} left
+                      </span>
+                    </div>
+                  ))}
+                  {stats.criticalItems.length > 5 && (
                     <button
                       onClick={() => setActiveSection('inventory')}
-                      style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '12px' }}
+                      style={{ background: 'none', border: 'none', color: '#2563eb', padding: 0, fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
                     >
-                      View All Inventory →
+                      +{stats.criticalItems.length - 5} more...
                     </button>
-                  </div>
-                </div>
-
-                {/* BRANCH PERFORMANCE WIDGET */}
-                <div className="table-card" style={{ height: 'fit-content' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ margin: 0 }}>📊 Branch Sales Performance</h3>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>Last 30 Days</span>
-                  </div>
-
-                  {!stats.branchPerformance || stats.branchPerformance.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                      <p>No sales data available for this period.</p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      {stats.branchPerformance
-                        .sort((a, b) => b.revenue - a.revenue)
-                        .map((branch, i) => {
-                          const maxRevenue = Math.max(...stats.branchPerformance.map(b => b.revenue)) || 1;
-                          const percentage = (branch.revenue / maxRevenue) * 100;
-
-                          return (
-                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                <span style={{ fontWeight: 600 }}>{branch.name}</span>
-                                <span style={{ color: '#059669', fontWeight: 700 }}>₹{branch.revenue.toLocaleString()}</span>
-                              </div>
-                              <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{
-                                  width: `${percentage}%`,
-                                  height: '100%',
-                                  background: i === 0 ? '#10b981' : (i === stats.branchPerformance.length - 1 ? '#f59e0b' : '#3b82f6'),
-                                  borderRadius: '4px',
-                                  transition: 'width 0.5s ease-in-out'
-                                }}></div>
-                              </div>
-                              {i === 0 && <span style={{ fontSize: '10px', color: '#059669', fontWeight: 600 }}>🏆 Highest Sales</span>}
-                              {i === stats.branchPerformance.length - 1 && stats.branchPerformance.length > 1 && <span style={{ fontSize: '10px', color: '#ca8a04', fontWeight: 600 }}>📉 Lowest Sales</span>}
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
-                </div>
-
-                {/* PENDING APPROVALS WIDGET */}
-                <div className="table-card" style={{ height: 'fit-content' }}>
-                  <h3 style={{ marginBottom: '15px' }}>Pending User Approvals</h3>
-                  {users.filter(u => u.status === 'pending').length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
-                      <p>✅ All users approved</p>
-                    </div>
-                  ) : (
-                    <div className="table-responsive">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Name</th>
-                            <th>Role</th>
-                            <th>Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {users.filter(u => u.status === 'pending' && u.email !== 'admin@retail.com').slice(0, 5).map((u, i) => (
-                            <tr key={u.user_id || u.id || i}>
-                              <td>
-                                <div>{u.firstName || u.first_name}</div>
-                                <div style={{ fontSize: '10px', color: '#64748b' }}>{u.branch_name}</div>
-                              </td>
-                              <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
-                              <td>
-                                <button
-                                  onClick={() => approveUser(u.user_id || u.id)}
-                                  className="primary-btn"
-                                  style={{ padding: '4px 8px', fontSize: '11px' }}
-                                >
-                                  Approve
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
                   )}
                 </div>
               </div>
-            </>
+              <button
+                onClick={() => setActiveSection('inventory')}
+                className="primary-btn"
+                style={{ background: '#ef4444', fontSize: '12px', padding: '8px 16px' }}
+              >
+                Manage Stock
+              </button>
+            </div>
+          )}
+
+          {/* ================= DASHBOARD HOME ================= */}
+          {activeSection === "dashboard" && (
+            <div className="dashboard-container-refined" style={{ animation: 'fadeIn 0.5s ease-out' }}>
+
+              {/* SECTION 1: SYSTEM STRIP (Mini metrics at the top) */}
+              <div className="stats-strip">
+                <div className="stat-card-mini">
+                  <span className="label">Total Users</span>
+                  <span className="count">{stats.totalUsers}</span>
+                </div>
+                <div className="stat-card-mini">
+                  <span className="label">Active Branches</span>
+                  <span className="count">{stats.totalBranches}</span>
+                </div>
+                <div className="stat-card-mini">
+                  <span className="label">Total Products</span>
+                  <span className="count">{stats.totalProducts}</span>
+                </div>
+                <div className="stat-card-mini" style={{ borderLeft: stats.pendingUsers > 0 ? '4px solid #f59e0b' : '' }}>
+                  <span className="label">Pending Approvals</span>
+                  <span className="count" style={{ color: stats.pendingUsers > 0 ? '#d97706' : 'inherit' }}>
+                    {stats.pendingUsers}
+                  </span>
+                </div>
+              </div>
+
+              {/* SECTION 2: HERO STATS (Financial Focus) */}
+              <div className="hero-stats-grid">
+                <div className="stat-card-hero primary">
+                  <span className="label">TODAY'S TOTAL REVENUE</span>
+                  <div className="value">₹{stats.todayRevenue?.toLocaleString() || 0}</div>
+                  <div className="trend">
+                    <i className="fas fa-chart-line"></i> Global performance across all branches
+                  </div>
+                </div>
+
+                <div className="stat-card-hero secondary">
+                  <span className="label">Cash Payments</span>
+                  <div className="value" style={{ color: '#059669', fontSize: '24px' }}>₹{stats.todayCash?.toLocaleString() || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Physical Collections</div>
+                </div>
+
+                <div className="stat-card-hero secondary">
+                  <span className="label">UPI Transfers</span>
+                  <div className="value" style={{ color: '#2563eb', fontSize: '24px' }}>₹{stats.todayUpi?.toLocaleString() || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Digital Direct</div>
+                </div>
+
+                <div className="stat-card-hero secondary">
+                  <span className="label">QR Scans</span>
+                  <div className="value" style={{ color: '#0d9488', fontSize: '24px' }}>₹{stats.todayQr?.toLocaleString() || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Merchant QR</div>
+                </div>
+              </div>
+
+              {/* SECTION 3: MAIN OPERATIONAL GRID */}
+              <div className="dashboard-main-grid">
+
+                {/* LEFT COLUMN: Charts & Performance */}
+                <div className="left-column" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                  {/* PERFORMANCE CHART */}
+                  <div className="table-card" style={{ margin: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ margin: 0 }}>📊 Branch Sales Performance (Last 30 Days)</h3>
+                      <button className="primary-btn" onClick={() => setActiveSection('reports')} style={{ padding: '6px 12px', fontSize: '11px' }}>
+                        Deep Dive
+                      </button>
+                    </div>
+
+                    {!stats.branchPerformance || stats.branchPerformance.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                        <p>Waiting for sales data to generate analytics...</p>
+                      </div>
+                    ) : (
+                      <div style={{ minHeight: '300px' }}>
+                        <Chart
+                          type="bar"
+                          height={300}
+                          series={[{
+                            name: 'Revenue (₹)',
+                            data: stats.branchPerformance.map(b => b.revenue)
+                          }]}
+                          options={{
+                            chart: { toolbar: { show: false }, fontFamily: 'Outfit, sans-serif' },
+                            plotOptions: {
+                              bar: { borderRadius: 6, columnWidth: '40%', distributed: true, dataLabels: { position: 'top' } }
+                            },
+                            colors: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+                            dataLabels: {
+                              enabled: true,
+                              formatter: (val) => `₹${(val / 1000).toFixed(1)}k`,
+                              offsetY: -20,
+                              style: { fontSize: '11px', colors: ["#64748b"] }
+                            },
+                            xaxis: {
+                              categories: stats.branchPerformance.map(b => b.name),
+                              labels: { style: { fontSize: '12px', fontWeight: 600 } }
+                            },
+                            yaxis: { labels: { formatter: (val) => `₹${(val / 1000).toFixed(0)}k` } },
+                            grid: { borderColor: '#f1f5f9' }
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* FAQ SECION */}
+                  <DashboardFAQ faqs={[
+                    {
+                      question: "How do I approve new staff?",
+                      answer: "Go to the 'Users' tab in the sidebar. Staff waiting for approval will have a 'Pending' status and an 'Approve' button next to their details."
+                    },
+                    {
+                      question: "How to add a new branch?",
+                      answer: "Navigate to the 'Branches' tab and click the '+ Add Branch' button at the top right of the page."
+                    },
+                    {
+                      question: "Can I see global sales across all branches?",
+                      answer: "Yes, this Dashboard home provides a real-time system-wide revenue overview, and the 'Reports' tab offers detailed financial breakdowns."
+                    },
+                    {
+                      question: "How do I manage suppliers?",
+                      answer: "Use the 'Suppliers' tab to add, edit, or remove vendors for your inventory network."
+                    },
+                    {
+                      question: "What do the critical stock alerts mean?",
+                      answer: "The red alert bar at the top highlights items that have fallen below their minimum threshold across any branch. Click 'Manage Stock' to address these immediately."
+                    },
+                    {
+                      question: "How do I monitor branch performance?",
+                      answer: "The 'Branch Sales Performance' chart on this home page shows a 30-day revenue comparison. Detailed per-branch metrics are available in the 'Reports' section."
+                    },
+                    {
+                      question: "How do I initiate a stock transfer?",
+                      answer: "Go to the 'Transfers' tab. You can create a new request by selecting the source and destination branches along with the products to be moved."
+                    },
+                    {
+                      question: "Can I export or print reports?",
+                      answer: "Yes, in the 'Reports' tab, you can filter by date and branch, then use the 'Print' button to generate a physical or PDF copy of the financial data."
+                    },
+                    {
+                      question: "How do I update branch payment details?",
+                      answer: "Go to the 'Branches' tab, select 'Edit' on the desired branch, and you can update their UPI ID, Address, or Mobile number."
+                    },
+                    {
+                      question: "What happens when I delete a user?",
+                      answer: "Deleting a user removes their login access immediately. However, their past transaction signatures remain in the system for auditing and integrity."
+                    }
+                  ]} />
+                </div>
+
+                {/* RIGHT COLUMN: Critical Actions & Alerts */}
+                <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                  {/* CRITICAL STOCK WIDGET */}
+                  <div className="table-card" style={{ margin: 0, borderTop: '4px solid #dc2626' }}>
+                    <div style={{ marginBottom: '15px' }}>
+                      <h3 style={{ margin: 0, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fas fa-exclamation-triangle"></i> Low Stock Alerts
+                      </h3>
+                    </div>
+
+                    {(!stats.criticalItems || stats.criticalItems.length === 0) ? (
+                      <div style={{ textAlign: 'center', padding: '20px', background: '#f0fdf4', borderRadius: '12px', color: '#166534' }}>
+                        <i className="fas fa-check-circle" style={{ fontSize: '24px', marginBottom: '8px' }}></i>
+                        <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>All stocks healthy</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {stats.criticalItems.slice(0, 5).map((item, i) => (
+                          <div key={i} style={{ padding: '10px', background: '#fef2f2', borderRadius: '10px', border: '1px solid #fee2e2' }}>
+                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#991b1b' }}>{item.product}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#b91c1c', marginTop: '4px' }}>
+                              <span>{item.branch}</span>
+                              <span style={{ fontWeight: 800 }}>{item.qty} left</span>
+                            </div>
+                          </div>
+                        ))}
+                        <button className="secondary-btn" onClick={() => setActiveSection('inventory')} style={{ width: '100%', marginTop: '5px', fontSize: '12px' }}>
+                          View Full Stock Report
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PENDING APPROVALS WIDGET */}
+                  <div className="table-card" style={{ margin: 0 }}>
+                    <h3 style={{ marginBottom: '15px' }}>Pending Approvals</h3>
+                    {users.filter(u => u.status === 'pending').length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', background: '#f8fafc', borderRadius: '12px' }}>
+                        <p style={{ margin: 0, fontSize: '12px' }}>No users awaiting action</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {users.filter(u => u.status === 'pending' && u.email !== 'admin@retail.com').slice(0, 3).map((u, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '13px' }}>{u.firstName || u.first_name}</div>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>{u.role} | {u.branch_name}</div>
+                            </div>
+                            <button onClick={() => approveUser(u.user_id || u.id)} className="primary-btn" style={{ padding: '5px 10px', fontSize: '11px' }}>
+                              Approve
+                            </button>
+                          </div>
+                        ))}
+                        <button className="secondary-btn" onClick={() => setActiveSection('users')} style={{ width: '100%', fontSize: '12px' }}>
+                          Manage All Users
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ================= USERS ================= */}
@@ -424,18 +569,45 @@ export default function AdminDashboard() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                     <span style={{ background: '#6366f1', color: '#fff', padding: '2px 10px', borderRadius: '12px', fontSize: '13px' }}>Managers</span>
-                    Branch Managers ({users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && u.status !== 'suspended').length})
+                    Branch Managers ({users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length})
                   </h3>
-                  <button
-                    className="primary-btn"
-                    style={{ fontSize: '13px', padding: '6px 14px' }}
-                    onClick={() => setShowAddManager(true)}
-                  >
-                    + Add Manager
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => setShowInactive(v => !v)}
+                      style={{
+                        fontSize: '12px', padding: '8px 18px',
+                        borderRadius: '20px',
+                        border: showInactive ? '1.5px solid #fca5a5' : '1.5px solid #cbd5e1',
+                        cursor: 'pointer',
+                        background: showInactive
+                          ? 'linear-gradient(135deg, #fef2f2, #fff1f2)'
+                          : 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+                        color: showInactive ? '#b91c1c' : '#475569',
+                        fontWeight: 700,
+                        letterSpacing: '0.3px',
+                        boxShadow: showInactive
+                          ? '0 2px 8px rgba(239, 68, 68, 0.15)'
+                          : '0 1px 4px rgba(0, 0, 0, 0.06)',
+                        transition: 'all 0.25s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <i className={`fas ${showInactive ? 'fa-eye-slash' : 'fa-eye'}`} style={{ fontSize: '11px' }}></i>
+                      {showInactive ? 'Hide Inactive' : 'Show Inactive'}
+                    </button>
+                    <button
+                      className="primary-btn"
+                      style={{ fontSize: '13px', padding: '6px 14px' }}
+                      onClick={() => setShowAddManager(true)}
+                    >
+                      + Add Manager
+                    </button>
+                  </div>
                 </div>
 
-                {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && u.status !== 'suspended').length > 0 ? (
+                {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length > 0 ? (
                   <div className="table-responsive">
                     <table>
                       <thead>
@@ -449,7 +621,7 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && u.status !== 'suspended').map((u, i) => (
+                        {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).map((u, i) => (
                           <tr key={u.user_id || i}>
                             <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{u.employee_id || '—'}</code></td>
                             <td>{u.first_name || u.firstName} {u.last_name || u.lastName}</td>
@@ -458,7 +630,9 @@ export default function AdminDashboard() {
                             <td>
                               {u.status === "approved"
                                 ? <span style={{ color: "#10b981", fontWeight: 700 }}>Approved</span>
-                                : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
+                                : u.status === "suspended"
+                                  ? <span style={{ color: "#ef4444", fontWeight: 700 }}>Inactive</span>
+                                  : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
                             </td>
                             <td style={{ display: 'flex', gap: '8px' }}>
                               <button onClick={() => {
@@ -476,7 +650,11 @@ export default function AdminDashboard() {
                                 </button>
                               )}
 
-                              <button onClick={() => deleteUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Delete</button>
+                              {u.status === "suspended" ? (
+                                <button onClick={() => reactivateUser(u.user_id)} style={{ background: '#d1fae5', color: '#065f46' }}>Reactivate</button>
+                              ) : (
+                                <button onClick={() => deactivateUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Deactivate</button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -492,7 +670,7 @@ export default function AdminDashboard() {
               <div className="table-card">
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ background: '#0ea5e9', color: '#fff', padding: '2px 10px', borderRadius: '12px', fontSize: '13px' }}>Staff</span>
-                  Staff Members ({users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com').length})
+                  Staff Members ({users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length})
                 </h3>
 
                 {users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com').length > 0 ? (
@@ -504,48 +682,24 @@ export default function AdminDashboard() {
                           <th>Name</th>
                           <th>Email</th>
                           <th>Branch</th>
-                          <th>Interviewer</th>
-                          <th>Interview Progress</th>
-                          <th>Score</th>
                           <th>Status</th>
                           <th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com').map((u, i) => (
+                        {users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).map((u, i) => (
                           <tr key={u.user_id || i}>
                             <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{u.employee_id || '—'}</code></td>
                             <td>{u.first_name || u.firstName} {u.last_name || u.lastName}</td>
                             <td>{u.email}</td>
                             <td>{u.branch_name || u.branch || 'N/A'}</td>
-                            <td>{u.interviewer_name || 'N/A'}</td>
-
-                            <td>
-                              <span style={{
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                background: u.interview_status === 'completed' ? '#d1fae5' : '#f1f5f9',
-                                color: u.interview_status === 'completed' ? '#065f46' : '#475569',
-                                fontWeight: 700
-                              }}>
-                                {(u.interview_status || 'not_started').replace('_', ' ').toUpperCase()}
-                              </span>
-                            </td>
-
-                            <td>
-                              <span style={{
-                                fontWeight: 800,
-                                color: u.score >= 70 ? '#10b981' : (u.score >= 40 ? '#f59e0b' : '#ef4444')
-                              }}>
-                                {u.score || 0}%
-                              </span>
-                            </td>
 
                             <td>
                               {u.status === "approved"
                                 ? <span style={{ color: "#10b981", fontWeight: 700 }}>Approved</span>
-                                : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
+                                : u.status === "suspended"
+                                  ? <span style={{ color: "#ef4444", fontWeight: 700 }}>Inactive</span>
+                                  : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
                             </td>
 
                             <td style={{ display: 'flex', gap: '8px' }}>
@@ -564,7 +718,11 @@ export default function AdminDashboard() {
                                 </button>
                               )}
 
-                              <button onClick={() => deleteUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Delete</button>
+                              {u.status === "suspended" ? (
+                                <button onClick={() => reactivateUser(u.user_id)} style={{ background: '#d1fae5', color: '#065f46' }}>Reactivate</button>
+                              ) : (
+                                <button onClick={() => deactivateUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Deactivate</button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -636,8 +794,8 @@ export default function AdminDashboard() {
               <div className="info-row">
                 <span className="info-label">Current Status</span>
                 <span className="info-value">
-                  <span style={{ color: selectedUser.status === 'approved' ? '#10b981' : '#f59e0b', fontWeight: 700 }}>
-                    {selectedUser.status?.toUpperCase()}
+                  <span style={{ color: selectedUser.status === 'approved' ? '#10b981' : selectedUser.status === 'suspended' ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>
+                    {selectedUser.status === 'suspended' ? 'INACTIVE' : selectedUser.status?.toUpperCase()}
                   </span>
                 </span>
               </div>
@@ -784,6 +942,14 @@ export default function AdminDashboard() {
           </div>
         )
       }
+
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of the Admin Panel? Security is paramount."
+        onConfirm={logout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </>
   );
 }

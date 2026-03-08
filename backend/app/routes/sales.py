@@ -11,10 +11,12 @@ from app.extensions import db
 from app.models.sales import SalesTransaction, TransactionItem
 from app.models.inventory import Inventory
 from app.models.product import Product
+from app.models.adjustment import InventoryAdjustment
 from app.models.user import User
 from app.models.branch import Branch
 from app.utils.decorators import roles_required
 from app.routes import sales_bp
+from app.utils.validators import is_valid_indian_mobile
 
 
 # =============================
@@ -24,7 +26,9 @@ from app.routes import sales_bp
 @jwt_required()
 @roles_required("admin", "manager", "staff")
 def create_sale():
+    from flask import current_app
     user_id = get_jwt_identity()
+    current_app.logger.info(f"Sale transaction initiated by User ID: {user_id}")
     user = User.query.get(user_id)
     
     if not user or not user.branch_id:
@@ -34,6 +38,13 @@ def create_sale():
     
     items = data.get("items", [])  # [{product_id, quantity, unit_price}]
     payment_method = data.get("payment_method", "cash")
+    customer_mobile = data.get("customer_mobile")
+    
+    if not customer_mobile:
+        return jsonify({"message": "Customer mobile number is mandatory"}), 400
+    
+    if not is_valid_indian_mobile(customer_mobile):
+        return jsonify({"message": "Invalid customer mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
     
     if not items:
         return jsonify({"message": "No items in transaction"}), 400
@@ -80,7 +91,6 @@ def create_sale():
     final_total = total_from_fe if total_from_fe is not None else (items_subtotal - discount)
 
     # Create transaction
-    # Create transaction
     # First, get branch code
     branch = Branch.query.get(user.branch_id)
     branch_prefix = branch.branch_code if branch and branch.branch_code else "BR"
@@ -91,6 +101,7 @@ def create_sale():
         total_amount=final_total,
         discount=discount,
         payment_method=payment_method,
+        customer_mobile=customer_mobile,
         status="completed",
         invoice_number="TEMP" # Temporary place holder
     )
@@ -139,15 +150,22 @@ def get_sales():
     date_to = request.args.get("date_to")
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
-    
+    customer_mobile = request.args.get("customer_mobile")
+
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
     
     # Enforce branch isolation for non-admins
     if user.role != "admin":
         branch_id = user.branch_id
         if not branch_id:
             return jsonify({"message": "User not assigned to a branch"}), 403
+        
+        # Enforce staff-level isolation: Staff can only see their own sales
+        if user.role == "staff":
+            staff_id = user_id
     
     query = SalesTransaction.query
     
@@ -155,6 +173,8 @@ def get_sales():
         query = query.filter(SalesTransaction.branch_id == branch_id)
     if staff_id:
         query = query.filter(SalesTransaction.staff_id == staff_id)
+    if customer_mobile:
+        query = query.filter(SalesTransaction.customer_mobile == customer_mobile)
     
     if date_from:
         try:
@@ -184,8 +204,9 @@ def get_sales():
             "uuid": t.transaction_uuid,
             "branch_id": t.branch_id,
             "staff_id": t.staff_id,
-            "staff_name": staff.name if staff else None,
+            "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,
             "total_amount": t.total_amount,
+            "customer_mobile": t.customer_mobile,
             "payment_method": t.payment_method,
             "status": t.status,
             "transaction_date": t.transaction_date.isoformat() if t.transaction_date else None
@@ -206,6 +227,17 @@ def get_sales():
 @jwt_required()
 def get_sale(transaction_id):
     transaction = SalesTransaction.query.get_or_404(transaction_id)
+    
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Branch and Staff isolation
+    if user.role != "admin":
+        if transaction.branch_id != user.branch_id:
+            return jsonify({"message": "Access denied to other branch data"}), 403
+        
+        if user.role == "staff" and transaction.staff_id != user_id:
+            return jsonify({"message": "Access denied to other staff transactions"}), 403
     
     # Get transaction items
     items = TransactionItem.query.filter_by(transaction_id=transaction_id).all()
@@ -234,8 +266,9 @@ def get_sale(transaction_id):
         "uuid": transaction.transaction_uuid,
         "branch_id": transaction.branch_id,
         "staff_id": transaction.staff_id,
-        "staff_name": staff.name if staff else None,
+        "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,
         "total_amount": transaction.total_amount,
+        "customer_mobile": transaction.customer_mobile,
         "discount": transaction.discount,
         "payment_method": transaction.payment_method,
         "status": transaction.status,
@@ -274,6 +307,57 @@ def void_sale(transaction_id):
 
 
 # =============================
+# Return Specific Item (Admin/Manager)
+# =============================
+@sales_bp.route("/items/<int:item_id>/return", methods=["POST"])
+@jwt_required()
+@roles_required("admin", "manager")
+def return_item(item_id):
+    item = TransactionItem.query.get_or_404(item_id)
+    transaction = SalesTransaction.query.get(item.transaction_id)
+    
+    if item.is_returned:
+        return jsonify({"message": "Item already returned"}), 400
+    
+    if transaction.status == "voided":
+        return jsonify({"message": "Cannot return items from a voided transaction"}), 400
+
+    # 1. Mark item as returned
+    item.is_returned = True
+    item.return_date = datetime.now()
+    
+    # 2. Adjust transaction total
+    transaction.total_amount -= item.subtotal
+    
+    # 3. Restore inventory
+    inventory = Inventory.query.filter_by(
+        product_id=item.product_id, 
+        branch_id=transaction.branch_id
+    ).first()
+    
+    if inventory:
+        inventory.quantity += item.quantity
+        
+        # 4. Log the return as an adjustment
+        adjustment = InventoryAdjustment(
+            product_id=item.product_id,
+            branch_id=transaction.branch_id,
+            adjustment_type="return",
+            quantity=item.quantity,
+            reason=f"Item return from bill #{transaction.invoice_number}",
+            adjusted_by=get_jwt_identity()
+        )
+        db.session.add(adjustment)
+    
+    db.session.commit()
+    
+    return jsonify({
+        "message": "Item returned successfully",
+        "new_total": transaction.total_amount
+    }), 200
+
+
+# =============================
 # Get Sales Summary/Stats
 # =============================
 @sales_bp.route("/summary", methods=["GET"])
@@ -291,8 +375,22 @@ def get_sales_summary():
         branch_id = user.branch_id
         if not branch_id:
             return jsonify({"message": "User not assigned to a branch"}), 403
-    
-    query = SalesTransaction.query.filter(SalesTransaction.status == "completed")
+        
+        # Enforce staff-level isolation for summary
+        if user.role == "staff":
+            query = SalesTransaction.query.filter(
+                SalesTransaction.status == "completed",
+                SalesTransaction.staff_id == user_id
+            )
+            # Skip the default query assignment later
+            staff_filtered = True
+        else:
+            staff_filtered = False
+    else:
+        staff_filtered = False
+
+    if not staff_filtered:
+        query = SalesTransaction.query.filter(SalesTransaction.status == "completed")
     
     if branch_id:
         query = query.filter(SalesTransaction.branch_id == branch_id)
@@ -341,11 +439,23 @@ def get_sales_by_branch(branch_id):
 
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
+    customer_mobile = request.args.get("customer_mobile")
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     
+    # Restriction: Only Admin and Manager can search by mobile
+    if customer_mobile and user.role not in ["admin", "manager"]:
+        return jsonify({"message": "Access denied: Only managers and admins can search by mobile number"}), 403
+
     query = SalesTransaction.query.filter(SalesTransaction.branch_id == branch_id)
     
+    # Enforce staff-level isolation: Staff can only see their own sales
+    if user.role == "staff":
+        query = query.filter(SalesTransaction.staff_id == user_id)
+    
+    if customer_mobile:
+        query = query.filter(SalesTransaction.customer_mobile == customer_mobile)
+
     if date_from:
         try:
             date_from_dt = datetime.fromisoformat(date_from)
@@ -374,10 +484,12 @@ def get_sales_by_branch(branch_id):
         for item in items:
             product = Product.query.get(item.product_id)
             item_list.append({
+                "item_id": item.item_id,
                 "product_name": product.name if product else "Unknown",
                 "quantity": item.quantity,
                 "unit_price": item.unit_price,
                 "subtotal": item.subtotal,
+                "is_returned": item.is_returned,
                 "size": product.size if product else None,
                 "unit": product.unit if product else None,
                 "is_b1g1": product.is_b1g1 if product else False,
@@ -392,6 +504,7 @@ def get_sales_by_branch(branch_id):
             "staff_id": t.staff_id,
             "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,
             "total_amount": t.total_amount,
+            "customer_mobile": t.customer_mobile,
             "discount": t.discount,
             "payment_method": t.payment_method,
             "status": t.status,
@@ -465,11 +578,22 @@ def get_daily_summary():
         branch_id = user.branch_id
         if not branch_id:
             return jsonify({"message": "User not assigned to a branch"}), 403
+        
+        # Enforce staff-level isolation for daily summary
+        if user.role == "staff":
+            staff_id_filter = user_id
+        else:
+            staff_id_filter = request.args.get("staff_id", type=int)
+    else:
+        staff_id_filter = request.args.get("staff_id", type=int)
 
     query = SalesTransaction.query.filter(
         SalesTransaction.status == "completed",
         db.func.date(SalesTransaction.transaction_date) == target_date
     )
+
+    if staff_id_filter:
+        query = query.filter(SalesTransaction.staff_id == staff_id_filter)
     
     if branch_id:
         query = query.filter(SalesTransaction.branch_id == branch_id)

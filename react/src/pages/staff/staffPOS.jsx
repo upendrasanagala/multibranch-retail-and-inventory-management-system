@@ -3,8 +3,10 @@ import "../../styles/dashboard.css";
 import { formatDate, formatDateTime } from "../../utils/dateUtils";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
+import { useToast } from "../../components/ToastContext";
 
 export default function StaffPOS() {
+  const { showToast } = useToast();
   const user = getCurrentUser();
 
   const [products, setProducts] = useState([]);
@@ -65,7 +67,8 @@ export default function StaffPOS() {
         sku: p.sku,
         size: p.size,
         unit: p.unit,
-        is_b1g1: p.is_b1g1 // Map B1G1 flag
+        is_b1g1: p.is_b1g1, // Map B1G1 flag
+        gst_percent: p.gst_percent || 0 // Per-product GST rate
       }));
 
       setProducts(productsWithStock);
@@ -97,10 +100,10 @@ export default function StaffPOS() {
           addToCart(product);
           setBarcode("");
         } else {
-          alert("Out of stock!");
+          showToast("Out of stock!", "warning");
         }
       } else {
-        alert("Product not found!");
+        showToast("Product not found!", "error");
       }
     }
   };
@@ -154,24 +157,25 @@ export default function StaffPOS() {
 
   /* ================= CART LOGIC ================= */
   const addToCart = (product) => {
+    // Pre-check stock before updating state
+    const existing = cart.find(i => i.productId === (product.product_id || product.id));
+    if (existing) {
+      const productInInventory = products.find(p => p.productId === (product.product_id || product.id));
+      if (existing.qty + 1 > productInInventory.stock) {
+        showToast("Cannot exceed available stock!", "warning");
+        return;
+      }
+    } else if (product.stock <= 0) {
+      showToast("Product is out of stock!", "warning");
+      return;
+    }
     setCart(prev => {
-      const existing = prev.find(i => i.productId === (product.product_id || product.id));
-      if (existing) {
-        // Check stock before incrementing
-        const productInInventory = products.find(p => p.productId === (product.product_id || product.id));
-        if (existing.qty + 1 > productInInventory.stock) {
-          alert("Cannot exceed available stock!");
-          return prev; // Return previous state if stock limit reached
-        }
+      const ex = prev.find(i => i.productId === (product.product_id || product.id));
+      if (ex) {
         return prev.map(i => i.productId === (product.product_id || product.id)
           ? { ...i, qty: i.qty + 1 }
           : i
         );
-      }
-      // Check stock for new item
-      if (product.stock <= 0) {
-        alert("Product is out of stock!");
-        return prev; // Return previous state if out of stock
       }
       return [...prev, {
         productId: product.product_id || product.id,
@@ -184,7 +188,7 @@ export default function StaffPOS() {
         sku: product.sku, // Added SKU
         unit: product.unit, // Added Unit
         size: product.size, // Added Size
-        gst_percent: product.gst_percent || 0 // Added GST for receipt grouping
+        gst_percent: product.gst_percent || 0, // Added GST for receipt grouping
       }];
     });
     playBeep(); // Play sound
@@ -195,7 +199,7 @@ export default function StaffPOS() {
     const product = products.find(p => p.productId === id);
     const item = cart.find(i => i.productId === id);
     if (delta > 0 && item.qty >= product.stock) {
-      alert("Cannot exceed available stock!");
+      showToast("Cannot exceed available stock!", "warning");
       return;
     }
     setCart(cart.map(i => i.productId === id ? { ...i, qty: i.qty + delta } : i).filter(i => i.qty > 0));
@@ -242,16 +246,19 @@ export default function StaffPOS() {
 
   /* ================= COMPLETE PAYMENT ================= */
   const completePayment = async () => {
-    if (cart.length === 0) return alert("Cart is empty");
-    if (!paymentMethod) return alert("Select payment method");
-    if (paymentMethod === 'upi' && !utr) return alert("Enter UTR for UPI");
-    if (paymentMethod === 'card' && !cardData.name) return alert("Enter Card Details");
-    if (paymentMethod === 'cash' && Number(cashReceived) < total) return alert(`Insufficient Cash! Need ₹${(total - Number(cashReceived)).toFixed(2)} more.`);
+    if (cart.length === 0) { showToast("Cart is empty", "warning"); return; }
+    if (!mobile || mobile.length < 10) { showToast("Customer mobile number is mandatory (10 digits)", "warning"); return; }
+    if (!/^[6-9]/.test(mobile)) { showToast("Mobile number must start with 6, 7, 8, or 9", "warning"); return; }
+    if (!paymentMethod) { showToast("Select payment method", "warning"); return; }
+    if (paymentMethod === 'upi' && !utr) { showToast("Enter UTR for UPI", "warning"); return; }
+    if (paymentMethod === 'card' && !cardData.name) { showToast("Enter Card Details", "warning"); return; }
+    if (paymentMethod === 'cash' && Number(cashReceived) < total) { showToast(`Insufficient Cash! Need ₹${(total - Number(cashReceived)).toFixed(2)} more.`, "error"); return; }
 
     setLoading(true); // Assuming setLoading is used for processing state
     try {
       const saleData = {
         branch_id: user?.branch_id,
+        customer_mobile: mobile,
         items: cart.map(item => ({
           product_id: item.productId,
           quantity: item.qty,
@@ -283,11 +290,17 @@ export default function StaffPOS() {
           bill: billDiscount,
           manual: manualDiscountAmount
         },
-        billOfferPercent: billOfferPercent, // Pass for display
+        billOfferPercent: billOfferPercent,
         total,
         transaction_id: res.transaction_id,
         invoice_number: res.invoice_number,
-        transaction_date: formatDateTime(new Date())
+        transaction_date: formatDateTime(new Date()),
+        mobile: mobile || '',
+        paymentMethod: paymentMethod,
+        utr: utr || '',
+        cardHolder: cardData.name || '',
+        cashReceived: Number(cashReceived) || 0,
+        change: paymentMethod === 'cash' ? Math.max(0, Number(cashReceived) - total) : 0
       };
 
       // Delay before reset & print (show animation)
@@ -305,207 +318,197 @@ export default function StaffPOS() {
       }, 2000);
 
     } catch (err) {
-      alert("Current Sale Failed: " + err.message);
+      showToast("Current Sale Failed: " + err.message, "error");
     }
     setLoading(false);
   };
 
+
   /* ================= PRINT RECEIPT ================= */
   const printReceipt = (saleData) => {
-    const printWindow = window.open("", "", "width=400,height=600");
+    const printWindow = window.open("", "", "width=350,height=600");
 
     if (!printWindow) {
-      alert("⚠️ Receipt printing was blocked by your browser.\nPlease allow popups for this site.");
+      showToast("Receipt printing was blocked. Please allow popups for this site.", "warning");
       return;
     }
 
     const sale = saleData || {
-      items: [],
-      subtotal: 0,
-      gst: 0,
-      discount: 0,
+      items: [], subtotal: 0, gst: 0, discount: 0,
       discountBreakdown: { b1g1: 0, bill: 0, manual: 0 },
-      transaction_id: "ERR",
-      transaction_date: new Date().toLocaleString()
+      transaction_id: "ERR", transaction_date: new Date().toLocaleString(),
+      mobile: '', paymentMethod: 'cash', utr: '', cardHolder: '',
+      cashReceived: 0, change: 0
     };
 
-    // --- 1. Group items by GST Rate ---
-    const gstGroups = {};
-    const gstBreakup = {}; // { '5': { taxable: 0, cgst: 0, sgst: 0, total: 0 } }
-
+    // GST breakup
+    const gstBreakup = {};
     sale.items.forEach(item => {
       const rate = item.gst_percent || 0;
-      if (!gstGroups[rate]) gstGroups[rate] = [];
-      gstGroups[rate].push(item);
-
-      // Calculate breakup
-      if (!gstBreakup[rate]) gstBreakup[rate] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
-
+      if (!gstBreakup[rate]) gstBreakup[rate] = { taxable: 0, cgst: 0, sgst: 0 };
       const itemTotal = Number(item.price) * Number(item.qty);
-      // Back-calculate taxable from total (Assuming price includes GST)
-      // Taxable = Total / (1 + rate/100)
       const taxable = itemTotal / (1 + rate / 100);
       const taxAmt = itemTotal - taxable;
-
       gstBreakup[rate].taxable += taxable;
       gstBreakup[rate].cgst += taxAmt / 2;
       gstBreakup[rate].sgst += taxAmt / 2;
-      gstBreakup[rate].total += itemTotal;
     });
 
     const breakdown = sale.discountBreakdown || { b1g1: 0, bill: 0, manual: 0 };
-    const totalSavings = (breakdown.b1g1 || 0) + (breakdown.bill || 0) + (breakdown.manual || 0) + (sale.discount || 0);
+    const totalSavings = (breakdown.b1g1 || 0) + (breakdown.bill || 0) + (breakdown.manual || 0);
+    const roundedTotal = Math.round(sale.total);
+    const roundOff = roundedTotal - sale.total;
+    const grossAmt = sale.items.reduce((s, i) => s + (i.price * i.qty), 0);
+    const totalQty = sale.items.reduce((s, i) => s + i.qty, 0);
+    const invoiceNo = sale.invoice_number || sale.transaction_id;
+    const payMethod = (sale.paymentMethod || paymentMethod || 'cash').toUpperCase();
 
-    // --- HTML Template ---
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Invoice #${sale.transaction_id}</title>
-          <style>
-            body { font-family: 'Courier New', monospace; font-size: 11px; padding: 10px; margin: 0; width: 300px; }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .bold { font-weight: bold; }
-            
-            .header img { width: 100px; margin-bottom: 5px; } /* Placeholder for Logo */
-            .header h2 { margin: 2px 0; font-size: 16px; }
-            .header p { margin: 1px 0; font-size: 10px; }
-            
-            .meta { margin: 10px 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; display: flex; justify-content: space-between; flex-wrap: wrap; }
-            .meta div { width: 48%; }
-            
-            table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-            th { border-bottom: 1px dashed #000; text-align: left; font-size: 10px; padding: 2px 0; }
-            td { padding: 2px 0; vertical-align: top; font-size: 10px; }
-            
-            .group-header { font-weight: bold; text-decoration: underline; margin-top: 5px; font-size: 10px; }
-            
-            .totals { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
-            .totals p { margin: 2px 0; display: flex; justify-content: space-between; }
-            .grand-total { font-size: 14px; font-weight: bold; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; margin: 5px 0; }
-            
-            .gst-table { border-top: 1px dashed #000; margin-top: 10px; }
-            .gst-table th { font-size: 9px; text-align: right; }
-            .gst-table th:first-child { text-align: left; }
-            .gst-table td { font-size: 9px; text-align: right; }
-            .gst-table td:first-child { text-align: left; }
-            
-            .savings { text-align: center; margin: 10px 0; font-weight: bold; font-size: 12px; border: 1px dashed #000; padding: 5px; }
-            .footer { text-align: center; margin-top: 15px; font-size: 10px; }
-            .barcode { margin: 10px auto; height: 30px; background: #000; width: 80%; display: block; } /* Mockup */
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h2>RETAIL STORE</h2>
-            <p>Branch: ${branchName}</p>
-            <p>Phone: +91 98765 43210</p>
-            <br/>
-            <h3 style="margin:0; text-decoration: underline;">TAX INVOICE</h3>
-          </div>
+    // Amount in words (Indian)
+    const numberToWords = (num) => {
+      const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+        'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+      const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+      if (num === 0) return 'Zero';
+      const n = Math.abs(Math.round(num));
+      if (n < 20) return ones[n];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+      if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + numberToWords(n % 100) : '');
+      if (n < 100000) return numberToWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + numberToWords(n % 1000) : '');
+      if (n < 10000000) return numberToWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + numberToWords(n % 100000) : '');
+      return numberToWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + numberToWords(n % 10000000) : '');
+    };
 
-          <div class="meta">
-            <div>Bill No: ${sale.invoice_number || sale.transaction_id}</div>
-            <div class="right">Date: ${formatDate(new Date())}</div>
-            <div>Cashier: ${user?.name || 'Staff'}</div>
-            <div class="right">Time: ${new Date().toLocaleTimeString()}</div>
-          </div>
+    // Helper: pad/align text for monospace
+    const L = 42; // line width in characters
+    const dash = '-'.repeat(L);
+    const dblLine = '='.repeat(L);
+    const center = (txt) => { const pad = Math.max(0, Math.floor((L - txt.length) / 2)); return ' '.repeat(pad) + txt; };
+    const leftRight = (l, r) => l + ' '.repeat(Math.max(1, L - l.length - r.length)) + r;
 
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 50%">Particulars</th>
-                <th class="center" style="width: 15%">Qty</th>
-                <th class="right" style="width: 15%">Rate</th>
-                <th class="right" style="width: 20%">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${Object.keys(gstGroups).map((rate, idx) => `
-                <tr>
-                  <td colspan="4" class="group-header">
-                    ${idx + 1}) CGST @ ${(rate / 2).toFixed(2)}%, SGST @ ${(rate / 2).toFixed(2)}%
-                  </td>
-                </tr>
-                ${gstGroups[rate].map(i => `
-                  <tr>
-                    <td>
-                      ${i.name}
-                      ${i.is_b1g1 ? '<br/>(B1G1 Free)' : ''}
-                      ${(i.size || i.unit) ? `<br/><span style="font-size:9px">${i.size || ''}${i.unit || ''}</span>` : ''}
-                    </td>
-                    <td class="center">${i.qty}</td>
-                    <td class="right">${Number(i.price).toFixed(2)}</td>
-                    <td class="right">${(Number(i.price) * Number(i.qty)).toFixed(2)}</td>
-                  </tr>
-                `).join('')}
-              `).join('')}
-            </tbody>
-          </table>
+    // Build items
+    let itemLines = '';
+    let sno = 0;
+    sale.items.forEach(i => {
+      sno++;
+      const name = i.name.length > 24 ? i.name.substring(0, 22) + '..' : i.name;
+      const amt = (Number(i.price) * Number(i.qty)).toFixed(2);
+      const gstTag = (i.gst_percent || 0) + '%';
+      // Line 1: SNo. Name
+      itemLines += sno + '. ' + name;
+      if (i.is_b1g1) itemLines += ' (B1G1)';
+      itemLines += '\n';
+      // Line 2:   Qty x Rate = Amount  [GST%]
+      const detail = '   ' + i.qty + ' x ' + Number(i.price).toFixed(2) + ' = ' + amt + '  [' + gstTag + ']';
+      itemLines += detail + '\n';
+    });
 
-          <div class="totals">
-            <p><span>Total Items: ${sale.items.length}</span> <span>Total Qty: ${sale.items.reduce((s, i) => s + i.qty, 0)}</span></p>
-            
-            <p style="border-top: 1px dotted #000; margin-top: 5px; padding-top: 2px;">
-              <span>Gross Amount:</span> <span>₹${sale.items.reduce((s, i) => s + (i.price * i.qty), 0).toFixed(2)}</span>
-            </p>
+    // GST breakup lines
+    let gstLines = '';
+    gstLines += leftRight('GST%   Taxable    CGST     SGST', '') + '\n';
+    gstLines += dash + '\n';
+    let totTaxable = 0, totCGST = 0, totSGST = 0;
+    Object.keys(gstBreakup).sort((a, b) => Number(a) - Number(b)).forEach(rate => {
+      const g = gstBreakup[rate];
+      totTaxable += g.taxable; totCGST += g.cgst; totSGST += g.sgst;
+      const rateStr = (rate + '%').padEnd(7);
+      const taxableStr = g.taxable.toFixed(2).padStart(9);
+      const cgstStr = g.cgst.toFixed(2).padStart(9);
+      const sgstStr = g.sgst.toFixed(2).padStart(9);
+      gstLines += rateStr + taxableStr + cgstStr + sgstStr + '\n';
+    });
+    gstLines += dash + '\n';
+    gstLines += 'Total'.padEnd(7) + totTaxable.toFixed(2).padStart(9) + totCGST.toFixed(2).padStart(9) + totSGST.toFixed(2).padStart(9) + '\n';
 
-            ${breakdown.b1g1 > 0 ? `<p><span>Less: B1G1 Savings:</span> <span>-₹${breakdown.b1g1.toFixed(2)}</span></p>` : ''}
-            ${breakdown.bill > 0 ? `<p><span>Less: Bill Offer:</span> <span>-₹${breakdown.bill.toFixed(2)}</span></p>` : ''}
-            ${breakdown.manual > 0 ? `<p><span>Less: Manual Disc:</span> <span>-₹${breakdown.manual.toFixed(2)}</span></p>` : ''}
-            
-            <p class="grand-total"><span>Grand Total:</span> <span>₹${sale.total.toFixed(2)}</span></p>
-          </div>
+    // Payment info
+    let payInfo = 'Mode: ' + payMethod;
+    if (payMethod === 'UPI' && sale.utr) payInfo += '  UTR: ' + sale.utr;
+    if (payMethod === 'CARD' && sale.cardHolder) payInfo += '  ' + sale.cardHolder;
 
-          <table class="gst-table">
-            <thead>
-              <tr>
-                <th>GST%</th>
-                <th>Taxable</th>
-                <th>CGST</th>
-                <th>SGST</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${Object.keys(gstBreakup).map(rate => `
-                <tr>
-                  <td>${rate}%</td>
-                  <td>${gstBreakup[rate].taxable.toFixed(2)}</td>
-                  <td>${gstBreakup[rate].cgst.toFixed(2)}</td>
-                  <td>${gstBreakup[rate].sgst.toFixed(2)}</td>
-                  <td>${gstBreakup[rate].total.toFixed(2)}</td>
-                </tr>
-              `).join('')}
-              <tr style="border-top: 1px solid #000; font-weight: bold;">
-                <td>Tot</td>
-                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.taxable, 0).toFixed(2)}</td>
-                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.cgst, 0).toFixed(2)}</td>
-                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.sgst, 0).toFixed(2)}</td>
-                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.total, 0).toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
+    let cashInfo = '';
+    if (payMethod === 'CASH' && sale.cashReceived > 0) {
+      cashInfo = leftRight('Cash Tendered:', 'Rs.' + sale.cashReceived.toFixed(2)) + '\n';
+      cashInfo += leftRight('Change:', 'Rs.' + sale.change.toFixed(2)) + '\n';
+    }
 
-          <p style="margin-top: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px;">
-            Payment Mode: ${paymentMethod ? paymentMethod.toUpperCase() : 'CASH'}
-            <span class="right" style="float:right">₹${sale.total.toFixed(2)}</span>
-          </p>
+    // Discount lines
+    let discLines = '';
+    if (breakdown.b1g1 > 0) discLines += leftRight('Less: B1G1 Savings', '-Rs.' + breakdown.b1g1.toFixed(2)) + '\n';
+    if (breakdown.bill > 0) discLines += leftRight('Less: Bill Offer(' + (sale.billOfferPercent || 10) + '%)', '-Rs.' + breakdown.bill.toFixed(2)) + '\n';
+    if (breakdown.manual > 0) discLines += leftRight('Less: Manual Discount', '-Rs.' + breakdown.manual.toFixed(2)) + '\n';
 
-          ${totalSavings > 0 ? `
-            <div class="savings">
-              * * Saved Rs. ${totalSavings.toFixed(2)} On MRP * *
-            </div>
-          ` : ''}
+    // Round off
+    let roundLine = '';
+    if (Math.abs(roundOff) >= 0.01) {
+      roundLine = leftRight('Round Off', (roundOff >= 0 ? '+' : '') + roundOff.toFixed(2)) + '\n';
+    }
 
-          <div class="footer">
-            <div class="barcode" style="text-align:center; color:white; line-height:30px;">|||||||||||||||||||</div>
-            <p>This is a computer generated invoice</p>
-          </div>
-        </body>
-      </html>
-    `);
+    // Savings
+    let savingsLine = '';
+    if (totalSavings > 0) {
+      savingsLine = '\n' + center('** You Saved Rs.' + totalSavings.toFixed(2) + ' **') + '\n';
+    }
 
+    // Full receipt text
+    const receipt =
+      center('RETAIL STORE') + '\n' +
+      center('Branch: ' + branchName) + '\n' +
+      center('4-143, Srinagar Colony, Vijayawada - 520001') + '\n' +
+      center('GSTIN: 37XXXXX0000X1ZX') + '\n' +
+      dblLine + '\n' +
+      center('TAX INVOICE') + '\n' +
+      dblLine + '\n' +
+      leftRight('Bill No: ' + invoiceNo, 'Date: ' + formatDate(new Date())) + '\n' +
+      leftRight('Cashier: ' + (user?.name || 'Staff'), 'Time: ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })) + '\n' +
+      'Customer: ' + (sale.mobile || 'Walk-in') + '\n' +
+      dash + '\n' +
+      leftRight('ITEM', 'QTY x RATE = AMT [GST]') + '\n' +
+      dash + '\n' +
+      itemLines +
+      dash + '\n' +
+      leftRight('Total Items: ' + sale.items.length, 'Total Qty: ' + totalQty) + '\n' +
+      dash + '\n' +
+      leftRight('Gross Amount:', 'Rs.' + grossAmt.toFixed(2)) + '\n' +
+      discLines +
+      leftRight('GST (Tax):', 'Rs.' + sale.gst.toFixed(2)) + '\n' +
+      roundLine +
+      dblLine + '\n' +
+      leftRight('NET PAYABLE:', 'Rs.' + roundedTotal.toFixed(2)) + '\n' +
+      dblLine + '\n' +
+      'Rs. ' + numberToWords(roundedTotal) + ' Only' + '\n' +
+      dash + '\n' +
+      '\n' +
+      center('--- GST BREAKUP ---') + '\n' +
+      gstLines +
+      dash + '\n' +
+      '\n' +
+      leftRight('Payment:', payMethod) + '\n' +
+      payInfo + '\n' +
+      cashInfo +
+      dash + '\n' +
+      savingsLine +
+      '\n' +
+      center('Thank you! Visit Again') + '\n' +
+      center('Goods once sold will not be taken back') + '\n' +
+      center('E. & O.E.') + '\n' +
+      '\n' +
+      center('--- Authorized Signatory ---') + '\n' +
+      '\n' +
+      center('Computer Generated Invoice') + '\n';
+
+    // Build HTML with monospace pre-formatted text (thermal POS style)
+    const html = '<!DOCTYPE html><html><head>' +
+      '<title>Invoice #' + invoiceNo + '</title>' +
+      '<style>' +
+      '* { margin:0; padding:0; }' +
+      'body { font-family: "Courier New", "Lucida Console", monospace; font-size: 12px; padding: 5px; width: 302px; color: #000; line-height: 1.4; }' +
+      'pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: inherit; margin: 0; }' +
+      '@media print { body { width: 100%; padding: 2px; } }' +
+      '</style>' +
+      '</head><body>' +
+      '<pre>' + receipt + '</pre>' +
+      '</body></html>';
+
+    printWindow.document.write(html);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => {
@@ -533,7 +536,7 @@ export default function StaffPOS() {
       setSearch("");
       setShowResults(false);
     } else {
-      alert("Product out of stock!");
+      showToast("Product out of stock!", "warning");
     }
   };
 
@@ -656,8 +659,28 @@ export default function StaffPOS() {
 
         <div className="pos-customer-bar">
           <div className="input-group">
-            <label>Customer Mobile</label>
-            <input placeholder="Mobile Number" value={mobile} onChange={e => setMobile(e.target.value)} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label>Customer Mobile</label>
+              <span style={{
+                fontSize: '11px',
+                color: mobile.length === 10 && /^[6-9]/.test(mobile) ? '#10b981' : (mobile.length > 0 && !/^[6-9]/.test(mobile) ? '#ef4444' : '#64748b'),
+                fontWeight: mobile.length === 10 ? 700 : 400
+              }}>
+                {mobile.length > 0 && !/^[6-9]/.test(mobile) ? 'Invalid start (Must be 6,7,8,9)' : `${mobile.length} / 10 digits`}
+              </span>
+            </div>
+            <input
+              placeholder="Enter Mobile Number"
+              value={mobile}
+              onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                if (val.length > 0 && !['6', '7', '8', '9'].includes(val[0])) {
+                  // If they try to type an invalid first digit, we can either block it or show error
+                  // Let's allow typing but the UI/Validation will catch it
+                }
+                setMobile(val.slice(0, 10));
+              }}
+            />
           </div>
           <div className="input-group">
             <label>Scan Barcode</label>

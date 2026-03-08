@@ -7,17 +7,19 @@ import ManagerTransfers from "./ManagerTransfers";
 import ManagerReports from "./ManagerReports";
 import StaffActivity from "./ManagerStaffActivity";
 import LiveClock from "../../components/LiveClock";
+import ConfirmModal from "../../components/ConfirmModal";
 import "../../styles/dashboard.css";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
   const [active, setActive] = useState("dashboard");
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
 
   const handleLogout = () => {
     localStorage.removeItem("loggedInUser");
-    navigate("/login");
+    navigate("/");
   };
 
   return (
@@ -76,7 +78,7 @@ export default function ManagerDashboard() {
             <i className="fas fa-users"></i> Staff Management
           </a>
 
-          <a className="logout-link" onClick={handleLogout}>
+          <a className="logout-link" onClick={() => setShowLogoutModal(true)}>
             <i className="fas fa-sign-out-alt"></i> Logout
           </a>
         </nav>
@@ -95,6 +97,14 @@ export default function ManagerDashboard() {
         {active === "staff" && <StaffActivity />}
 
       </main>
+
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of your account? Any unsaved changes might be lost."
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </div>
   );
 }

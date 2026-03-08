@@ -39,6 +39,14 @@ export default function StaffProfile() {
     const handleUpdate = async (e) => {
         e.preventDefault();
         setLoading(true);
+        const mobileRegex = /^[6-9]\d{9}$/;
+        if (form.phone && !mobileRegex.test(form.phone)) {
+            setMessage("❌ Invalid mobile number. Must be 10 digits starting with 6,7,8,9");
+            setLoading(false);
+            setTimeout(() => setMessage(""), 3000);
+            return;
+        }
+
         try {
             await api.auth.updateProfile({
                 phone: form.phone,

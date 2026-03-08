@@ -17,7 +17,6 @@ export default function Login() {
     e.preventDefault();
     setError("");
 
-    /* ===== BASIC VALIDATION ===== */
     if (!email || !password) {
       setError("Email and password are required.");
       return;
@@ -36,7 +35,6 @@ export default function Login() {
     setLoading(true);
 
     try {
-      /* ===== CALL BACKEND API ===== */
       const result = await login(email, password);
 
       if (!result.success) {
@@ -45,10 +43,8 @@ export default function Login() {
         return;
       }
 
-      /* ===== LOGIN SUCCESS - REDIRECT BASED ON ROLE ===== */
       const user = result.user;
 
-      /* If must reset password, redirect to reset page */
       if (user.must_reset_password) {
         navigate("/reset-password", { state: { email: email } });
         return;
@@ -65,67 +61,123 @@ export default function Login() {
   };
 
   return (
-    <div className="auth-wrapper">
+    <div className="premium-login-page">
+      <div className="login-mesh-bg"></div>
 
-      <div className="auth-info">
-        <h1>Welcome Back</h1>
-        <p>
-          Login to manage inventory, sales,
-          and branch operations.
-        </p>
-
-        <ul className="info-points">
-          <li>🔒 Secure login</li>
-          <li>📊 Live analytics</li>
-          <li>🧭 Role based access</li>
-        </ul>
-      </div>
-
-      <div className="auth-card">
-        <Link to="/" style={{ display: 'block', marginBottom: '15px', color: '#64748b', textDecoration: 'none', fontSize: '14px' }}>
-          ← Back to Home
-        </Link>
-        <h2>Retail System Login</h2>
-        <p className="subtitle">Access your dashboard</p>
-
-        <form onSubmit={handleLogin}>
-          <div className="input-group">
-            <input
-              type="email"
-              placeholder="Email Address"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              disabled={loading}
-            />
+      <div className="login-grid">
+        {/* ====== LEFT PANEL ====== */}
+        <div className="login-left">
+          <div className="brand-mark">
+            <i className="fas fa-layer-group"></i>
+            <span>InventoryPro</span>
+            <span className="v-tag">v2.0</span>
           </div>
 
-          <div className="input-group" style={{ position: 'relative' }}>
-            <input
-              type={showPass ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              disabled={loading}
-            />
-            <span onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '16px', userSelect: 'none' }}>{showPass ? '🙈' : '👁️'}</span>
+          <h1>Unified Retail<br />Intelligence.</h1>
+          <p>
+            The master control for your multi-branch empire.
+            Experience zero-latency management from any device.
+          </p>
+
+          <div className="feature-pills">
+            <div className="pill">
+              <i className="fas fa-shield-alt"></i>
+              <div>
+                <strong>Enterprise Grade</strong>
+                <span>End-to-end encryption active</span>
+              </div>
+            </div>
+            <div className="pill">
+              <i className="fas fa-bolt"></i>
+              <div>
+                <strong>Zero Latency</strong>
+                <span>Real-time global sync</span>
+              </div>
+            </div>
+            <div className="pill">
+              <i className="fas fa-code-branch"></i>
+              <div>
+                <strong>Multi-Branch</strong>
+                <span>Unlimited branch support</span>
+              </div>
+            </div>
           </div>
-
-          <button className="primary-btn" disabled={loading}>
-            {loading ? "Signing In..." : "Sign In"}
-          </button>
-
-          {error && <p className="error">{error}</p>}
-        </form>
-
-        <div className="auth-links">
-          <Link to="/reset-password">Forgot Password?</Link>
         </div>
 
-        <div style={{ marginTop: '25px', padding: '12px', background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.1)', borderRadius: '10px', fontSize: '12px', textAlign: 'center' }}>
-          <p style={{ color: '#3b82f6', fontWeight: 'bold', marginBottom: '4px' }}>Default Admin Access</p>
-          <code style={{ fontSize: '11px', color: '#1e293b' }}>admin@retail.com / Admin@123</code>
-        </div>
+        {/* ====== RIGHT PANEL (CARD) ====== */}
+        <div className="login-right">
+          <div className="login-card">
+            <Link to="/" className="back-link">
+              <i className="fas fa-arrow-left"></i> Return to Platform
+            </Link>
 
+            <div className="card-header">
+              <h2>Welcome Back</h2>
+              <p>Sign in to your authorized account</p>
+            </div>
+
+            <form onSubmit={handleLogin}>
+              <div className="float-field">
+                <input
+                  type="email"
+                  id="login-email"
+                  placeholder=" "
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+                <label htmlFor="login-email">Email Address</label>
+              </div>
+
+              <div className="float-field">
+                <input
+                  type={showPass ? "text" : "password"}
+                  id="login-pass"
+                  placeholder=" "
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+                <label htmlFor="login-pass">Password</label>
+                <span className="eye-toggle" onClick={() => setShowPass(!showPass)}>
+                  <i className={`fas fa-eye${showPass ? '-slash' : ''}`}></i>
+                </span>
+              </div>
+
+              <div className="form-meta">
+                <Link to="/reset-password">Forgot Password?</Link>
+              </div>
+
+              <button className="login-btn" disabled={loading}>
+                {loading ? (
+                  <><i className="fas fa-circle-notch fa-spin"></i> Authenticating...</>
+                ) : (
+                  <>Enter Dashboard <i className="fas fa-arrow-right"></i></>
+                )}
+              </button>
+
+              {error && (
+                <div className="login-error">
+                  <i className="fas fa-exclamation-triangle"></i>
+                  {error}
+                </div>
+              )}
+            </form>
+
+            <div className="quick-start">
+              <div className="qs-label">
+                <i className="fas fa-key"></i> Quick Access (Dev)
+              </div>
+              <div className="qs-row">
+                <code>admin@retail.com</code>
+                <span className="qs-sep">|</span>
+                <code>Admin@123</code>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

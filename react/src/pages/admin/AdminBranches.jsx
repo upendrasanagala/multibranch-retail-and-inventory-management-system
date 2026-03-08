@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { useToast } from "../../components/ToastContext";
+import { useConfirm } from "../../components/ConfirmContext";
 
 export default function AdminBranches() {
+  const { showToast } = useToast();
+  const { showConfirm, showPrompt } = useConfirm();
   const [branches, setBranches] = useState([]);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [upiId, setUpiId] = useState("");
+  const [phone, setPhone] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [editUpi, setEditUpi] = useState("");
+  const [editData, setEditData] = useState({
+    name: "",
+    city: "",
+    upi_id: "",
+    phone: ""
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -40,6 +50,11 @@ export default function AdminBranches() {
       return;
     }
 
+    if (phone && !/^[6-9]\d{9}$/.test(phone)) {
+      setError("Invalid mobile number. Must be 10 digits starting with 6,7,8,9");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -47,7 +62,8 @@ export default function AdminBranches() {
       await api.branches.create({
         name: name.trim(),
         city: location.trim(),
-        upi_id: upiId.trim()
+        upi_id: upiId.trim(),
+        phone: phone.trim()
       });
 
       // Reload branches
@@ -55,6 +71,7 @@ export default function AdminBranches() {
       setName("");
       setLocation("");
       setUpiId("");
+      setPhone("");
     } catch (err) {
       setError(err.message || "Failed to add branch");
     }
@@ -63,7 +80,7 @@ export default function AdminBranches() {
 
   /* ================= CLOSE BRANCH ================= */
   const closeBranch = async (branchId, branchName) => {
-    if (!confirm(`Are you sure you want to CLOSE branch "${branchName}"? This will stop operations but preserve data.`)) {
+    if (!(await showConfirm(`Are you sure you want to CLOSE branch "${branchName}"? This will stop operations but preserve data.`, "Close Branch"))) {
       return;
     }
 
@@ -79,10 +96,10 @@ export default function AdminBranches() {
 
   /* ================= HARD DELETE BRANCH ================= */
   const hardDeleteBranch = async (branchId, branchName) => {
-    const confirmation = prompt(`⚠️ DANGER ZONE ⚠️\n\nThis will PERMANENTLY DELETE branch "${branchName}" along with:\n- All Sales History\n- All Inventory Records\n- All Stock Transfers\n- ALL STAFF & MANAGERS linked to this branch\n\nTo confirm, type "DELETE" below:`);
+    const confirmation = await showPrompt(`This will PERMANENTLY DELETE branch "${branchName}" along with all Sales History, Inventory Records, Stock Transfers, and ALL linked STAFF & MANAGERS. Type "DELETE" to confirm.`, "⚠️ DANGER ZONE", "Type DELETE");
 
     if (confirmation !== "DELETE") {
-      if (confirmation !== null) alert("Deletion cancelled. You typed the wrong confirmation.");
+      if (confirmation !== null) showToast("Deletion cancelled. You typed the wrong confirmation.", "warning");
       return;
     }
 
@@ -98,7 +115,7 @@ export default function AdminBranches() {
 
   /* ================= REOPEN BRANCH ================= */
   const reopenBranch = async (branchId, branchName) => {
-    if (!confirm(`Are you sure you want to REOPEN branch "${branchName}"?`)) {
+    if (!(await showConfirm(`Are you sure you want to REOPEN branch "${branchName}"?`, "Reopen Branch"))) {
       return;
     }
 
@@ -112,15 +129,32 @@ export default function AdminBranches() {
     setLoading(false);
   };
 
-  /* ================= UPDATE UPI ================= */
-  const updateUpi = async (branchId) => {
+  /* ================= UPDATE BRANCH ================= */
+  const updateBranch = async (branchId) => {
+    if (!editData.name || !editData.city) {
+      showToast("Name and Location are required", "warning");
+      return;
+    }
+
+    if (editData.phone && !/^[6-9]\d{9}$/.test(editData.phone)) {
+      showToast("Invalid mobile number. Must be 10 digits starting with 6,7,8,9", "warning");
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.branches.update(branchId, { upi_id: editUpi.trim() });
+      await api.branches.update(branchId, {
+        name: editData.name.trim(),
+        city: editData.city.trim(),
+        upi_id: editData.upi_id.trim(),
+        phone: editData.phone.trim()
+      });
       await loadBranches();
       setEditingId(null);
+      showToast("Branch updated successfully", "success");
     } catch (err) {
-      setError(err.message || "Failed to update UPI ID");
+      setError(err.message || "Failed to update branch");
+      showToast("Failed to update branch", "error");
     }
     setLoading(false);
   };
@@ -141,6 +175,13 @@ export default function AdminBranches() {
           placeholder="Location (City)"
           value={location}
           onChange={e => setLocation(e.target.value)}
+          disabled={loading}
+        />
+
+        <input
+          placeholder="Phone Number"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
           disabled={loading}
         />
 
@@ -167,6 +208,7 @@ export default function AdminBranches() {
               <tr>
                 <th>Branch</th>
                 <th>Location</th>
+                <th>Phone</th>
                 <th>UPI ID (Pay To)</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -175,29 +217,48 @@ export default function AdminBranches() {
             <tbody>
               {branches.map((b, i) => (
                 <tr key={b.branch_id || i}>
-                  <td><span style={{ fontWeight: 700 }}>{b.name}</span></td>
-                  <td>{b.city || b.location || 'N/A'}</td>
                   <td>
                     {editingId === b.branch_id ? (
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <input
-                          value={editUpi}
-                          onChange={e => setEditUpi(e.target.value)}
-                          style={{ padding: '6px', fontSize: '13px', maxWidth: '180px' }}
-                        />
-                        <button onClick={() => updateUpi(b.branch_id)} className="primary-btn" style={{ padding: '6px 12px' }}>Save</button>
-                        <button onClick={() => setEditingId(null)} style={{ padding: '6px 12px', background: '#f1f5f9', color: '#64748b' }}>Cancel</button>
-                      </div>
+                      <input
+                        value={editData.name}
+                        onChange={e => setEditData({ ...editData, name: e.target.value })}
+                        style={{ padding: '6px', fontSize: '13px', width: '100%' }}
+                      />
                     ) : (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: '600' }}>{b.upi_id || 'Not Set'}</span>
-                        <button
-                          onClick={() => { setEditingId(b.branch_id); setEditUpi(b.upi_id || ""); }}
-                          style={{ padding: '4px 10px', fontSize: '12px', background: '#f1f5f9', color: '#475569' }}
-                        >
-                          Edit
-                        </button>
-                      </div>
+                      <span style={{ fontWeight: 700 }}>{b.name}</span>
+                    )}
+                  </td>
+                  <td>
+                    {editingId === b.branch_id ? (
+                      <input
+                        value={editData.city}
+                        onChange={e => setEditData({ ...editData, city: e.target.value })}
+                        style={{ padding: '6px', fontSize: '13px', width: '100%' }}
+                      />
+                    ) : (
+                      b.city || b.location || 'N/A'
+                    )}
+                  </td>
+                  <td>
+                    {editingId === b.branch_id ? (
+                      <input
+                        value={editData.phone}
+                        onChange={e => setEditData({ ...editData, phone: e.target.value })}
+                        style={{ padding: '6px', fontSize: '13px', width: '100%' }}
+                      />
+                    ) : (
+                      b.phone || 'N/A'
+                    )}
+                  </td>
+                  <td>
+                    {editingId === b.branch_id ? (
+                      <input
+                        value={editData.upi_id}
+                        onChange={e => setEditData({ ...editData, upi_id: e.target.value })}
+                        style={{ padding: '6px', fontSize: '13px', width: '100%' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: '600' }}>{b.upi_id || 'Not Set'}</span>
                     )}
                   </td>
                   <td>
@@ -206,33 +267,56 @@ export default function AdminBranches() {
                     </span>
                   </td>
                   <td style={{ display: 'flex', gap: '8px' }}>
-                    {b.status !== 'closed' ? (
-                      <button
-                        style={{ background: '#f97316', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
-                        onClick={() => closeBranch(b.branch_id, b.name)}
-                        disabled={loading}
-                        title="Deactivate this branch (Preserves Data)"
-                      >
-                        Close
-                      </button>
+                    {editingId === b.branch_id ? (
+                      <>
+                        <button onClick={() => updateBranch(b.branch_id)} className="primary-btn" style={{ padding: '6px 12px' }}>Save</button>
+                        <button onClick={() => setEditingId(null)} style={{ padding: '6px 12px', background: '#f1f5f9', color: '#64748b' }}>Cancel</button>
+                      </>
                     ) : (
-                      <button
-                        style={{ background: '#10b981', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
-                        onClick={() => reopenBranch(b.branch_id, b.name)}
-                        disabled={loading}
-                        title="Reactivate this branch"
-                      >
-                        Reopen
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setEditingId(b.branch_id);
+                            setEditData({
+                              name: b.name || "",
+                              city: b.city || b.location || "",
+                              upi_id: b.upi_id || "",
+                              phone: b.phone || ""
+                            });
+                          }}
+                          style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px' }}
+                        >
+                          Edit
+                        </button>
+                        {b.status !== 'closed' ? (
+                          <button
+                            style={{ background: '#f97316', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
+                            onClick={() => closeBranch(b.branch_id, b.name)}
+                            disabled={loading}
+                            title="Deactivate this branch (Preserves Data)"
+                          >
+                            Close
+                          </button>
+                        ) : (
+                          <button
+                            style={{ background: '#10b981', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
+                            onClick={() => reopenBranch(b.branch_id, b.name)}
+                            disabled={loading}
+                            title="Reactivate this branch"
+                          >
+                            Reopen
+                          </button>
+                        )}
+                        <button
+                          style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
+                          onClick={() => hardDeleteBranch(b.branch_id, b.name)}
+                          disabled={loading}
+                          title="PERMANENTLY DELETE Branch and All History"
+                        >
+                          Delete
+                        </button>
+                      </>
                     )}
-                    <button
-                      style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 12px', border: 'none', borderRadius: '4px' }}
-                      onClick={() => hardDeleteBranch(b.branch_id, b.name)}
-                      disabled={loading}
-                      title="PERMANENTLY DELETE Branch and All History"
-                    >
-                      Delete
-                    </button>
                   </td>
                 </tr>
               ))}

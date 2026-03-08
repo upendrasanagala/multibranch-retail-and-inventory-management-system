@@ -12,6 +12,7 @@ from app.models.product import Product
 from app.models.adjustment import InventoryAdjustment
 from app.models.user import User
 from app.models.supplier import Supplier
+from app.models.category import Category
 from app.utils.decorators import roles_required
 from app.routes import inventory_bp
 
@@ -38,11 +39,13 @@ def get_inventory():
 
     from app.models.branch import Branch
     query = db.session.query(
-        Inventory, Product, Branch, Supplier.name
+        Inventory, Product, Branch, Supplier.name, Category.name
     ).join(
         Product, Inventory.product_id == Product.product_id
     ).join(
         Branch, Inventory.branch_id == Branch.branch_id
+    ).join(
+        Category, Product.category_id == Category.category_id
     ).outerjoin(
         Supplier, Product.supplier_id == Supplier.supplier_id
     )
@@ -60,11 +63,12 @@ def get_inventory():
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
     
     items = []
-    for inv, prod, branch, supplier_name in paginated.items:
+    for inv, prod, branch, supplier_name, category_name in paginated.items:
         items.append({
             "inventory_id": inv.inventory_id,
             "product_id": inv.product_id,
             "product_name": prod.name,
+            "category": category_name,
             "sku": prod.sku,
             "branch_id": inv.branch_id,
             "branch_name": branch.name,
@@ -101,9 +105,11 @@ def get_inventory_by_branch(branch_id):
         return jsonify({"message": "Access denied to other branch data"}), 403
 
     query = db.session.query(
-        Inventory, Product, Supplier.name
+        Inventory, Product, Supplier.name, Category.name
     ).join(
         Product, Inventory.product_id == Product.product_id
+    ).join(
+        Category, Product.category_id == Category.category_id
     ).outerjoin(
         Supplier, Product.supplier_id == Supplier.supplier_id
     ).filter(Inventory.branch_id == branch_id)
@@ -111,11 +117,12 @@ def get_inventory_by_branch(branch_id):
     results = query.all()
     
     items = []
-    for inv, prod, supplier_name in results:
+    for inv, prod, supplier_name, category_name in results:
         items.append({
             "inventory_id": inv.inventory_id,
             "product_id": inv.product_id,
             "product_name": prod.name,
+            "category": category_name,
             "sku": prod.sku,
             "barcode": prod.barcode,
             "branch_id": inv.branch_id,
@@ -151,9 +158,11 @@ def get_low_stock():
             return jsonify({"message": "User not assigned to a branch"}), 403
 
     query = db.session.query(
-        Inventory, Product, Supplier.name
+        Inventory, Product, Supplier.name, Category.name
     ).join(
         Product, Inventory.product_id == Product.product_id
+    ).join(
+        Category, Product.category_id == Category.category_id
     ).outerjoin(
         Supplier, Product.supplier_id == Supplier.supplier_id
     ).filter(Inventory.quantity <= Inventory.min_threshold)
@@ -164,10 +173,11 @@ def get_low_stock():
     results = query.all()
     
     items = []
-    for inv, prod, supplier_name in results:
+    for inv, prod, supplier_name, category_name in results:
         items.append({
             "inventory_id": inv.inventory_id,
             "product_name": prod.name,
+            "category": category_name,
             "sku": prod.sku,
             "branch_id": inv.branch_id,
             "quantity": inv.quantity,
@@ -334,7 +344,13 @@ def get_adjustments():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     
-    query = InventoryAdjustment.query
+    query = db.session.query(
+        InventoryAdjustment, Product, User
+    ).join(
+        Product, InventoryAdjustment.product_id == Product.product_id
+    ).join(
+        User, InventoryAdjustment.adjusted_by == User.user_id
+    )
     
     if branch_id:
         query = query.filter(InventoryAdjustment.branch_id == branch_id)
@@ -346,15 +362,16 @@ def get_adjustments():
     ).paginate(page=page, per_page=per_page, error_out=False)
     
     adjustments = []
-    for adj in paginated.items:
+    for adj, prod, user in paginated.items:
         adjustments.append({
             "adjustment_id": adj.adjustment_id,
             "product_id": adj.product_id,
+            "product_name": prod.name,
             "branch_id": adj.branch_id,
             "adjustment_type": adj.adjustment_type,
             "quantity": adj.quantity,
             "reason": adj.reason,
-            "adjusted_by": adj.adjusted_by,
+            "adjusted_by": f"{user.first_name} {user.last_name}",
             "adjustment_date": adj.adjustment_date.isoformat() if adj.adjustment_date else None
         })
     

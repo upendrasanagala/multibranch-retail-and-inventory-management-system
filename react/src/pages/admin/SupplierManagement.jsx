@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import { useConfirm } from "../../components/ConfirmContext";
 
 export default function SupplierManagement() {
+    const { showConfirm } = useConfirm();
     const [suppliers, setSuppliers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
@@ -36,6 +38,13 @@ export default function SupplierManagement() {
         e.preventDefault();
         setLoading(true);
         try {
+            if (form.phone && !/^[6-9]\d{9}$/.test(form.phone)) {
+                setMessage("❌ Invalid mobile number. Must be 10 digits starting with 6,7,8,9");
+                setLoading(false);
+                setTimeout(() => setMessage(""), 3000);
+                return;
+            }
+
             if (editingSupplier) {
                 await api.suppliers.update(editingSupplier.supplier_id, form);
                 setMessage("✅ Supplier updated successfully");
@@ -66,7 +75,7 @@ export default function SupplierManagement() {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this supplier?")) return;
+        if (!(await showConfirm("Are you sure you want to delete this supplier?", "Delete Supplier"))) return;
         try {
             await api.suppliers.delete(id);
             setMessage("✅ Supplier deleted");

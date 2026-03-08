@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/dateUtils";
 import api from "../../services/api";
+import { useToast } from "../../components/ToastContext";
+import { useConfirm } from "../../components/ConfirmContext";
 
 const tableStyles = `
   .inventory-row:hover {
@@ -32,6 +34,8 @@ const tableStyles = `
 
 
 export default function AdminInventory({ setActiveSection }) {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [branches, setBranches] = useState([]); // New: Branches for stock distribution
@@ -74,6 +78,22 @@ export default function AdminInventory({ setActiveSection }) {
   };
   const defaultUnits = ["pcs", "pkt", "kg", "g", "L", "mL", "dz"];
 
+  /* ========== CATEGORY → DEFAULT GST % (Indian GST 2026 Slabs) ========== */
+  const categoryGSTMap = {
+    "Dairy (Milk, Eggs, Cheese)": 5,    // Butter, ghee, cheese, condensed milk, eggs
+    "Fruits": 0,                         // Fresh fruits are NIL rated
+    "Vegetables": 0,                     // Fresh vegetables are NIL rated
+    "Grains & Pulses": 5,               // Packaged cereals, flours, starches
+    "Beverages": 18,                     // Mineral water, packaged drinks
+    "Bakery Items": 5,                   // Pastries, cakes, biscuits, rusks
+    "Snacks": 5,                         // Namkeens, bhujia, mixtures
+    "Household Items": 18,               // Household articles, utensils
+    "Personal Care": 18,                 // Cosmetics, skincare, hair products
+    "Frozen Foods": 18,                  // Processed/preserved food items
+    "Spices & Oils": 5                   // Spices, edible oils, condiments
+  };
+  const gstSlabs = [0, 5, 18, 40];
+
   const getUnitsForCategory = () => {
     const selectedCat = categories.find(c => String(c.category_id) === String(form.category_id));
     if (!selectedCat) return defaultUnits;
@@ -114,7 +134,7 @@ export default function AdminInventory({ setActiveSection }) {
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} products? This cannot be undone.`)) return;
+    if (!(await showConfirm(`Are you sure you want to delete ${selectedIds.size} products? This cannot be undone.`, "Bulk Delete"))) return;
 
     setLoading(true);
     try {
@@ -214,13 +234,13 @@ export default function AdminInventory({ setActiveSection }) {
       }
       setMessage(msg);
       if (res.errors && res.errors.length > 0) {
-        alert("Import Errors:\n" + res.errors.join("\n"));
+        showToast("Import Errors: " + res.errors.join(", "), "warning");
       }
       loadProducts();
       // Reload categories too as new ones might be added
       loadCategories();
     } catch (err) {
-      alert("Import Failed: " + (err.response?.data?.message || err.message));
+      showToast("Import Failed: " + (err.response?.data?.message || err.message), "error");
     }
     setImportLoading(false);
     // Reset input
@@ -251,7 +271,7 @@ export default function AdminInventory({ setActiveSection }) {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Download Failed: " + err.message);
+      showToast("Download Failed: " + err.message, "error");
     }
   };
   const handleDownloadFile = async (filename) => {
@@ -274,27 +294,46 @@ export default function AdminInventory({ setActiveSection }) {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Download Failed: " + err.message);
+      showToast("Download Failed: " + err.message, "error");
     }
   };
 
   const [suggestions, setSuggestions] = useState([]);
   const [sugLoading, setSugLoading] = useState(false);
 
+  /* ========== DELETE IMPORT FILE ========== */
+  const handleDeleteImport = async (filename) => {
+    if (!(await showConfirm(`Delete import file "${filename}"? This cannot be undone.`, "Delete File"))) return;
+    try {
+      await api.products.deleteImport(filename);
+      showToast("File deleted successfully!", "success");
+      loadImportHistory();
+    } catch (err) {
+      showToast("Delete failed: " + (err.message || "Unknown error"), "error");
+    }
+  };
+
   /* ========== STOCK DISTRIBUTION MODAL ========== */
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [distributionData, setDistributionData] = useState([]);
   const [distLoading, setDistLoading] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState(null);
+  const [adjustForm, setAdjustForm] = useState({ type: 'add', quantity: '', reason: '' });
 
   const loadDistribution = async (product) => {
     setSelectedProduct(product);
     setDistLoading(true);
     try {
-      // Assuming api.inventory.getAll supports query params
-      const res = await api.inventory.getAll({ product_id: product.product_id || product.id });
-      setDistributionData(res.inventory || []);
+      // Load both distribution data AND branches in parallel
+      const [distRes, branchRes] = await Promise.all([
+        api.inventory.getAll({ product_id: product.product_id || product.id, per_page: 100 }),
+        api.branches.getAll()
+      ]);
+      setDistributionData(distRes.inventory || []);
+      setBranches(branchRes.branches || []);
     } catch (err) {
       console.error("Failed to load distribution:", err);
+      setDistributionData([]);
     }
     setDistLoading(false);
   };
@@ -312,7 +351,7 @@ export default function AdminInventory({ setActiveSection }) {
   const handleReturnSubmit = async (e) => {
     e.preventDefault();
     if (!returnForm.branch_id || !returnForm.quantity) {
-      alert("Please select branch and quantity");
+      showToast("Please select branch and quantity", "warning");
       return;
     }
     setReturnLoading(true);
@@ -329,16 +368,29 @@ export default function AdminInventory({ setActiveSection }) {
       });
       const data = await res.json();
       if (res.ok) {
-        alert("✅ " + data.message);
+        showToast(data.message, "success");
         setShowReturnModal(false);
         loadProducts();
       } else {
-        alert("❌ " + data.message);
+        showToast(data.message, "error");
       }
     } catch (err) {
-      alert("❌ Error processing return");
+      showToast("Error processing return", "error");
     }
     setReturnLoading(false);
+  };
+
+  const updateThresholds = async (invId, min, max) => {
+    try {
+      await api.inventory.update(invId, {
+        min_threshold: Number(min),
+        max_threshold: Number(max)
+      });
+      setMessage("✅ Thresholds updated successfully");
+      loadDistribution(selectedProduct);
+    } catch (err) {
+      showToast("Update failed: " + (err.response?.data?.message || err.message), "error");
+    }
   };
 
   const openAdjustment = (item) => {
@@ -349,7 +401,7 @@ export default function AdminInventory({ setActiveSection }) {
   const submitAdjustment = async (e) => {
     e.preventDefault();
     if (!adjustForm.quantity || Number(adjustForm.quantity) < 0) {
-      alert("Please enter a valid quantity");
+      showToast("Please enter a valid quantity", "warning");
       return;
     }
 
@@ -368,15 +420,9 @@ export default function AdminInventory({ setActiveSection }) {
       setMessage("✅ Stock adjusted successfully");
       loadProducts(); // Update main list counts
     } catch (err) {
-      alert("Adjustment failed: " + (err.response?.data?.message || err.message));
+      showToast("Adjustment failed: " + (err.response?.data?.message || err.message), "error");
     }
   };
-
-  useEffect(() => {
-    loadProducts();
-    loadCategories();
-    loadSuggestions();
-  }, []);
 
   const loadSuggestions = async () => {
     setSugLoading(true);
@@ -410,7 +456,7 @@ export default function AdminInventory({ setActiveSection }) {
       await loadSuggestions();
       await loadProducts();
     } catch (err) {
-      alert("Transfer failed: " + (err.response?.data?.message || err.message));
+      showToast("Transfer failed: " + (err.response?.data?.message || err.message), "error");
     }
     setSugLoading(false);
   };
@@ -555,7 +601,7 @@ export default function AdminInventory({ setActiveSection }) {
 
   /* ================= DELETE PRODUCT ================= */
   const deleteProduct = async (id) => {
-    if (!window.confirm("Delete this product?")) return;
+    if (!(await showConfirm("Delete this product?", "Delete Product"))) return;
 
     setLoading(true);
     try {
@@ -580,7 +626,36 @@ export default function AdminInventory({ setActiveSection }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <h2>Admin Inventory Management</h2>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            style={{
+              background: '#6366f1',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '8px 14px',
+              cursor: 'pointer',
+              border: 'none',
+              color: '#fff',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: 600,
+              whiteSpace: 'nowrap'
+            }}
+            onClick={async () => {
+              if (!(await showConfirm('Update GST rates for ALL existing products based on their category? This will apply: Fruits/Vegetables → 0%, Dairy/Grains/Bakery/Snacks/Spices → 5%, Beverages/Household/Personal Care/Frozen → 18%', 'Sync GST Rates'))) return;
+              try {
+                const res = await api.products.updateGST();
+                setMessage(`✅ ${res.message}`);
+                loadProducts();
+              } catch (err) {
+                setMessage('❌ ' + (err.message || 'Failed to update GST'));
+              }
+              setTimeout(() => setMessage(""), 3000);
+            }}
+          >
+            🧾 Sync GST
+          </button>
           <div style={{ position: 'relative' }}>
             <input
               type="file"
@@ -592,13 +667,18 @@ export default function AdminInventory({ setActiveSection }) {
             />
             <label
               htmlFor="excel-upload"
-              className="primary-btn"
               style={{
                 cursor: importLoading ? 'wait' : 'pointer',
                 background: '#10b981',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px'
+                gap: '5px',
+                padding: '8px 14px',
+                color: '#fff',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap'
               }}
             >
               {importLoading ? "Importing..." : "📂 Import Excel"}
@@ -761,7 +841,12 @@ export default function AdminInventory({ setActiveSection }) {
             <div style={{ display: 'flex', gap: '5px' }}>
               <select
                 value={form.category_id}
-                onChange={e => setForm({ ...form, category_id: e.target.value, unit: "" })}
+                onChange={e => {
+                  const catId = e.target.value;
+                  const selectedCat = categories.find(c => String(c.category_id) === String(catId));
+                  const defaultGST = selectedCat ? (categoryGSTMap[selectedCat.name] ?? "") : "";
+                  setForm({ ...form, category_id: catId, unit: "", gst_percent: defaultGST !== "" ? String(defaultGST) : form.gst_percent });
+                }}
                 disabled={loading || catLoading || loadingCats}
                 style={{ flex: 1 }}
               >
@@ -830,14 +915,20 @@ export default function AdminInventory({ setActiveSection }) {
                 disabled={loading}
                 style={{ width: "100px" }}
               />
-              <input
-                type="number"
-                placeholder="GST %"
-                value={form.gst_percent}
-                onChange={e => setForm({ ...form, gst_percent: e.target.value })}
-                disabled={loading}
-                style={{ width: "80px" }}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: '#475569' }}>GST %</label>
+                <select
+                  value={form.gst_percent}
+                  onChange={e => setForm({ ...form, gst_percent: e.target.value })}
+                  disabled={loading}
+                  style={{ width: '90px', padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '13px' }}
+                >
+                  <option value="">GST</option>
+                  {gstSlabs.map(rate => (
+                    <option key={rate} value={rate}>{rate}%</option>
+                  ))}
+                </select>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <label style={{ fontSize: '10px', fontWeight: '600' }}>Mfg Date</label>
                 <input
@@ -1090,10 +1181,11 @@ export default function AdminInventory({ setActiveSection }) {
                         <td style={{ display: 'flex', gap: '8px' }}>
                           <button
                             className="primary-btn"
-                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                            style={{ padding: '6px 12px', fontSize: '12px', opacity: loading ? 0.7 : 1 }}
                             onClick={() => loadDistribution(p)}
+                            disabled={loading}
                           >
-                            View Stock
+                            {loading ? "..." : "View Stock"}
                           </button>
                           <button
                             onClick={() => openReturnModal(p)}
@@ -1243,22 +1335,40 @@ export default function AdminInventory({ setActiveSection }) {
                       <td>{new Date(file.uploaded_at).toLocaleString()}</td>
                       <td>{(file.size / 1024).toFixed(2)} KB</td>
                       <td>
-                        <button
-                          onClick={() => handleDownloadFile(file.filename)}
-                          className="secondary-btn"
-                          style={{
-                            fontSize: '12px',
-                            padding: '4px 10px',
-                            display: 'inline-block',
-                            cursor: 'pointer',
-                            background: '#fff',
-                            border: '1px solid #e2e8f0',
-                            color: '#475569',
-                            fontWeight: 600
-                          }}
-                        >
-                          💾 Download File
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => handleDownloadFile(file.filename)}
+                            className="secondary-btn"
+                            style={{
+                              fontSize: '12px',
+                              padding: '4px 10px',
+                              display: 'inline-block',
+                              cursor: 'pointer',
+                              background: '#fff',
+                              border: '1px solid #e2e8f0',
+                              color: '#475569',
+                              fontWeight: 600
+                            }}
+                          >
+                            💾 Download
+                          </button>
+                          <button
+                            onClick={() => handleDeleteImport(file.filename)}
+                            className="secondary-btn"
+                            style={{
+                              fontSize: '12px',
+                              padding: '4px 10px',
+                              display: 'inline-block',
+                              cursor: 'pointer',
+                              background: '#fee2e2',
+                              border: '1px solid #fca5a5',
+                              color: '#dc2626',
+                              fontWeight: 600
+                            }}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1279,77 +1389,94 @@ export default function AdminInventory({ setActiveSection }) {
             </div>
 
             {distLoading ? (
-              <p>Loading internal inventory data...</p>
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <div className="loading-spinner" style={{ marginBottom: '10px' }}></div>
+                <p>Fetching distribution data...</p>
+              </div>
             ) : (
-              <div className="table-responsive" style={{ maxHeight: '400px' }}>
-                <table>
-                  <thead>
+              <div className="table-responsive" style={{ maxHeight: '400px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                <table style={{ minWidth: '100%' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                     <tr>
-                      <th>Branch ID</th>
-                      <th>Current Stock</th>
-                      <th>Min Threshold</th>
-                      <th>Max Threshold</th>
-                      <th>Mfg/Exp</th>
-                      <th>Actions</th>
+                      <th style={{ textAlign: 'left' }}>Branch</th>
+                      <th style={{ textAlign: 'center' }}>Stock Level</th>
+                      <th style={{ textAlign: 'center' }}>Min/Max Threshold</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {distributionData.filter(item => {
+                    {(distributionData || []).filter(item => {
+                      if (!branches) return true; // Show all if branches info missing
                       const branch = branches.find(b => b.branch_id === item.branch_id);
-                      return branch && branch.status !== 'closed';
-                    }).map((item) => (
-                      <tr key={item.inventory_id}>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>{item.branch_name || `Branch ${item.branch_id}`}</div>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>Last updated: {formatDate(item.last_updated)}</div>
-                        </td>
-                        <td>
-                          <span className={`stock-badge ${item.quantity <= item.min_threshold ? 'low' : 'ok'}`}>
-                            {item.quantity} {selectedProduct.unit || 'pcs'}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <input
-                              type="number"
-                              defaultValue={item.min_threshold}
-                              onBlur={(e) => updateThresholds(item.inventory_id, e.target.value, item.max_threshold)}
-                              style={{ width: '80px', padding: '4px' }}
-                            />
-                            <button
-                              className="primary-btn"
-                              style={{ padding: '4px 8px', fontSize: '11px', background: '#f8fafc', color: '#6366f1', border: '1px solid #e2e8f0' }}
-                              onClick={() => window.location.href = `/admin/transfers?product_id=${selectedProduct.product_id || selectedProduct.id}&to_branch=${item.branch_id}`}
-                            >
-                              Transfer
-                            </button>
-                          </div>
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            defaultValue={item.max_threshold}
-                            onBlur={(e) => updateThresholds(item.inventory_id, item.min_threshold, e.target.value)}
-                            style={{ width: '80px', padding: '4px' }}
-                          />
-                        </td>
-                        <td>
-                          <div style={{ fontSize: '10px', color: '#64748b' }}>
-                            <div>M: {selectedProduct.mfg_date ? formatDate(selectedProduct.mfg_date) : '-'}</div>
-                            <div>E: {selectedProduct.expiry_date ? formatDate(selectedProduct.expiry_date) : '-'}</div>
-                          </div>
-                        </td>
-                        <td>
-                          <button
-                            className="secondary-btn"
-                            style={{ padding: '4px 8px', fontSize: '12px' }}
-                            onClick={() => openAdjustment(item)}
-                          >
-                            Adjust
-                          </button>
+                      return !branch || branch.status !== 'closed';
+                    }).length === 0 ? (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                          <div style={{ fontSize: '24px', marginBottom: '10px' }}>📦</div>
+                          No active stock records found for this product.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      (distributionData || []).filter(item => {
+                        if (!branches) return true;
+                        const branch = branches.find(b => b.branch_id === item.branch_id);
+                        return !branch || branch.status !== 'closed';
+                      }).map((item) => (
+                        <tr key={item.inventory_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{item.branch_name || `Branch ${item.branch_id}`}</div>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              Updated: {item.last_updated ? formatDate(item.last_updated) : 'Never'}
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '12px' }}>
+                            <span className={`stock-badge ${item.quantity <= (item.min_threshold || 0) ? 'low' : 'ok'}`} style={{ fontSize: '14px', padding: '4px 10px' }}>
+                              {item.quantity} {selectedProduct.unit || 'pcs'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '11px', color: '#64748b', minWidth: '30px' }}>Min:</span>
+                                <input
+                                  type="number"
+                                  defaultValue={item.min_threshold}
+                                  onBlur={(e) => updateThresholds(item.inventory_id, e.target.value, item.max_threshold)}
+                                  style={{ width: '60px', padding: '4px', textAlign: 'center', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '11px', color: '#64748b', minWidth: '30px' }}>Max:</span>
+                                <input
+                                  type="number"
+                                  defaultValue={item.max_threshold}
+                                  onBlur={(e) => updateThresholds(item.inventory_id, item.min_threshold, e.target.value)}
+                                  style={{ width: '60px', padding: '4px', textAlign: 'center', borderRadius: '4px', border: '1px solid #e2e8f0' }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '12px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                              <button
+                                className="primary-btn"
+                                style={{ padding: '4px 12px', fontSize: '11px', background: '#6366f1', border: 'none', width: '85px' }}
+                                onClick={() => setActiveSection('transfers')}
+                              >
+                                🚛 Transfer
+                              </button>
+                              <button
+                                className="secondary-btn"
+                                style={{ padding: '4px 12px', fontSize: '11px', width: '85px' }}
+                                onClick={() => openAdjustment(item)}
+                              >
+                                ⚙️ Adjust
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

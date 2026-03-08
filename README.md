@@ -46,10 +46,17 @@ Streamlined workflow for moving stock between locations.
 
 ---
 
+### 6. 🏛️ Comprehensive FAQ & Support
+- **Integrated Knowledge Base**: Admins and Managers have access to an expanded FAQ section directly in the dashboard.
+- **Role-Specific Guidance**: Tailored help for approving staff, managing transfers, and understanding financial reports.
+
+---
+
 ## 📱 Universal Experience
-- **Fully Responsive**: Works perfectly on Desktop, Tablets, and Mobile phones.
+- **Fully Responsive**: Works perfectly on Desktop, Tablets, and Mobile phones (Enhanced layout for stats and grids).
 - **Internal Scrolling Tables**: Ensures that even large data tables are easy to read on small screens.
-- **Premium UI**: Uses a clean, modern design with smooth animations and glassmorphism effects.
+- **Premium UI**: Uses a clean, modern design with smooth animations, hero stat cards, and glassmorphism effect.
+- **Dynamic Stats**: Real-time business health monitoring via animated dashboard widgets and charts.
 
 ---
 
@@ -97,6 +104,42 @@ The system is configured to run with a **Local PostgreSQL** instance.
 
 ---
 
+---
+
+## 📖 API Documentation
+
+### Authentication
+- `POST /api/auth/login`: Authenticate user and get JWT
+- `POST /api/auth/register`: Register new user (Pending approval)
+- `GET /api/auth/profile`: Get logged-in user details
+
+### Inventory & Products
+- `GET /api/products`: List all products (with pagination/filters)
+- `GET /api/inventory/branch/<branch_id>`: Check stock in a specific branch
+- `POST /api/inventory/adjust`: Manually adjust stock levels
+
+### Sales & POS
+- `POST /api/sales`: Create a new POS transaction
+- `GET /api/sales/daily-summary`: View revenue summary for today
+
+---
+
+## 🗺️ Database Schema (ER Summary)
+
+The system uses a normalized PostgreSQL schema with 10 tables:
+1.  **Users**: Staff, Managers, and Admins with role-based permissions.
+2.  **Branches**: Retail locations.
+3.  **Categories**: Product grouping with parent-child support.
+4.  **Products**: Global product catalog with pricing and barcodes.
+5.  **Inventory**: Junction table for product quantities per branch.
+6.  **Sales Transactions**: Header info for every customer sale.
+7.  **Transaction Items**: Itemized details for each sale.
+8.  **Stock Transfers**: Workflow for inter-branch stock movement.
+9.  **Inventory Adjustments**: Audit logs for manual stock changes.
+10. **Suppliers**: Manufacturer and vendor contact management.
+
+---
+
 ## 🚀 Quick Setup
 
 ### Backend
@@ -104,6 +147,11 @@ The system is configured to run with a **Local PostgreSQL** instance.
 2. Install dependencies: `pip install -r requirements.txt`
 3. Ensure `.env` is configured correctly (see Database Setup above)
 4. Run the server: `py -3.12 run.py`
+
+### Automated Testing
+The system includes a suite of automated tests to ensure API stability and data integrity.
+1. Navigate to `/backend`
+2. Run tests: `python -m pytest tests/test_api.py`
 
 ### Frontend
 1. Navigate to `/react`

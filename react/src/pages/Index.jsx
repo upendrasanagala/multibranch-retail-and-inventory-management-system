@@ -1,18 +1,72 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "../styles/home.css";
 
 export default function Home() {
 
+  const [activeIndex, setActiveIndex] = useState(null);
+  const [scrolled, setScrolled] = useState(false);
+
   useEffect(() => {
-    // Optional: Add intersection observer for reveal animations if needed
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const faqData = [
+    {
+      question: "How many branches can I manage?",
+      answer: "InventoryPro Enterprise supports unlimited branches. You can scale your retail chain from two locations to hundreds without any performance degradation."
+    },
+    {
+      question: "Is the synchronization truly real-time?",
+      answer: "Yes. Our proprietary sync engine ensures that any stock change, sale, or transfer is updated across all connected devices in under 200 milliseconds."
+    },
+    {
+      question: "Can I transfer stock between branches?",
+      answer: "Yes, our 'Inter-Branch Transfer' (IBT) feature allows you to move stock between locations with one click, complete with digital transit tracking."
+    },
+    {
+      question: "Does it support barcode scanning?",
+      answer: "Absolutely. The system is compatible with standard USB/Bluetooth scanners and mobile camera scanning for fast checkouts and inventory audits."
+    },
+    {
+      question: "What kind of reports can I generate?",
+      answer: "You can generate detailed sales analytics, profit margin reports, tax summaries, and inventory turnover data for individual branches or the entire chain."
+    },
+    {
+      question: "Can I manage employee permissions?",
+      answer: "Yes. Use our granular Role-Based Access Control (RBAC) to define what Admin, Manager, and Staff users can see and modify in the system."
+    },
+    {
+      question: "Does it work offline?",
+      answer: "Yes, our 'Offline-First' architecture allows you to continue sales during internet outages. Data automatically syncs once the connection is restored."
+    },
+    {
+      question: "Can I use it on mobile devices?",
+      answer: "Absolutely. InventoryPro is a progressive web platform designed to work seamlessly on tablets, smartphones, and desktop computers."
+    },
+    {
+      question: "How secure is my business data?",
+      answer: "We use bank-grade AES-256 encryption for all data at rest and TLS 1.3 for data in transit. Your data is backed up hourly across multiple secure locations."
+    },
+    {
+      question: "Do you offer staff training?",
+      answer: "Yes, we provide comprehensive onboarding and 24/7 dedicated support for all Enterprise customers to ensure your team is proficient."
+    }
+  ];
+
+  const toggleFAQ = (index) => {
+    setActiveIndex(activeIndex === index ? null : index);
+  };
 
   return (
     <>
       <div className="bg-mesh"></div>
 
       {/* ================= NAVBAR ================= */}
-      <header className="navbar">
+      <header className={`navbar ${scrolled ? "scrolled" : ""}`}>
         <div className="nav-left">
           <div className="logo">
             <i className="fas fa-layer-group"></i>
@@ -28,71 +82,52 @@ export default function Home() {
         </nav>
       </header>
 
-      {/* ================= HERO SECTION ================= */}
-      <section className="hero-wrapper">
-        <div className="hero-content">
+      {/* ================= UNIFIED HERO ================= */}
+      <section className="unified-hero">
+        <div style={{ animation: 'fadeInUp 0.8s ease-out forwards' }}>
           <div className="badge-new">
-            <span>NEW</span> Multi-Branch Sync
+            <span>LIVE</span> Enterprise Network Status
           </div>
-
-          <h1 className="hero-headline">
-            Retail Management <br />
-            Reimagined.
-          </h1>
-
+          <h1>Management at Scale.</h1>
           <p className="subheadline">
-            The all-in-one platform for modern retail chains. Control inventory,
-            sales, and staff across unlimited locations in real-time.
+            One platform for every branch, every item, and every sale.
+            Real-time synchronization across your entire retail empire.
           </p>
 
           <div className="btn-group">
-            <a href="/login" className="btn-primary">
-              Launch Console
-            </a>
-            <a href="#features" className="btn-secondary">
-              Explore Features
-            </a>
+            <a href="/login" className="btn-primary">Launch Console</a>
           </div>
         </div>
 
-        <div className="hero-visual">
-          <div className="dashboard-card" style={{ padding: 0, background: 'none' }}>
-            <img
-              src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2426&auto=format&fit=crop"
-              alt="InventoryPro Dashboard"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                borderRadius: '12px',
-                display: 'block'
-              }}
-            />
-          </div>
+        <div className="branch-grid">
+          {[
+            { id: 'BH-01', name: 'Smart Store', loc: 'vijayawada Central', rev: '$12,450', stock: '8,240', status: 'online' },
+            { id: 'BH-02', name: 'City Outlet', loc: 'Guntur West', rev: '$4,280', stock: '2,150', status: 'online' },
+            { id: 'BH-03', name: 'Asia Hub', loc: 'Hyderabad Metro', rev: '$9,120', stock: '5,400', status: 'online' }
+          ].map((branch, i) => (
+            <div key={branch.id} className="branch-card" style={{ animationDelay: `${i * 0.15}s` }}>
+              <div className="status-indicator">
+                <span className={`dot-pulse ${branch.status}`}></span>
+                {branch.status}
+              </div>
+              <div className="branch-info">
+                <h3>{branch.name}</h3>
+                <p><i className="fas fa-map-marker-alt" style={{ marginRight: '6px' }}></i>{branch.loc}</p>
+              </div>
+              <div className="branch-stats">
+                <div className="b-stat">
+                  <span className="label">Daily Rev</span>
+                  <span className="value">{branch.rev}</span>
+                </div>
+                <div className="b-stat">
+                  <span className="label">Total Stock</span>
+                  <span className="value">{branch.stock}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
-
-      {/* ================= STATS ROW ================= */}
-      <div className="stats-strip">
-        <div className="stats-container">
-          <div className="stat-box">
-            <h3>2.5s</h3>
-            <p>Avg. Checkout Time</p>
-          </div>
-          <div className="stat-box">
-            <h3>99.9%</h3>
-            <p>Inventory Accuracy</p>
-          </div>
-          <div className="stat-box">
-            <h3>Unlimited</h3>
-            <p>Branch Support</p>
-          </div>
-          <div className="stat-box">
-            <h3>Real-Time</h3>
-            <p>Global Sync</p>
-          </div>
-        </div>
-      </div>
 
       {/* ================= IMPACT POSTER ================= */}
       <section className="impact-section">
@@ -174,6 +209,22 @@ export default function Home() {
               between branches.
             </p>
           </div>
+
+          <div className="bento-card">
+            <div className="bento-icon">
+              <i className="fas fa-qrcode"></i>
+            </div>
+            <h3>Dynamic UPI Integration</h3>
+            <p>Generate branch-specific QR codes for instant, error-free digital payments at every POS.</p>
+          </div>
+
+          <div className="bento-card">
+            <div className="bento-icon">
+              <i className="fas fa-robot"></i>
+            </div>
+            <h3>Auto-Procurement</h3>
+            <p>Intelligent restocking suggestions based on sales velocity and minimum stock thresholds.</p>
+          </div>
         </div>
       </section>
 
@@ -223,6 +274,32 @@ export default function Home() {
         </div>
       </section >
 
+      {/* ================= FAQ SECTION ================= */}
+      <section className="faq-section" id="faq">
+        <div className="section-head">
+          <h2>Got Questions? We have answers.</h2>
+          <p>Everything you need to know about scaling your retail operations.</p>
+        </div>
+
+        <div className="faq-container">
+          {faqData.map((item, index) => (
+            <div
+              key={index}
+              className={`faq-item ${activeIndex === index ? 'active' : ''}`}
+              onClick={() => toggleFAQ(index)}
+            >
+              <div className="faq-question">
+                <span>{item.question}</span>
+                <i className={`fas fa-chevron-${activeIndex === index ? 'up' : 'down'}`}></i>
+              </div>
+              <div className="faq-answer">
+                <p>{item.answer}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ================= FOOTER ================= */}
       < footer className="footer" >
         <div className="footer-inner">
@@ -232,35 +309,53 @@ export default function Home() {
               Empowering retail chains with next-generation management tools.
               Built for speed, security, and scale.
             </p>
+            <div className="footer-social">
+              <a href="#"><i className="fab fa-twitter"></i></a>
+              <a href="#"><i className="fab fa-linkedin"></i></a>
+              <a href="https://github.com/ravi9506301/multibranch-retail-and-inventory-management-system"><i className="fab fa-github"></i></a>
+              <a href="#"><i className="fab fa-instagram"></i></a>
+            </div>
           </div>
 
           <div className="footer-links">
             <h5>Product</h5>
             <ul>
-              <li><a href="#">Features</a></li>
+              <li><a href="#features">Features</a></li>
+              <li><a href="#faq">FAQ</a></li>
               <li><a href="#">Security</a></li>
               <li><a href="#">Enterprise</a></li>
-              <li><a href="#">Changelog</a></li>
             </ul>
           </div>
 
           <div className="footer-links">
             <h5>Company</h5>
             <ul>
-              <li><a href="#">About</a></li>
-              <li><a href="#">Careers</a></li>
-              <li><a href="#">Blog</a></li>
-              <li><a href="#">Contact</a></li>
+              <li><a href="#features">Our Mission</a></li>
+              <li><a href="#">Team</a></li>
+              <li><a href="#">Customers</a></li>
+              <li><a href="#">Contact Us</a></li>
             </ul>
           </div>
 
           <div className="footer-links">
             <h5>Legal</h5>
             <ul>
-              <li><a href="#">Privacy</a></li>
-              <li><a href="#">Terms</a></li>
-              <li><a href="#">Status</a></li>
+              <li><a href="/privacy">Privacy Policy</a></li>
+              <li><a href="/terms">Terms of Service</a></li>
+              <li><a href="#">Cookie Policy</a></li>
+              <li><a href="#">Security</a></li>
             </ul>
+          </div>
+
+          <div className="footer-newsletter">
+            <h5>Stay Updated</h5>
+            <p>Get the latest updates on inventory management.</p>
+            <form className="newsletter-form" onSubmit={(e) => e.preventDefault()}>
+              <input type="email" placeholder="Email address" required />
+              <button type="submit">
+                <i className="fas fa-paper-plane"></i>
+              </button>
+            </form>
           </div>
         </div>
         <div className="footer-bottom">

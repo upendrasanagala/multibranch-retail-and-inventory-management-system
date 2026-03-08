@@ -1,53 +1,47 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
 import { formatDate } from "../../utils/dateUtils";
+import { useToast } from "../../components/ToastContext";
 
 export default function StaffReceipts() {
+  const { showToast } = useToast();
   const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filterDate, setFilterDate] = useState("");
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [searchMobile, setSearchMobile] = useState("");
   const [summary, setSummary] = useState({ count: 0, total: 0 });
 
   const user = getCurrentUser();
   const branchId = user?.branch_id;
+  const canSearchMobile = ["admin", "manager"].includes(user?.role);
 
   useEffect(() => {
     if (branchId) {
       loadReceipts();
     }
-  }, [branchId, filterDate]);
+  }, [branchId, startDate, endDate]);
 
   const loadReceipts = async () => {
+    if (searchMobile && !/^[6-9]\d{9}$/.test(searchMobile)) {
+      showToast("Invalid mobile number for search. Must be 10 digits starting with 6,7,8,9", "error");
+      return;
+    }
     setLoading(true);
     try {
-      const params = {};
-      if (filterDate) params.date = filterDate;
+      const params = {
+        date_from: startDate,
+        date_to: endDate,
+        ...(searchMobile && { customer_mobile: searchMobile })
+      };
 
-      // Fetch transactions and daily summary in parallel
-      const [salesRes, summaryRes] = await Promise.all([
-        api.sales.getByBranch(branchId, params),
-        api.sales.getDailySummary(branchId, filterDate || new Date().toISOString().split('T')[0])
-      ]);
-
+      const salesRes = await api.sales.getByBranch(branchId, params);
       setReceipts(salesRes.transactions || []);
-
-      // Update summary based on the fetched data regarding the filter
-      if (filterDate) {
-        // If filtered by date, use the summary from the transaction list or calc locally
-        setSummary({
-          count: salesRes.transactions?.length || 0,
-          total: salesRes.transactions?.reduce((sum, t) => sum + t.total_amount, 0) || 0
-        });
-      } else {
-        // If no filter, show today's summary or total? 
-        // unexpected behavior might occur if getDailySummary returns only today's data while getByBranch returns all.
-        // Let's stick to showing the summary of the VIEWED data.
-        setSummary({
-          count: salesRes.transactions?.length || 0,
-          total: salesRes.transactions?.reduce((sum, t) => sum + t.total_amount, 0) || 0
-        });
-      }
+      setSummary({
+        count: salesRes.transactions?.length || 0,
+        total: salesRes.transactions?.reduce((sum, t) => sum + t.total_amount, 0) || 0
+      });
 
     } catch (err) {
       console.error("Failed to load receipts", err);
@@ -55,12 +49,68 @@ export default function StaffReceipts() {
     setLoading(false);
   };
 
+  /* ================= PRINT ALL SALES ================= */
+  const printAllSales = () => {
+    if (!receipts.length) return;
+    const win = window.open("", "_blank");
+    const now = new Date();
+
+    const styles = `<style>
+      body { font-family: "Segoe UI", Arial, sans-serif; padding: 20px; color: #111; font-size: 11px; }
+      .hdr { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
+      .hdr h2 { margin: 0; font-size: 16px; }
+      .hdr p { margin: 2px 0; font-size: 10px; }
+      .summary-box { display: flex; justify-content: space-around; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+      .summary-item { text-align: center; }
+      .summary-item b { display: block; font-size: 14px; color: #1e293b; }
+      table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+      th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; text-align: left; font-size: 9px; text-transform: uppercase; }
+      td { border: 1px solid #cbd5e1; padding: 5px; vertical-align: top; }
+      .r { text-align: right; }
+      .ftr { margin-top: 20px; text-align: center; font-size: 9px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 10px; }
+    </style>`;
+
+    const header = `<div class="hdr">
+      <h2>RETAIL STORE - CONSOLIDATED SALES REPORT</h2>
+      <p><b>Branch:</b> ${user?.branch_name || 'Main'}</p>
+      <p><b>Period:</b> ${formatDate(new Date(startDate))} to ${formatDate(new Date(endDate))}</p>
+      <p><b>Generated On:</b> ${now.toLocaleString()}</p>
+    </div>`;
+
+    const summaryHtml = `<div class="summary-box">
+      <div class="summary-item">Transactions: <b>${summary.count}</b></div>
+      <div class="summary-item">Total Revenue: <b>₹${summary.total.toFixed(2)}</b></div>
+    </div>`;
+
+    let table = '<table><thead><tr><th>Date</th><th>Bill No</th><th>Items</th><th>Payment</th><th class="r">Amount</th></tr></thead><tbody>';
+    receipts.forEach(r => {
+      const itemsText = r.items?.map(i => `${i.product_name} x${i.quantity}`).join(', ') || 'No Items';
+      table += `<tr>
+        <td>${formatDate(r.transaction_date)}</td>
+        <td>#${r.transaction_id}</td>
+        <td style="max-width:300px">${itemsText}</td>
+        <td style="text-transform:uppercase">${r.payment_method}</td>
+        <td class="r">₹${r.total_amount.toFixed(2)}</td>
+      </tr>`;
+    });
+    table += '</tbody></table>';
+
+    const footer = `<div class="ftr">
+      <p>End of Report | Page 1 of 1</p>
+      <p>Generated by ${user?.name || 'Staff'}</p>
+    </div>`;
+
+    win.document.write(`<html><head><title>Sales_Report_${startDate}_to_${endDate}</title>${styles}</head><body>${header}${summaryHtml}${table}${footer}</body></html>`);
+    win.document.close();
+    win.print();
+  };
+
   /* ================= PRINT RECEIPT ================= */
   const printReceipt = (sale) => {
-    const win = window.open("", "_blank", "width=400,height=600");
+    const win = window.open("", "_blank", "width=350,height=600");
 
     if (!win) {
-      alert("⚠️ Receipt printing was blocked by your browser.\nPlease allow popups for this site.");
+      showToast("Receipt printing was blocked. Please allow popups for this site.", "warning");
       return;
     }
 
@@ -69,185 +119,165 @@ export default function StaffReceipts() {
     const total_amount = Number(sale.total_amount || 0);
     const discount = Number(sale.discount || 0);
     const paymentMethod = sale.payment_method;
+    const items = sale.items || [];
 
-    // --- 1. Group items by GST Rate ---
-    const gstGroups = {};
+    // GST breakup
     const gstBreakup = {};
-
-    (sale.items || []).forEach(item => {
-      // Backend now returns gst_percent
+    items.forEach(item => {
       const rate = item.gst_percent || 0;
-      if (!gstGroups[rate]) gstGroups[rate] = [];
-      gstGroups[rate].push(item);
-
-      if (!gstBreakup[rate]) gstBreakup[rate] = { taxable: 0, cgst: 0, sgst: 0, total: 0 };
-
-      // History items use 'unit_price' and 'quantity'
+      if (!gstBreakup[rate]) gstBreakup[rate] = { taxable: 0, cgst: 0, sgst: 0 };
       const price = Number(item.unit_price || 0);
       const qty = Number(item.quantity || 0);
       const itemTotal = price * qty;
-
-      // Back-calculate taxable
       const taxable = itemTotal / (1 + rate / 100);
       const taxAmt = itemTotal - taxable;
-
       gstBreakup[rate].taxable += taxable;
       gstBreakup[rate].cgst += taxAmt / 2;
       gstBreakup[rate].sgst += taxAmt / 2;
-      gstBreakup[rate].total += itemTotal;
     });
 
-    // Discount breakdown might not be fully available in history if not stored JSON, 
-    // but we can show total savings if discount > 0
     const totalSavings = discount;
+    const roundedTotal = Math.round(total_amount);
+    const roundOff = roundedTotal - total_amount;
+    const totalQty = items.reduce((s, i) => s + Number(i.quantity || 0), 0);
+    const grossAmt = items.reduce((s, i) => s + (Number(i.unit_price || 0) * Number(i.quantity || 0)), 0);
 
-    win.document.write(`
-      <html>
-        <head>
-          <title>Invoice #${transaction_id}</title>
-          <style>
-            body { font-family: 'Courier New', monospace; font-size: 11px; padding: 10px; margin: 0; width: 300px; }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .bold { font-weight: bold; }
-            
-            .header img { width: 100px; margin-bottom: 5px; } 
-            .header h2 { margin: 2px 0; font-size: 16px; }
-            .header p { margin: 1px 0; font-size: 10px; }
-            
-            .meta { margin: 10px 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; display: flex; justify-content: space-between; flex-wrap: wrap; }
-            .meta div { width: 48%; }
-            
-            table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
-            th { border-bottom: 1px dashed #000; text-align: left; font-size: 10px; padding: 2px 0; }
-            td { padding: 2px 0; vertical-align: top; font-size: 10px; }
-            
-            .group-header { font-weight: bold; text-decoration: underline; margin-top: 5px; font-size: 10px; }
-            
-            .totals { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
-            .totals p { margin: 2px 0; display: flex; justify-content: space-between; }
-            .grand-total { font-size: 14px; font-weight: bold; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; margin: 5px 0; }
-            
-            .gst-table { border-top: 1px dashed #000; margin-top: 10px; }
-            .gst-table th { font-size: 9px; text-align: right; }
-            .gst-table th:first-child { text-align: left; }
-            .gst-table td { font-size: 9px; text-align: right; }
-            .gst-table td:first-child { text-align: left; }
-            
-            .savings { text-align: center; margin: 10px 0; font-weight: bold; font-size: 12px; border: 1px dashed #000; padding: 5px; }
-            .footer { text-align: center; margin-top: 15px; font-size: 10px; }
-            .barcode { margin: 10px auto; height: 30px; background: #000; width: 80%; display: block; } 
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h2>RETAIL STORE</h2>
-            <p>Branch: ${user?.branch_name || 'Main'}</p>
-            <p>Phone: +91 98765 43210</p>
-            <br/>
-            <h3 style="margin:0; text-decoration: underline;">TAX INVOICE</h3>
-          </div>
+    // Amount in words (Indian)
+    const numberToWords = (num) => {
+      const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+        'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+      const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+      if (num === 0) return 'Zero';
+      const n = Math.abs(Math.round(num));
+      if (n < 20) return ones[n];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+      if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' and ' + numberToWords(n % 100) : '');
+      if (n < 100000) return numberToWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + numberToWords(n % 1000) : '');
+      if (n < 10000000) return numberToWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + numberToWords(n % 100000) : '');
+      return numberToWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + numberToWords(n % 10000000) : '');
+    };
 
-          <div class="meta">
-            <div>Bill No: ${transaction_id}</div>
-            <div class="right">Date: ${formatDate(transaction_date)}</div>
-            <div>Cashier: ${user?.name || 'Staff'}</div>
-            <div class="right">Time: ${new Date(transaction_date).toLocaleTimeString()}</div>
-          </div>
+    // Monospace helpers
+    const L = 42;
+    const dash = '-'.repeat(L);
+    const dblLine = '='.repeat(L);
+    const center = (txt) => { const pad = Math.max(0, Math.floor((L - txt.length) / 2)); return ' '.repeat(pad) + txt; };
+    const leftRight = (l, r) => l + ' '.repeat(Math.max(1, L - l.length - r.length)) + r;
 
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 50%">Particulars</th>
-                <th class="center" style="width: 15%">Qty</th>
-                <th class="right" style="width: 15%">Rate</th>
-                <th class="right" style="width: 20%">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${Object.keys(gstGroups).map((rate, idx) => `
-                <tr>
-                  <td colspan="4" class="group-header">
-                    ${idx + 1}) CGST @ ${(rate / 2).toFixed(2)}%, SGST @ ${(rate / 2).toFixed(2)}%
-                  </td>
-                </tr>
-                ${gstGroups[rate].map(i => `
-                  <tr>
-                    <td>
-                      ${i.product_name}
-                      ${i.is_b1g1 ? '<br/>(B1G1 Free)' : ''}
-                      ${(i.size || i.unit) ? `<br/><span style="font-size:9px">${i.size || ''}${i.unit || ''}</span>` : ''}
-                    </td>
-                    <td class="center">${i.quantity}</td>
-                    <td class="right">${Number(i.unit_price).toFixed(2)}</td>
-                    <td class="right">${(Number(i.unit_price) * Number(i.quantity)).toFixed(2)}</td>
-                  </tr>
-                `).join('')}
-              `).join('')}
-            </tbody>
-          </table>
+    // Build item lines
+    let itemLines = '';
+    let sno = 0;
+    items.forEach(i => {
+      sno++;
+      const name = (i.product_name || i.name || 'Item').length > 24 ? (i.product_name || i.name || 'Item').substring(0, 22) + '..' : (i.product_name || i.name || 'Item');
+      const price = Number(i.unit_price || 0);
+      const qty = Number(i.quantity || 0);
+      const amt = (price * qty).toFixed(2);
+      const gstTag = (i.gst_percent || 0) + '%';
+      itemLines += sno + '. ' + name;
+      if (i.is_b1g1) itemLines += ' (B1G1)';
+      if (i.is_returned) itemLines += ' [RETURNED]';
+      itemLines += '\n';
+      itemLines += '   ' + qty + ' x ' + price.toFixed(2) + ' = ' + amt + '  [' + gstTag + ']\n';
+    });
 
-          <div class="totals">
-            <p><span>Total Items: ${(sale.items || []).length}</span> <span>Total Qty: ${(sale.items || []).reduce((s, i) => s + i.quantity, 0)}</span></p>
-            
-            <p style="border-top: 1px dotted #000; margin-top: 5px; padding-top: 2px;">
-              <span>Gross Amount:</span> <span>₹${(total_amount + discount).toFixed(2)}</span>
-            </p>
-            
-            ${discount > 0 ? `<p><span>Less: Discount:</span> <span>-₹${discount.toFixed(2)}</span></p>` : ''}
-            
-            <p class="grand-total"><span>Grand Total:</span> <span>₹${total_amount.toFixed(2)}</span></p>
-          </div>
+    const isPartialReturn = items.some(i => i.is_returned);
 
-          <table class="gst-table">
-            <thead>
-              <tr>
-                <th>GST%</th>
-                <th>Taxable</th>
-                <th>CGST</th>
-                <th>SGST</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${Object.keys(gstBreakup).map(rate => `
-                <tr>
-                  <td>${rate}%</td>
-                  <td>${gstBreakup[rate].taxable.toFixed(2)}</td>
-                  <td>${gstBreakup[rate].cgst.toFixed(2)}</td>
-                  <td>${gstBreakup[rate].sgst.toFixed(2)}</td>
-                  <td>${gstBreakup[rate].total.toFixed(2)}</td>
-                </tr>
-              `).join('')}
-              <tr style="border-top: 1px solid #000; font-weight: bold;">
-                <td>Tot</td>
-                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.taxable, 0).toFixed(2)}</td>
-                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.cgst, 0).toFixed(2)}</td>
-                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.sgst, 0).toFixed(2)}</td>
-                <td>${Object.values(gstBreakup).reduce((s, g) => s + g.total, 0).toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
+    // GST breakup lines
+    let gstLines = '';
+    gstLines += leftRight('GST%   Taxable    CGST     SGST', '') + '\n';
+    gstLines += dash + '\n';
+    let totTaxable = 0, totCGST = 0, totSGST = 0;
+    Object.keys(gstBreakup).sort((a, b) => Number(a) - Number(b)).forEach(rate => {
+      const g = gstBreakup[rate];
+      totTaxable += g.taxable; totCGST += g.cgst; totSGST += g.sgst;
+      gstLines += (rate + '%').padEnd(7) + g.taxable.toFixed(2).padStart(9) + g.cgst.toFixed(2).padStart(9) + g.sgst.toFixed(2).padStart(9) + '\n';
+    });
+    gstLines += dash + '\n';
+    gstLines += 'Total'.padEnd(7) + totTaxable.toFixed(2).padStart(9) + totCGST.toFixed(2).padStart(9) + totSGST.toFixed(2).padStart(9) + '\n';
 
-          <p style="margin-top: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px;">
-            Payment Mode: ${paymentMethod ? paymentMethod.toUpperCase() : 'CASH'}
-            <span class="right" style="float:right">₹${total_amount.toFixed(2)}</span>
-          </p>
+    // Discount line
+    let discLine = '';
+    if (discount > 0) discLine = leftRight('Less: Discount:', '-Rs.' + discount.toFixed(2)) + '\n';
 
-          ${totalSavings > 0 ? `
-            <div class="savings">
-              * * Saved Rs. ${totalSavings.toFixed(2)} On MRP * *
-            </div>
-          ` : ''}
+    // Round off
+    let roundLine = '';
+    if (Math.abs(roundOff) >= 0.01) {
+      roundLine = leftRight('Round Off', (roundOff >= 0 ? '+' : '') + roundOff.toFixed(2)) + '\n';
+    }
 
-          <div class="footer">
-            <div class="barcode" style="text-align:center; color:white; line-height:30px;">|||||||||||||||||||</div>
-            <p>This is a computer generated invoice</p>
-          </div>
-        </body>
-      </html>
-    `);
+    // Savings
+    let savingsLine = '';
+    if (totalSavings > 0) {
+      savingsLine = '\n' + center('** You Saved Rs.' + totalSavings.toFixed(2) + ' **') + '\n';
+    }
 
+    // Calculate total GST
+    const totalGST = totCGST + totSGST;
+
+    // Date/time from transaction
+    const dateStr = formatDate(transaction_date);
+    const timeStr = transaction_date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    // Full receipt
+    const receipt =
+      center('RETAIL STORE') + '\n' +
+      center('Branch: ' + (user?.branch_name || 'Main')) + '\n' +
+      center('4-143, Srinagar Colony, Vijayawada - 520001') + '\n' +
+      center('GSTIN: 37XXXXX0000X1ZX') + '\n' +
+      dblLine + '\n' +
+      center('TAX INVOICE' + (isPartialReturn ? ' (PARTIAL RETURN)' : '')) + '\n' +
+      dblLine + '\n' +
+      leftRight('Bill No: ' + transaction_id, 'Date: ' + dateStr) + '\n' +
+      leftRight('Cashier: ' + (user?.name || 'Staff'), 'Time: ' + timeStr) + '\n' +
+      dash + '\n' +
+      leftRight('ITEM', 'QTY x RATE = AMT [GST]') + '\n' +
+      dash + '\n' +
+      itemLines +
+      dash + '\n' +
+      leftRight('Total Items: ' + items.length, 'Total Qty: ' + totalQty) + '\n' +
+      dash + '\n' +
+      leftRight('Gross Amount:', 'Rs.' + grossAmt.toFixed(2)) + '\n' +
+      discLine +
+      leftRight('GST (Tax):', 'Rs.' + totalGST.toFixed(2)) + '\n' +
+      roundLine +
+      dblLine + '\n' +
+      leftRight('NET PAYABLE:', 'Rs.' + roundedTotal.toFixed(2)) + '\n' +
+      dblLine + '\n' +
+      'Rs. ' + numberToWords(roundedTotal) + ' Only' + '\n' +
+      dash + '\n' +
+      '\n' +
+      center('--- GST BREAKUP ---') + '\n' +
+      gstLines +
+      dash + '\n' +
+      '\n' +
+      leftRight('Payment:', (paymentMethod || 'cash').toUpperCase()) + '\n' +
+      leftRight('Amount Paid:', 'Rs.' + roundedTotal.toFixed(2)) + '\n' +
+      dash + '\n' +
+      savingsLine +
+      '\n' +
+      center('Thank you! Visit Again') + '\n' +
+      center('Goods once sold will not be taken back') + '\n' +
+      center('E. & O.E.') + '\n' +
+      '\n' +
+      center('--- Authorized Signatory ---') + '\n' +
+      '\n' +
+      center('Computer Generated Invoice') + '\n';
+
+    // Build HTML
+    const html = '<!DOCTYPE html><html><head>' +
+      '<title>Invoice #' + transaction_id + '</title>' +
+      '<style>' +
+      '* { margin:0; padding:0; }' +
+      'body { font-family: "Courier New", "Lucida Console", monospace; font-size: 12px; padding: 5px; width: 302px; color: #000; line-height: 1.4; }' +
+      'pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: inherit; margin: 0; }' +
+      '@media print { body { width: 100%; padding: 2px; } }' +
+      '</style>' +
+      '</head><body>' +
+      '<pre>' + receipt + '</pre>' +
+      '</body></html>';
+
+    win.document.write(html);
     win.document.close();
     win.focus();
     setTimeout(() => {
@@ -259,15 +289,42 @@ export default function StaffReceipts() {
   return (
     <div style={{ padding: '0 20px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>🧾 Sales Receipts</h2>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-          />
-          <button className="primary-btn" onClick={loadReceipts} disabled={loading}>
+        <h2>🧾 My Sales Receipts</h2>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>From:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{ padding: '4px', border: 'none', fontSize: '13px' }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>To:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{ padding: '4px', border: 'none', fontSize: '13px' }}
+            />
+          </div>
+          {canSearchMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+              <span style={{ fontSize: '12px', color: '#64748b' }}><i className="fas fa-search"></i> Mobile:</span>
+              <input
+                type="text"
+                placeholder="Search Mobile..."
+                value={searchMobile}
+                onChange={(e) => setSearchMobile(e.target.value)}
+                style={{ padding: '4px', border: 'none', fontSize: '13px', width: '120px' }}
+              />
+            </div>
+          )}
+          <button className="secondary-btn" onClick={printAllSales} disabled={loading || !receipts.length} style={{ padding: '8px 15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <i className="fas fa-print"></i> Print All Sales
+          </button>
+          <button className="primary-btn" onClick={loadReceipts} disabled={loading} style={{ padding: '8px 15px' }}>
             {loading ? "Refreshing..." : "🔄 Refresh"}
           </button>
         </div>
@@ -318,7 +375,11 @@ export default function StaffReceipts() {
                         {r.payment_method}
                       </span>
                     </td>
-                    <td>{r.items?.length || 0} items</td>
+                    <td>{r.items?.length || 0} items
+                      {r.items?.some(i => i.is_returned) && (
+                        <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 600 }}> (Partial Return)</div>
+                      )}
+                    </td>
                     <td style={{ fontWeight: 700 }}>₹{r.total_amount.toFixed(2)}</td>
                     <td>
                       <button

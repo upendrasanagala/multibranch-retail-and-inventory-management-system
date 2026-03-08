@@ -63,15 +63,15 @@ def get_products():
             "category": {"category_id": cat.category_id, "name": cat.name} if cat else None,
             "description": p.description,
             "unit_price": p.unit_price,
-            "cost_price": p.cost_price if p.cost_price is not None and not (isinstance(p.cost_price, float) and p.cost_price != p.cost_price) else None,
-            "discount_percent": p.discount_percent if p.discount_percent is not None and not (isinstance(p.discount_percent, float) and p.discount_percent != p.discount_percent) else 0.0,
-            "gst_percent": p.gst_percent if p.gst_percent is not None and not (isinstance(p.gst_percent, float) and p.gst_percent != p.gst_percent) else 0.0,
+            "cost_price": p.cost_price if p.cost_price is not None and not (isinstance(p.cost_price, float) and math.isnan(p.cost_price)) else None,
+            "discount_percent": p.discount_percent if p.discount_percent is not None and not (isinstance(p.discount_percent, float) and math.isnan(p.discount_percent)) else 0.0,
+            "gst_percent": p.gst_percent if p.gst_percent is not None and not (isinstance(p.gst_percent, float) and math.isnan(p.gst_percent)) else 0.0,
             "unit": p.unit,
             "size": p.size,
             "total_stock": total_stock,
             "low_stock_branches": low_stock_count,
             "image_path": p.image_path,
-            "is_b1g1": p.is_b1g1, # Include B1G1 status
+            "is_b1g1": p.is_b1g1,
             "mfg_date": p.mfg_date.isoformat() if p.mfg_date else None,
             "expiry_date": p.expiry_date.isoformat() if p.expiry_date else None,
             "supplier_id": p.supplier_id,
@@ -85,6 +85,7 @@ def get_products():
         "pages": paginated.pages,
         "current_page": page
     }), 200
+
 
 
 # =============================
@@ -118,6 +119,40 @@ def get_product(product_id):
 
 
 # =============================
+# Get Product Inventory Across Branches
+# =============================
+@product_bp.route("/<int:product_id>/inventory", methods=["GET"])
+@jwt_required()
+def get_product_inventory_branches(product_id):
+    from app.models.inventory import Inventory
+    from app.models.branch import Branch
+    
+    product = Product.query.get_or_404(product_id)
+    inventory_records = db.session.query(
+        Inventory, Branch.name.label("branch_name")
+    ).join(
+        Branch, Inventory.branch_id == Branch.branch_id
+    ).filter(
+        Inventory.product_id == product_id
+    ).all()
+    
+    distribution = [{
+        "branch_id": inv.branch_id,
+        "branch_name": branch_name,
+        "quantity": inv.quantity,
+        "min_threshold": inv.min_threshold,
+        "max_threshold": inv.max_threshold
+    } for inv, branch_name in inventory_records]
+    
+    return jsonify({
+        "product_id": product.product_id,
+        "product_name": product.name,
+        "sku": product.sku,
+        "inventory": distribution
+    }), 200
+
+
+# =============================
 # Create Product (Admin/Manager)
 # =============================
 @product_bp.route("/", methods=["POST"])
@@ -126,7 +161,6 @@ def get_product(product_id):
 def create_product():
     try:
         data = request.get_json() or {}
-        print("DEBUG: Received create_product data:", data) # Debug log
 
         name = data.get("name")
         unit_price = data.get("unit_price")
@@ -224,9 +258,6 @@ def create_product():
 
     except Exception as e:
         db.session.rollback()
-        print(f"ERROR in create_product: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return jsonify({"message": f"Server Error: {str(e)}"}), 500
 
 
@@ -622,6 +653,7 @@ def import_products():
                 for branch in branches:
                     inv = Inventory.query.filter_by(product_id=product.product_id, branch_id=branch.branch_id).first()
                     if not inv:
+                        # Only create new inventory records for NEW products
                         inv = Inventory(
                             product_id=product.product_id,
                             branch_id=branch.branch_id,
@@ -630,9 +662,8 @@ def import_products():
                             max_threshold=1000
                         )
                         db.session.add(inv)
-                    elif int(initial_qty) > 0: 
-                         # Update stock if quantity provided in sheet
-                         inv.quantity = int(initial_qty)
+                    # Existing inventory records are NOT updated to prevent
+                    # accidental stock overwriting/duplication on re-import
                          
             except Exception as e:
                 errors.append(f"Row {index+2}: {str(e)}")
@@ -685,6 +716,33 @@ def get_import_history():
     return jsonify({"imports": files}), 200
 
 # =============================
+# Delete Import File (Admin)
+# =============================
+@product_bp.route("/imports/<filename>", methods=["DELETE"])
+@jwt_required()
+@roles_required("admin")
+def delete_import_file(filename):
+    import os
+    upload_folder = os.path.join(os.getcwd(), 'uploads', 'imports')
+    file_path = os.path.join(upload_folder, filename)
+    
+    # Security: ensure the resolved path is within the upload folder
+    real_path = os.path.realpath(file_path)
+    real_folder = os.path.realpath(upload_folder)
+    if not real_path.startswith(real_folder):
+        return jsonify({"message": "Invalid filename"}), 400
+    
+    if not os.path.exists(file_path):
+        return jsonify({"message": "File not found"}), 404
+    
+    try:
+        os.remove(file_path)
+        return jsonify({"message": f"File '{filename}' deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"message": f"Failed to delete file: {str(e)}"}), 500
+
+
+# =============================
 # Download Import File (Admin)
 # =============================
 @product_bp.route("/imports/<path:filename>", methods=["GET"])
@@ -698,6 +756,54 @@ def download_import_file(filename):
     return send_from_directory(upload_folder, filename, as_attachment=True)
 
 # =============================
+# Bulk Update GST Rates by Category (Admin)
+# =============================
+@product_bp.route("/update-gst", methods=["POST"])
+@jwt_required()
+@roles_required("admin")
+def bulk_update_gst():
+    """Update GST percent for all products based on their category (Indian GST 2026 Slabs)"""
+    try:
+        # Category name -> GST% mapping (Indian GST 2026)
+        category_gst_map = {
+            "Dairy (Milk, Eggs, Cheese)": 5,    # Butter, ghee, cheese, condensed milk
+            "Fruits": 0,                         # Fresh fruits are NIL rated
+            "Vegetables": 0,                     # Fresh vegetables are NIL rated
+            "Grains & Pulses": 5,               # Packaged cereals, flours, starches
+            "Beverages": 18,                     # Mineral water, packaged drinks
+            "Bakery Items": 5,                   # Pastries, cakes, biscuits, rusks
+            "Snacks": 5,                         # Namkeens, bhujia, mixtures
+            "Household Items": 18,               # Household articles, utensils
+            "Personal Care": 18,                 # Cosmetics, skincare, hair products
+            "Frozen Foods": 18,                  # Processed/preserved food items
+            "Spices & Oils": 5                   # Spices, edible oils, condiments
+        }
+
+        products = Product.query.all()
+        updated = 0
+
+        for product in products:
+            category = Category.query.get(product.category_id)
+            if category and category.name in category_gst_map:
+                new_gst = category_gst_map[category.name]
+                if product.gst_percent != new_gst:
+                    product.gst_percent = new_gst
+                    updated += 1
+
+        db.session.commit()
+
+        return jsonify({
+            "message": f"GST rates updated for {updated} products based on category",
+            "updated_count": updated,
+            "total_products": len(products)
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Failed to update GST: {str(e)}"}), 500
+
+
+# =============================
 # Download Sample Template (Admin/Manager)
 # =============================
 @product_bp.route("/download-sample", methods=["GET"])
@@ -708,35 +814,21 @@ def download_sample_template():
     from io import BytesIO
     from flask import send_file
 
-    # Define sample data
+    # Define empty template structure
     data = [
         {
-            "name": "Sample Product 1",
-            "sku": "SAMPLE-001",
-            "barcode": "123456789012",
-            "category": "Snacks",
-            "price": 50.0,
-            "cost_price": 35.0,
-            "unit": "pkt",
-            "size": "100g",
-            "quantity": 100,
+            "name": "",
+            "sku": "",
+            "barcode": "",
+            "category": "",
+            "price": 0.0,
+            "cost_price": 0.0,
+            "unit": "",
+            "size": "",
+            "quantity": 0,
             "discount_percent": 0.0,
-            "gst_percent": 5.0,
-            "description": "Delicious snack example"
-        },
-        {
-            "name": "Sample Product 2",
-            "sku": "SAMPLE-002",
-            "barcode": "098765432109",
-            "category": "Dairy (Milk, Eggs, Cheese)",
-            "price": 60.0,
-            "cost_price": 45.0,
-            "unit": "L",
-            "size": "1L",
-            "quantity": 50,
-            "discount_percent": 5.0,
             "gst_percent": 0.0,
-            "description": "Fresh milk example"
+            "description": ""
         }
     ]
 

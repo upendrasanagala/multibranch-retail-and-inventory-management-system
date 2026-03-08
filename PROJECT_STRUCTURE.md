@@ -32,9 +32,6 @@ The backend is built with **Flask** and uses **SQLAlchemy** for database interac
 
 ### Utility Scripts
 - **`run.py`**: The entry point to start the Flask server.
-- **`seed_inventory.py`**: A script to populate the database with initial dummy data for testing.
-- **`migrate_users.py`**: Helper to migrate or update user data if the schema changes.
-- **`check_*.py` / `debug_*.py`**: *(Deleted)* Temporary scripts used for debugging during development.
 - **`requirements.txt`**: List of Python dependencies.
 
 ---

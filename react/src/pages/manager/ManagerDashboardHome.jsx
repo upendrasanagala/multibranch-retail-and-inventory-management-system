@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import DashboardFAQ from "../../components/DashboardFAQ";
 
 export default function ManagerDashboardHome() {
   const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
@@ -110,6 +111,73 @@ export default function ManagerDashboardHome() {
 
       {error && <p style={{ color: 'red', padding: '10px' }}>{error}</p>}
 
+      {/* ================= ALERTS CENTER ================= */}
+      {lowStockItems.length > 0 && (
+        <div className="alerts-center" style={{
+          marginBottom: '25px',
+          background: '#fff7ed',
+          border: '1px solid #ffedd5',
+          borderRadius: '12px',
+          padding: '16px',
+          display: 'flex',
+          gap: '15px',
+          alignItems: 'flex-start',
+          animation: 'slideDown 0.4s ease-out',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+        }}>
+          <div style={{
+            background: '#f97316',
+            color: 'white',
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            fontSize: '20px'
+          }}>
+            <i className="fas fa-bullhorn"></i>
+          </div>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 5px', color: '#9a3412', fontSize: '15px' }}>Store Stock Warnings</h4>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {lowStockItems.slice(0, 8).map((item, idx) => (
+                <div key={idx} style={{
+                  background: 'white',
+                  border: '1px solid #fed7aa',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: '#4b5563'
+                }}>
+                  <b style={{ color: '#ea580c' }}>{item.product_name || item.name}</b>:
+                  <span style={{ fontWeight: 800, marginLeft: '5px', color: (item.quantity || 0) <= 5 ? '#dc2626' : '#ea580c' }}>
+                    {item.quantity || 0} left
+                  </span>
+                </div>
+              ))}
+              {lowStockItems.length > 8 && (
+                <span style={{ fontSize: '12px', color: '#6b7280', alignSelf: 'center' }}>
+                  +{lowStockItems.length - 8} more critical items
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => {
+                const el = document.getElementById('low-stock-table');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
+            >
+              View Details
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ================= OVERVIEW CARDS ================= */}
       <div className="dashboard-grid">
 
@@ -178,9 +246,7 @@ export default function ManagerDashboardHome() {
       )}
 
       {/* ================= INVENTORY ALERTS ================= */}
-
-      {/* ================= INVENTORY ALERTS ================= */}
-      <div className="table-card" style={{ marginTop: "30px" }}>
+      <div id="low-stock-table" className="table-card" style={{ marginTop: "30px" }}>
         <h3>⚠️ Low Stock Alerts</h3>
 
         {lowStockItems.length === 0 ? (
@@ -215,6 +281,40 @@ export default function ManagerDashboardHome() {
 
       {/* ================= BRANCH INVENTORY REMOVED AS REQUESTED ================= */}
 
+      <DashboardFAQ faqs={[
+        {
+          question: "How do I transfer stock to another branch?",
+          answer: "Go to the 'Stock Transfers' tab in the sidebar, click '+ New Transfer', select the destination branch, and add the items you wish to move."
+        },
+        {
+          question: "How can I see my branch's performance?",
+          answer: "The 'Reports' tab provides detailed sales history and product performance metrics specific to your assigned branch."
+        },
+        {
+          question: "How do I manage my branch staff?",
+          answer: "Use the 'Staff Management' tab to view employee details, track their activity, and monitor their performance scores."
+        },
+        {
+          question: "What should I do if an item is low on stock?",
+          answer: "Critical items are highlighted in the 'Store Stock Warnings' at the top of this dashboard. You can order more from suppliers or request an internal transfer."
+        },
+        {
+          question: "How do I set stock thresholds?",
+          answer: "Navigate to the 'Inventory' tab. You can edit the 'Minimum Threshold' for any product to trigger low-stock alerts when inventory drops below that number."
+        },
+        {
+          question: "Can I monitor individual staff activity?",
+          answer: "Yes, the 'Staff Management' tab provides an activity log where you can see which staff members are processing the most transactions."
+        },
+        {
+          question: "How do I handle stock returns?",
+          answer: "Currently, returns are handled through inventory adjustments in the 'Inventory' tab to ensure your physical stock matches the system count."
+        },
+        {
+          question: "Is there a daily sales breakdown?",
+          answer: "The 'Day-to-Day Sales' table on this home page shows your branch's daily transaction counts and total revenue for the current month."
+        }
+      ]} />
     </div>
   );
 }

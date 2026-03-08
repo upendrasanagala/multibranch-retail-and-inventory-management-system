@@ -65,8 +65,8 @@ export default function ManagerStaffActivity() {
     setLoading(true);
     setMessage("");
 
-    if (formData.mobile && !/^\d{10}$/.test(formData.mobile)) {
-      setMessage("Mobile number must be exactly 10 digits.");
+    if (formData.mobile && !/^[6-9]\d{9}$/.test(formData.mobile)) {
+      setMessage("❌ Invalid mobile number. Must be 10 digits starting with 6,7,8,9.");
       setLoading(false);
       return;
     }
@@ -228,10 +228,16 @@ export default function ManagerStaffActivity() {
                   <td>
                     <button
                       className="secondary-btn"
-                      style={{ padding: '5px 10px', fontSize: '12px' }}
+                      style={{
+                        padding: '5px 10px', fontSize: '12px',
+                        opacity: s.interview_status === 'completed' ? 0.5 : 1,
+                        cursor: s.interview_status === 'completed' ? 'not-allowed' : 'pointer'
+                      }}
                       onClick={() => handleEdit(s)}
+                      disabled={s.interview_status === 'completed'}
+                      title={s.interview_status === 'completed' ? 'Interview completed — details locked' : 'Edit staff details'}
                     >
-                      Edit Details
+                      {s.interview_status === 'completed' ? '🔒 Locked' : 'Edit Details'}
                     </button>
                   </td>
                 </tr>

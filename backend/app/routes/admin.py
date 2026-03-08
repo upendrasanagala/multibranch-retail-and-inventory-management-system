@@ -17,6 +17,7 @@ from app.models.sales import SalesTransaction, TransactionItem
 from app.models.stock_transfer import StockTransfer
 from app.utils.decorators import roles_required
 from app.routes import admin_bp
+from app.utils.validators import is_valid_indian_mobile
 from flask_mail import Message
 from app.extensions import mail
 
@@ -162,7 +163,7 @@ def get_users():
             "interview_status": u.interview_status,
             "interviewer_name": (
                 f"{int_user.first_name} {int_user.last_name}" 
-                if (int_user := User.query.get(u.interviewer_id)) 
+                if u.interviewer_id and (int_user := User.query.get(u.interviewer_id)) 
                 else (
                     f"{bm.first_name} {bm.last_name}" 
                     if (bm := User.query.filter_by(branch_id=u.branch_id, role='manager').first()) 
@@ -195,7 +196,12 @@ def update_user(user_id):
     user.branch_id = data.get("branch_id", user.branch_id)
     user.first_name = data.get("firstName", user.first_name)
     user.last_name = data.get("lastName", user.last_name)
-    user.phone = data.get("phone", user.phone)
+    
+    new_phone = data.get("phone", user.phone)
+    if new_phone and not is_valid_indian_mobile(new_phone):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
+    user.phone = new_phone
+    
     user.address = data.get("address", user.address)
     user.upi_id = data.get("upi_id", user.upi_id)
     user.status = data.get("status", user.status)
@@ -206,7 +212,7 @@ def update_user(user_id):
 
 
 # =============================
-# Delete User
+# Deactivate User (Soft Delete)
 # =============================
 @admin_bp.route("/users/<int:user_id>", methods=["DELETE"])
 @jwt_required()
@@ -231,6 +237,28 @@ def delete_user(user_id):
 
 
 # =============================
+# Reactivate User
+# =============================
+@admin_bp.route("/users/<int:user_id>/reactivate", methods=["PUT"])
+@jwt_required()
+@roles_required("admin")
+def reactivate_user(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    if user.status != 'suspended':
+        return jsonify({"message": "User is not suspended"}), 400
+    
+    try:
+        user.status = 'approved'
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Failed to reactivate user: {str(e)}"}), 500
+    
+    return jsonify({"message": "User reactivated successfully"}), 200
+
+
+# =============================
 # Create User (Admin Only)
 # =============================
 @admin_bp.route("/users", methods=["POST"])
@@ -244,6 +272,9 @@ def create_user():
     for field in required_fields:
         if not data.get(field):
             return jsonify({"message": f"Missing required field: {field}"}), 400
+
+    if not is_valid_indian_mobile(data.get("mobile")):
+        return jsonify({"message": "Invalid mobile number. Must be 10 digits starting with 6,7,8,9"}), 400
 
     # Check if email exists
     existing_user = User.query.filter_by(email=data["email"]).first()
@@ -330,8 +361,9 @@ Admin Team
 """
             mail.send(msg)
             email_sent = True
-        except Exception as e:
-            print(f"Failed to send welcome email: {e}")
+        except Exception:
+            # Email failure shouldn't block user creation
+            pass
 
         return jsonify({
             "message": "User created successfully" + (" (Email sent)" if email_sent else " (Email failed, copy credentials below)"),
@@ -398,8 +430,9 @@ Employee ID: {user.employee_id}
         msg.body = body
         mail.send(msg)
         email_sent = True
-    except Exception as e:
-        print(f"Failed to send approval email: {e}")
+    except Exception:
+        # Email failure shouldn't block approval
+        pass
 
     db.session.commit()
     
@@ -511,18 +544,83 @@ def sales_report():
     
     total_revenue = sum(t[0].total_amount for t in results)
     total_count = len(results)
+    total_discount = sum(t[0].discount for t in results if t[0].discount)
     
     delta = end_date - start_date
     actual_days = max(delta.days, 1)
+    avg_ticket = total_revenue / total_count if total_count > 0 else 0
+    
+    # Payment method breakdown
+    payment_breakdown = {}
+    for t, b_name in results:
+        pm = (t.payment_method or 'cash').lower()
+        if pm not in payment_breakdown:
+            payment_breakdown[pm] = {"method": pm.upper(), "count": 0, "total": 0}
+        payment_breakdown[pm]["count"] += 1
+        payment_breakdown[pm]["total"] += t.total_amount
+    
+    for pm in payment_breakdown.values():
+        pm["percentage"] = round((pm["total"] / total_revenue * 100) if total_revenue > 0 else 0, 1)
+    
+    sorted_payment = sorted(payment_breakdown.values(), key=lambda x: x["total"], reverse=True)
+    
+    # Top selling products (inline, no separate API call needed)
+    transaction_ids = [t[0].transaction_id for t in results]
+    top_products = []
+    if transaction_ids:
+        product_sales = db.session.query(
+            TransactionItem.product_id,
+            func.sum(TransactionItem.quantity).label("total_quantity"),
+            func.sum(TransactionItem.subtotal).label("total_revenue")
+        ).filter(
+            TransactionItem.transaction_id.in_(transaction_ids)
+        ).group_by(
+            TransactionItem.product_id
+        ).order_by(
+            func.sum(TransactionItem.subtotal).desc()
+        ).limit(10).all()
+        
+        for pid, total_qty, total_rev in product_sales:
+            product = Product.query.get(pid)
+            top_products.append({
+                "product_name": product.name if product else "Unknown",
+                "total_quantity": total_qty,
+                "total_revenue": float(total_rev or 0),
+                "gst_percent": product.gst_percent if product else 0
+            })
+    
+    # GST summary (breakup by slab)
+    gst_summary = {}
+    for t_id in transaction_ids:
+        items = TransactionItem.query.filter_by(transaction_id=t_id).all()
+        for item in items:
+            product = Product.query.get(item.product_id)
+            rate = product.gst_percent if product else 0
+            if rate not in gst_summary:
+                gst_summary[rate] = {"slab": f"{rate}%", "taxable": 0, "cgst": 0, "sgst": 0, "total_tax": 0}
+            item_total = float(item.subtotal or 0)
+            taxable = item_total / (1 + rate / 100) if rate > 0 else item_total
+            tax = item_total - taxable
+            gst_summary[rate]["taxable"] += round(taxable, 2)
+            gst_summary[rate]["cgst"] += round(tax / 2, 2)
+            gst_summary[rate]["sgst"] += round(tax / 2, 2)
+            gst_summary[rate]["total_tax"] += round(tax, 2)
+    
+    sorted_gst = sorted(gst_summary.values(), key=lambda x: float(x["slab"].replace('%','')))
     
     return jsonify({
         "period_days": actual_days,
         "total_revenue": total_revenue,
         "total_transactions": total_count,
         "average_per_day": total_revenue / actual_days,
+        "avg_ticket_size": round(avg_ticket, 2),
+        "total_discount": total_discount,
         "daily_breakdown": sorted_daily,
         "branch_breakdown": sorted_branch,
-        "transactions": sorted_transactions
+        "transactions": sorted_transactions,
+        "payment_breakdown": sorted_payment,
+        "top_products": top_products,
+        "gst_summary": sorted_gst
     }), 200
 
 
@@ -559,24 +657,63 @@ def inventory_report():
     
     total_items = len(results)
     total_stock_value = sum(inv.quantity * prod.unit_price for inv, prod, b_name in results)
-    low_stock_items = [
-        {
+    
+    # Full inventory list with severity
+    all_items = []
+    category_breakdown = {}
+    out_of_stock = 0
+    
+    for inv, prod, b_name in results:
+        qty = inv.quantity
+        threshold = inv.min_threshold
+        
+        # Severity levels
+        if qty == 0:
+            severity = "out_of_stock"
+            out_of_stock += 1
+        elif qty <= threshold:
+            severity = "critical"
+        elif qty <= threshold * 2:
+            severity = "warning"
+        else:
+            severity = "ok"
+        
+        item_value = qty * prod.unit_price
+        cat = prod.category or "Uncategorized"
+        
+        all_items.append({
             "product_id": prod.product_id,
             "product_name": prod.name,
+            "sku": prod.sku,
+            "category": cat,
             "branch_id": inv.branch_id,
             "branch_name": b_name,
-            "quantity": inv.quantity,
-            "min_threshold": inv.min_threshold
-        }
-        for inv, prod, b_name in results
-        if inv.quantity <= inv.min_threshold
-    ]
+            "quantity": qty,
+            "unit_price": prod.unit_price,
+            "stock_value": round(item_value, 2),
+            "gst_percent": prod.gst_percent or 0,
+            "min_threshold": threshold,
+            "severity": severity
+        })
+        
+        # Category breakdown
+        if cat not in category_breakdown:
+            category_breakdown[cat] = {"category": cat, "items": 0, "total_qty": 0, "total_value": 0}
+        category_breakdown[cat]["items"] += 1
+        category_breakdown[cat]["total_qty"] += qty
+        category_breakdown[cat]["total_value"] += round(item_value, 2)
+    
+    low_stock_items = [i for i in all_items if i["severity"] in ("critical", "out_of_stock")]
+    sorted_categories = sorted(category_breakdown.values(), key=lambda x: x["total_value"], reverse=True)
     
     return jsonify({
         "total_items": total_items,
         "total_stock_value": total_stock_value,
         "low_stock_count": len(low_stock_items),
-        "low_stock_items": low_stock_items
+        "out_of_stock_count": out_of_stock,
+        "low_stock_items": low_stock_items,
+        "all_items": all_items,
+        "category_breakdown": sorted_categories
     }), 200
 
 
@@ -668,6 +805,49 @@ def top_products_report():
     return jsonify({
         "top_products": top_products,
         "period_days": actual_days
+    }), 200
+
+
+# =============================
+# Profit Margin Analysis Report
+# =============================
+@admin_bp.route("/reports/profit-margins", methods=["GET"])
+@jwt_required()
+@roles_required("admin")
+def profit_margin_report():
+    # Calculate profit margin for all products: (unit_price - cost_price) / unit_price
+    products = Product.query.all()
+    
+    analysis = []
+    for p in products:
+        cost = p.cost_price or 0
+        price = p.unit_price or 0
+        
+        profit_per_unit = price - cost
+        margin_percent = (profit_per_unit / price * 100) if price > 0 else 0
+        
+        # Get total units sold for this product (all-time or optional period)
+        total_sold = db.session.query(func.sum(TransactionItem.quantity)).filter_by(product_id=p.product_id).scalar() or 0
+        total_profit = profit_per_unit * total_sold
+        
+        analysis.append({
+            "product_id": p.product_id,
+            "name": p.name,
+            "sku": p.sku,
+            "cost_price": cost,
+            "unit_price": price,
+            "profit_per_unit": round(profit_per_unit, 2),
+            "margin_percent": round(margin_percent, 2),
+            "total_sold": total_sold,
+            "total_profit": round(total_profit, 2)
+        })
+    
+    # Sort by total profit descending
+    analysis.sort(key=lambda x: x["total_profit"], reverse=True)
+    
+    return jsonify({
+        "report_date": datetime.now().isoformat(),
+        "analysis": analysis
     }), 200
 
 
