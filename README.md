@@ -29,10 +29,21 @@ A modern, fast interface for staff to handle customer transactions.
 - **Custom Thresholds**: Set independent "Low Stock" alerts for each branch.
 - **Manual Adjustments**: Admins can easily add, subtract, or set stock levels manually.
 
-### 5. 🚚 Multi-Branch Transfers
-Streamlined workflow for moving stock between locations.
-- **Request & Approval**: Managers can request stock from other branches.
-- **Tracking**: Monitor the status of every transfer in real-time.
+### 6. 📢 Internal Announcements System
+Administrators can broadcast important updates directly to the team.
+- **Targeted Messaging**: Send messages to "Everyone", "Managers Only", or "Staff Only".
+- **Real-time Badges**: Dynamic "NEW" tags appear on the sidebar for unread updates.
+- **Read Tracking**: Individual read receipts (persistent per user) ensures everyone stays informed.
+
+### 7. 📧 Public "Contact Us" Portal
+A professional feedback loop for external inquiries.
+- **Inquiry Management**: Admin dashboard to read, mark-as-read, or delete customer messages.
+- **Email Integration**: 1-click reply via system-configured mail client.
+
+### 8. 👤 User-Specific Profiles
+Enhanced security and personal details management.
+- **Secure Updates**: Staff and Managers can update their own phone, address, and bank details.
+- **Visual Branding**: Initials-based avatars with role-specific color coding.
 
 ---
 
@@ -40,9 +51,9 @@ Streamlined workflow for moving stock between locations.
 
 | Role | Capabilities |
 | :--- | :--- |
-| **Admin** | Full system control: Manage branches, staff, global inventory, and view detailed financial reports. |
-| **Manager** | Branch control: Manage staff activity, local inventory, and handle stock transfer requests. |
-| **Staff** | Operational: Access the POS terminal, view local stock, and check personal sales history. |
+| **Admin** | Full system control: Manage branches, staff, global inventory, view financial reports, and broadcast announcements. |
+| **Manager** | Branch control: Manage staff activity, local inventory, handle stock transfer requests, and manage personal profile. |
+| **Staff** | Operational: Access POS terminal, view local stock, check sales history, and manage personal profile. |
 
 ---
 
@@ -97,7 +108,13 @@ The system is configured to run with a **Local PostgreSQL** instance.
    pip install -r requirements.txt
    ```
 
-4. **Run Server**:
+4. **Sync Database Models**:
+   Whenever new features are pulled, ensure the database tables are synchronized:
+   ```bash
+   python create_tables.py
+   ```
+
+5. **Run Server**:
    ```bash
    py -3.12 run.py
    ```
@@ -122,6 +139,13 @@ The system is configured to run with a **Local PostgreSQL** instance.
 - `POST /api/sales`: Create a new POS transaction
 - `GET /api/sales/daily-summary`: View revenue summary for today
 
+### Communication & Announcements
+- `GET /api/announcements/feed`: Role-based announcement feed for staff/managers
+- `GET /api/announcements/`: List all announcements (Admin)
+- `POST /api/announcements/`: Broadcast new announcement (Admin)
+- `POST /api/contact/`: Submit public inquiry
+- `GET /api/contact/`: List all contact messages (Admin)
+
 ---
 
 ## 🗺️ Database Schema (ER Summary)
@@ -137,6 +161,8 @@ The system uses a normalized PostgreSQL schema with 10 tables:
 8.  **Stock Transfers**: Workflow for inter-branch stock movement.
 9.  **Inventory Adjustments**: Audit logs for manual stock changes.
 10. **Suppliers**: Manufacturer and vendor contact management.
+11. **Announcements**: Broadcast records with role-based targeting.
+12. **ContactMessages**: Customer inquiries from the public website.
 
 ---
 
