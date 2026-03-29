@@ -396,6 +396,42 @@ const api = {
 
     delete: (id) =>
       apiRequest(`/suppliers/${id}`, { method: "DELETE" })
+  },
+
+  /* ===================== CONTACT ===================== */
+  contact: {
+    submit: (data) =>
+      apiRequest("/contact/", {
+        method: "POST",
+        body: JSON.stringify(data)
+      }),
+
+    getAll: () =>
+      apiRequest("/contact/"),
+
+    markRead: (id) =>
+      apiRequest(`/contact/${id}/read`, { method: "PUT" }),
+
+    delete: (id) =>
+      apiRequest(`/contact/${id}`, { method: "DELETE" })
+  },
+
+  /* ===================== ANNOUNCEMENTS ===================== */
+  announcements: {
+    create: (data) =>
+      apiRequest("/announcements/", {
+        method: "POST",
+        body: JSON.stringify(data)
+      }),
+
+    getAll: () =>
+      apiRequest("/announcements/"),
+
+    getFeed: () =>
+      apiRequest("/announcements/feed"),
+
+    delete: (id) =>
+      apiRequest(`/announcements/${id}`, { method: "DELETE" })
   }
 };
 

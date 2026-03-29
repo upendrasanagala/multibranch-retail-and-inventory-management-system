@@ -333,7 +333,7 @@ export default function Home() {
               <li><a href="#features">Our Mission</a></li>
               <li><a href="#">Team</a></li>
               <li><a href="#">Customers</a></li>
-              <li><a href="#">Contact Us</a></li>
+              <li><a href="/contact">Contact Us</a></li>
             </ul>
           </div>
 

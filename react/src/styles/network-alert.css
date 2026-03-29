@@ -1,0 +1,71 @@
+/* ======================================================
+   NETWORK ALERT — Simple Top Bar
+====================================================== */
+
+.net-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px 20px;
+    font-family: 'Inter', 'Outfit', -apple-system, sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    animation: netBarIn 0.35s ease;
+}
+
+/* Offline */
+.net-bar--offline {
+    background: #dc2626;
+    color: #fff;
+}
+
+/* Online / Reconnected */
+.net-bar--online {
+    background: #16a34a;
+    color: #fff;
+    animation: netBarIn 0.35s ease, netBarOut 0.4s ease 2.5s forwards;
+}
+
+/* Icon */
+.net-bar__icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: #fff;
+}
+
+/* Text */
+.net-bar__text {
+    letter-spacing: -0.01em;
+}
+
+/* Animations */
+@keyframes netBarIn {
+    from { transform: translateY(-100%); }
+    to   { transform: translateY(0); }
+}
+
+@keyframes netBarOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-100%); }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .net-bar {
+        font-size: 12px;
+        padding: 8px 14px;
+        gap: 8px;
+    }
+
+    .net-bar__icon {
+        width: 16px;
+        height: 16px;
+    }
+}

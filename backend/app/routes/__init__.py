@@ -16,6 +16,8 @@ transfer_bp = Blueprint("transfers", __name__, url_prefix="/api/transfers")
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 manager_bp = Blueprint("manager", __name__, url_prefix="/api/manager")
 supplier_bp = Blueprint("suppliers", __name__, url_prefix="/api/suppliers")
+contact_bp = Blueprint("contact", __name__, url_prefix="/api/contact")
+announcements_bp = Blueprint("announcements", __name__, url_prefix="/api/announcements")
 
 # Import routes to register endpoints
 from . import auth
@@ -28,3 +30,5 @@ from . import transfer
 from . import admin
 from . import manager
 from . import supplier
+from . import contact
+from . import announcements

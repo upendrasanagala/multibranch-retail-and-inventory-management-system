@@ -6,6 +6,8 @@ import StaffPOS from "./staffPOS";
 import StaffInventory from "./staffInventory";
 import StaffReceipts from "./staffReceipts";
 import StaffProfile from "./StaffProfile";
+import AnnouncementsFeed from "../../components/AnnouncementsFeed";
+import UnreadAnnouncementsBadge from "../../components/UnreadAnnouncementsBadge";
 import LiveClock from "../../components/LiveClock";
 import ConfirmModal from "../../components/ConfirmModal";
 
@@ -71,6 +73,14 @@ export default function StaffDashboard() {
             <i className="fas fa-user-circle"></i> Profile
           </a>
 
+          <a
+            className={active === "announcements" ? "active" : ""}
+            onClick={() => setActive("announcements")}
+          >
+            <i className="fas fa-bullhorn"></i> Announcements
+            <UnreadAnnouncementsBadge />
+          </a>
+
           <a className="logout-link" onClick={() => setShowLogoutModal(true)}>
             <i className="fas fa-sign-out-alt"></i> Logout
           </a>
@@ -84,6 +94,7 @@ export default function StaffDashboard() {
         {active === "dashboard" && <StaffDashboardHome />}
         {active === "pos" && <StaffPOS />}
         {active === "inventory" && <StaffInventory />}
+        {active === "announcements" && <AnnouncementsFeed />}
         {active === "receipts" && <StaffReceipts />}
         {active === "profile" && <StaffProfile />}
       </main>

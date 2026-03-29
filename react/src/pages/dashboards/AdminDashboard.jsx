@@ -9,6 +9,9 @@ import AdminStockTransfers from "../admin/adminStockTransfer";
 import AdminBranches from "../admin/AdminBranches";
 import AdminReports from "../admin/AdminReports";
 import SupplierManagement from "../admin/SupplierManagement";
+import AdminMessages from "../admin/AdminMessages";
+import AdminAnnouncements from "../admin/AdminAnnouncements";
+import UnreadTransfersBadge from "../../components/UnreadTransfersBadge";
 
 import api from "../../services/api";
 import { logout as authLogout, getCurrentUser } from "../../services/authService";
@@ -259,10 +262,18 @@ export default function AdminDashboard() {
               onClick={() => setActiveSection("reports")}>Reports</a>
 
             <a className={activeSection === "transfers" ? "active" : ""}
-              onClick={() => setActiveSection("transfers")}>Transfers</a>
+              onClick={() => setActiveSection("transfers")}>Transfers <UnreadTransfersBadge /></a>
 
             <a className={activeSection === "suppliers" ? "active" : ""}
               onClick={() => setActiveSection("suppliers")}>Suppliers</a>
+
+            <a className={activeSection === "messages" ? "active" : ""}
+              onClick={() => setActiveSection("messages")}>Messages</a>
+
+            <a className={activeSection === "announcements" ? "active" : ""}
+              onClick={() => setActiveSection("announcements")}>
+              <i className="fas fa-bullhorn" style={{marginRight: '6px'}}></i>Announcements
+            </a>
 
             <a onClick={() => setShowLogoutModal(true)}>Logout</a>
           </nav>
@@ -742,6 +753,8 @@ export default function AdminDashboard() {
           {activeSection === "reports" && <AdminReports />}
           {activeSection === "transfers" && <AdminStockTransfers />}
           {activeSection === "suppliers" && <SupplierManagement />}
+          {activeSection === "messages" && <AdminMessages />}
+          {activeSection === "announcements" && <AdminAnnouncements />}
 
         </main>
       </div>

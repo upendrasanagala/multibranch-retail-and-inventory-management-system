@@ -37,6 +37,7 @@ export default function AdminStockTransfers() {
     try {
       await api.transfers.approve(transferId);
       await loadData();
+      window.dispatchEvent(new Event("transfersUpdated"));
     } catch (err) {
       showToast("Failed to approve transfer: " + err.message, "error");
     }
@@ -52,6 +53,7 @@ export default function AdminStockTransfers() {
     try {
       await api.transfers.reject(id, reason);
       await loadData();
+      window.dispatchEvent(new Event("transfersUpdated"));
     } catch (err) {
       showToast("Failed to reject transfer: " + err.message, "error");
     }

@@ -11,6 +11,8 @@ from .sales import SalesTransaction, TransactionItem
 from .stock_transfer import StockTransfer
 from .adjustment import InventoryAdjustment
 from .supplier import Supplier
+from .contact import ContactMessage
+from .announcement import Announcement
 
 __all__ = [
     "User",
@@ -22,5 +24,7 @@ __all__ = [
     "TransactionItem",
     "StockTransfer",
     "InventoryAdjustment",
-    "Supplier"
+    "Supplier",
+    "ContactMessage",
+    "Announcement"
 ]

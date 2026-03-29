@@ -6,6 +6,10 @@ import ManagerTransactions from "./ManagerTransactions";
 import ManagerTransfers from "./ManagerTransfers";
 import ManagerReports from "./ManagerReports";
 import StaffActivity from "./ManagerStaffActivity";
+import ManagerProfile from "./ManagerProfile";
+import AnnouncementsFeed from "../../components/AnnouncementsFeed";
+import UnreadAnnouncementsBadge from "../../components/UnreadAnnouncementsBadge";
+import UnreadTransfersBadge from "../../components/UnreadTransfersBadge";
 import LiveClock from "../../components/LiveClock";
 import ConfirmModal from "../../components/ConfirmModal";
 import "../../styles/dashboard.css";
@@ -62,6 +66,7 @@ export default function ManagerDashboard() {
             onClick={() => setActive("transfers")}
           >
             <i className="fas fa-exchange-alt"></i> Stock Transfers
+            <UnreadTransfersBadge />
           </a>
 
           <a
@@ -76,6 +81,21 @@ export default function ManagerDashboard() {
             onClick={() => setActive("staff")}
           >
             <i className="fas fa-users"></i> Staff Management
+          </a>
+
+          <a
+            className={active === "announcements" ? "active" : ""}
+            onClick={() => setActive("announcements")}
+          >
+            <i className="fas fa-bullhorn"></i> Announcements
+            <UnreadAnnouncementsBadge />
+          </a>
+
+          <a
+            className={active === "profile" ? "active" : ""}
+            onClick={() => setActive("profile")}
+          >
+            <i className="fas fa-user-circle"></i> Profile
           </a>
 
           <a className="logout-link" onClick={() => setShowLogoutModal(true)}>
@@ -95,6 +115,8 @@ export default function ManagerDashboard() {
         {active === "transfers" && <ManagerTransfers />}
         {active === "reports" && <ManagerReports />}
         {active === "staff" && <StaffActivity />}
+        {active === "announcements" && <AnnouncementsFeed />}
+        {active === "profile" && <ManagerProfile />}
 
       </main>
 
