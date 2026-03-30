@@ -30,7 +30,7 @@ export default function StaffPOS() {
   const [lastSale, setLastSale] = useState(null);
   const receiptRef = useRef();
 
-  const GST_PERCENT = 5;
+  const GST_PERCENT = 0;
 
   /* ================= LOAD INVENTORY FROM BACKEND ================= */
   const loadInventory = async () => {
@@ -221,8 +221,8 @@ export default function StaffPOS() {
   const gst = (subtotal * GST_PERCENT) / 100;
 
   // 2. Bill-Level Discount (Configurable)
-  const [billThreshold, setBillThreshold] = useState(400);
-  const [billOfferPercent, setBillOfferPercent] = useState(10);
+  const [billThreshold, setBillThreshold] = useState(2000);
+  const [billOfferPercent, setBillOfferPercent] = useState(5);
 
   const currentTotalBeforeBillDisc = subtotal + gst - itemDiscounts;
 
@@ -469,7 +469,7 @@ export default function StaffPOS() {
       dash + '\n' +
       leftRight('Gross Amount:', 'Rs.' + grossAmt.toFixed(2)) + '\n' +
       discLines +
-      leftRight('GST (Tax):', 'Rs.' + sale.gst.toFixed(2)) + '\n' +
+      (sale.gst > 0 ? leftRight('GST (Tax):', 'Rs.' + sale.gst.toFixed(2)) + '\n' : '') +
       roundLine +
       dblLine + '\n' +
       leftRight('NET PAYABLE:', 'Rs.' + roundedTotal.toFixed(2)) + '\n' +
@@ -477,10 +477,7 @@ export default function StaffPOS() {
       'Rs. ' + numberToWords(roundedTotal) + ' Only' + '\n' +
       dash + '\n' +
       '\n' +
-      center('--- GST BREAKUP ---') + '\n' +
-      gstLines +
-      dash + '\n' +
-      '\n' +
+      (totCGST + totSGST > 0 ? (center('--- GST BREAKUP ---') + '\n' + gstLines + dash + '\n\n') : '') +
       leftRight('Payment:', payMethod) + '\n' +
       payInfo + '\n' +
       cashInfo +
@@ -808,7 +805,7 @@ export default function StaffPOS() {
               <div className="bill-card">
                 <h3>Summary</h3>
                 <div className="bill-row"><span>Items ({cart.reduce((a, b) => a + b.qty, 0)})</span><span>₹{subtotal.toFixed(2)}</span></div>
-                <div className="bill-row"><span>Tax (GST 5%)</span><span>₹{gst.toFixed(2)}</span></div>
+                {gst > 0 && <div className="bill-row"><span>Tax (GST 5%)</span><span>₹{gst.toFixed(2)}</span></div>}
 
                 {itemDiscounts > 0 && (
                   <div className="bill-row" style={{ color: '#10b981' }}>
@@ -984,14 +981,18 @@ export default function StaffPOS() {
                       <span>Taxable Amount:</span>
                       <span>₹{subtotal.toFixed(2)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>CGST (2.5%):</span>
-                      <span>₹{(gst / 2).toFixed(2)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>SGST (2.5%):</span>
-                      <span>₹{(gst / 2).toFixed(2)}</span>
-                    </div>
+                    {gst > 0 && (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>CGST (2.5%):</span>
+                          <span>₹{(gst / 2).toFixed(2)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>SGST (2.5%):</span>
+                          <span>₹{(gst / 2).toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
                     {discount > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Discount:</span>
