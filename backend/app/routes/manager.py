@@ -6,6 +6,8 @@ from app.extensions import db
 from app.models.user import User
 from app.utils.decorators import roles_required
 from app.utils.validators import is_valid_indian_mobile
+from app.utils.ai_engine import get_inventory_insights, get_sales_forecast
+from app.utils.staff_ai import get_staff_performance_metrics
 
 manager_bp = Blueprint("manager", __name__, url_prefix="/api/manager")
 
@@ -68,6 +70,46 @@ def create_staff():
         "message": "Staff account created. Interview marked as completed. Waiting for admin approval.",
         "user_id": staff.user_id
     }), 201
+
+
+@manager_bp.route("/stats/ai-insights", methods=["GET"])
+@jwt_required()
+@roles_required("manager")
+def get_manager_ai_insights():
+    """
+    Returns branch-specific AI predictive insights for the manager.
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user.branch_id:
+        return jsonify({"message": "User not assigned to a branch"}), 403
+        
+    insights = get_inventory_insights(branch_id=user.branch_id)
+    forecast = get_sales_forecast(branch_id=user.branch_id)
+    
+    return jsonify({
+        "insights": insights,
+        "forecast": forecast
+    }), 200
+
+
+@manager_bp.route("/stats/staff-performance", methods=["GET"])
+@jwt_required()
+@roles_required("manager")
+def get_manager_staff_performance():
+    """
+    Returns AI-driven staff performance metrics for the branch.
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user.branch_id:
+        return jsonify({"message": "User not assigned to a branch"}), 403
+        
+    metrics = get_staff_performance_metrics(branch_id=user.branch_id)
+    return jsonify({"performance_metrics": metrics}), 200
+
 
 @manager_bp.route("/staff", methods=["GET"])
 @jwt_required()

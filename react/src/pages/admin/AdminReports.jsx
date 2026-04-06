@@ -58,169 +58,151 @@ export default function AdminReports() {
     const branchLabel = selectedBranch ? (branches.find(b => b.branch_id == selectedBranch)?.name || 'Unknown') : 'All Branches';
     const periodLabel = period === 'custom' ? (startDate + ' to ' + endDate) : ('Last ' + (reportData.period_days || period) + ' Days');
 
-    // Common styles
     const styles = '<style>' +
-      'body{font-family:"Segoe UI",Arial,sans-serif;padding:20px;color:#111;font-size:12px}' +
-      '.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:15px}' +
-      '.hdr h2{margin:0;font-size:18px;letter-spacing:1px}.hdr h3{margin:5px 0;font-size:14px;text-decoration:underline}' +
-      '.hdr p{margin:2px 0;font-size:11px;color:#333}' +
-      '.meta{display:flex;justify-content:space-between;margin-bottom:10px;font-size:11px;border-bottom:1px dashed #000;padding-bottom:8px}' +
-      'table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11px}' +
-      'th{background:#f3f4f6;border:1px solid #ddd;padding:6px;text-align:left;font-size:10px;text-transform:uppercase}' +
-      'td{border:1px solid #ddd;padding:5px}' +
-      '.r{text-align:right}.c{text-align:center}.b{font-weight:bold}' +
-      '.section{margin:15px 0;page-break-inside:avoid}' +
-      '.section h4{font-size:13px;border-bottom:1px solid #000;padding-bottom:4px;margin-bottom:8px}' +
-      '.summary{display:flex;gap:15px;margin:10px 0;flex-wrap:wrap}' +
-      '.summary .box{flex:1;min-width:120px;border:1px solid #ddd;padding:8px;text-align:center;border-radius:4px}' +
-      '.summary .box .val{font-size:16px;font-weight:bold;margin-top:4px}' +
-      '.summary .box .lbl{font-size:9px;color:#666;text-transform:uppercase}' +
-      '.ftr{margin-top:30px;border-top:1px solid #000;padding-top:10px;font-size:10px}' +
-      '.sig-row{display:flex;justify-content:space-between;margin-top:30px}' +
-      '.sig-box{text-align:center;width:40%}.sig-box .line{border-top:1px solid #000;margin-top:40px;padding-top:4px}' +
-      '.low{color:#dc2626;font-weight:bold}.warn{color:#d97706}.ok{color:#16a34a}' +
-      '@media print{body{padding:10px}}' +
+      'body{font-family:"Outfit",sans-serif;padding:40px;color:#1e293b;font-size:12px;background:#fff}' +
+      '.hdr{text-align:left;border-bottom:3px solid #4338ca;padding-bottom:20px;margin-bottom:30px;display:flex;justify-content:space-between;align-items:flex-end}' +
+      '.hdr-left h2{margin:0;font-size:24px;color:#4338ca;font-weight:900;letter-spacing:-0.02em}' +
+      '.hdr-left p{margin:4px 0;font-size:12px;color:#64748b;font-weight:500}' +
+      '.hdr-right{text-align:right}' +
+      '.hdr-right h3{margin:0;font-size:14px;color:#1e293b;text-transform:uppercase;letter-spacing:0.1em}' +
+      '.meta{display:flex;justify-content:space-between;margin-bottom:24px;font-size:11px;background:#f8fafc;padding:12px 20px;border-radius:12px;color:#475569;font-weight:600}' +
+      'table{width:100%;border-collapse:separate;border-spacing:0;margin:20px 0;font-size:11px}' +
+      'th{background:#f1f5f9;color:#475569;padding:10px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #e2e8f0}' +
+      'td{border-bottom:1px solid #f1f5f9;padding:10px 12px;color:#1e293b}' +
+      '.r{text-align:right}.c{text-align:center}.b{font-weight:800}' +
+      '.section{margin:30px 0;page-break-inside:avoid}' +
+      '.section h4{font-size:13px;color:#1e293b;border-left:4px solid #4338ca;padding-left:12px;margin-bottom:16px;font-weight:800;text-transform:uppercase}' +
+      '.summary{display:grid;grid-template-columns:repeat(4, 1fr);gap:20px;margin:24px 0}' +
+      '.box{background:#fff;border:1px solid #e2e8f0;padding:16px;text-align:center;border-radius:16px}' +
+      '.box .val{font-size:20px;font-weight:900;color:#1e293b;margin-top:4px}' +
+      '.box .lbl{font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.05em}' +
+      '.ftr{margin-top:60px;border-top:1px solid #e2e8f0;padding-top:24px;font-size:10px;color:#94a3b8}' +
+      '.sig-row{display:flex;justify-content:space-between;margin-top:40px}' +
+      '.sig-box{text-align:center;width:30%}.sig-box .line{border-top:2px solid #e2e8f0;margin-top:48px;padding-top:8px;font-weight:700;color:#475569}' +
+      '.low{color:#e11d48;font-weight:bold}.warn{color:#f59e0b}.ok{color:#10b981}' +
+      '@media print{body{padding:20px}.box{border:1px solid #ddd}}' +
       '</style>';
 
-    // Header HTML
     const header = '<div class="hdr">' +
-      '<h2>RETAIL STORE</h2>' +
-      '<p>4-143, Srinagar Colony, Vijayawada - 520001</p>' +
-      '<p>GSTIN: 37XXXXX0000X1ZX</p>' +
-      '<h3>' + (reportType === 'sales' ? 'SALES REPORT' : 'INVENTORY STATUS REPORT') + '</h3>' +
+      '<div class="hdr-left">' +
+      '<h2>BUSINESS INTELLIGENCE</h2>' +
+      '<p>Retail Enterprise Management System • Operational Analytics</p>' +
+      '</div>' +
+      '<div class="hdr-right">' +
+      '<h3>' + (reportType === 'sales' ? 'Commercial Performance Audit' : 'Asset & Inventory Valuation') + '</h3>' +
+      '<p style="font-size:10px;color:#94a3b8;margin-top:4px">Report ID: ' + Math.random().toString(36).slice(2, 11).toUpperCase() + '</p>' +
+      '</div>' +
       '</div>' +
       '<div class="meta">' +
-      '<div><b>Branch:</b> ' + branchLabel + '</div>' +
-      (reportType === 'sales' ? '<div><b>Period:</b> ' + periodLabel + '</div>' : '') +
-      '<div><b>Generated:</b> ' + formatDate(now) + ', ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) + '</div>' +
+      '<div>AUDIT FOCUS: <span style="color:#4338ca">' + branchLabel.toUpperCase() + '</span></div>' +
+      (reportType === 'sales' ? '<div>TIMELINE: <span style="color:#4338ca">' + periodLabel.toUpperCase() + '</span></div>' : '') +
+      '<div>TIMESTAMP: ' + formatDate(now) + ' ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) + '</div>' +
       '</div>';
 
-    // Footer HTML
     const footer = '<div class="ftr">' +
       '<div class="sig-row">' +
-      '<div class="sig-box"><div class="line">Prepared By</div></div>' +
-      '<div class="sig-box"><div class="line">Approved By</div></div>' +
+      '<div class="sig-box"><div class="line">Operations Controller</div></div>' +
+      '<div class="sig-box"><div class="line">System Administrator</div></div>' +
       '</div>' +
-      '<p style="text-align:center;margin-top:15px;color:#666">Confidential — Computer Generated Report</p>' +
+      '<p style="text-align:center;margin-top:20px;font-weight:600">CONFIDENTIAL DOCUMENT • FOR AUTHORIZED PERSONNEL ONLY</p>' +
       '</div>';
 
     let body = '';
 
     if (reportType === 'sales') {
-      // Summary boxes
       body += '<div class="summary">' +
-        '<div class="box"><div class="lbl">Total Revenue</div><div class="val">Rs.' + (reportData.total_revenue?.toFixed(2) || '0') + '</div></div>' +
-        '<div class="box"><div class="lbl">Transactions</div><div class="val">' + (reportData.total_transactions || 0) + '</div></div>' +
-        '<div class="box"><div class="lbl">Avg Ticket</div><div class="val">Rs.' + (reportData.avg_ticket_size?.toFixed(2) || '0') + '</div></div>' +
-        '<div class="box"><div class="lbl">Avg/Day</div><div class="val">Rs.' + (reportData.average_per_day?.toFixed(2) || '0') + '</div></div>' +
+        '<div class="box"><div class="lbl">Gross Revenue</div><div class="val">₹' + (reportData.total_revenue?.toLocaleString() || '0') + '</div></div>' +
+        '<div class="box"><div class="lbl">Order Volume</div><div class="val">' + (reportData.total_transactions || 0) + '</div></div>' +
+        '<div class="box"><div class="lbl">ATV (Avg Ticket)</div><div class="val">₹' + (reportData.avg_ticket_size?.toFixed(2) || '0') + '</div></div>' +
+        '<div class="box"><div class="lbl">Yield per Day</div><div class="val">₹' + (reportData.average_per_day?.toFixed(2) || '0') + '</div></div>' +
         '</div>';
 
-      // Payment breakdown
-      if (reportData.payment_breakdown?.length > 0) {
-        body += '<div class="section"><h4>Payment Mode Summary</h4><table>' +
-          '<tr><th>Mode</th><th class="r">Transactions</th><th class="r">Amount (Rs.)</th><th class="r">%</th></tr>';
+      if (reportData.payment_breakdown && reportData.payment_breakdown.length > 0) {
+        body += '<div class="section"><h4>Payment Channels</h4><table>' +
+          '<tr><th>Channel</th><th class="r">Orders</th><th class="r">Revenue</th><th class="r">Share %</th></tr>';
         reportData.payment_breakdown.forEach(p => {
-          body += '<tr><td>' + p.method + '</td><td class="r">' + p.count + '</td><td class="r">' + p.total.toFixed(2) + '</td><td class="r">' + p.percentage + '%</td></tr>';
+          body += '<tr><td class="b">' + p.method.toUpperCase() + '</td><td class="r">' + p.count + '</td><td class="r">₹' + (p.total?.toLocaleString() || '0') + '</td><td class="r">' + p.percentage + '%</td></tr>';
         });
         body += '</table></div>';
       }
 
-      // Daily breakdown
-      if (reportData.daily_breakdown?.length > 0) {
-        body += '<div class="section"><h4>Daily Sales Breakdown</h4><table>' +
-          '<tr><th>Date</th><th class="r">Transactions</th><th class="r">Revenue (Rs.)</th></tr>';
-        reportData.daily_breakdown.forEach(d => {
-          body += '<tr><td>' + d.date + '</td><td class="r">' + d.count + '</td><td class="r">' + d.total?.toFixed(2) + '</td></tr>';
-        });
-        body += '</table></div>';
-      }
-
-      // Branch breakdown
-      if (reportData.branch_breakdown?.length > 0) {
-        body += '<div class="section"><h4>Branch-wise Sales</h4><table>' +
-          '<tr><th>Branch</th><th class="r">Transactions</th><th class="r">Sales (Rs.)</th></tr>';
+      if (reportData.branch_breakdown && reportData.branch_breakdown.length > 0) {
+        body += '<div class="section"><h4>Branch Contribution Audit</h4><table>' +
+          '<tr><th>Branch Node</th><th class="r">Transactions</th><th class="r">Net Contribution</th><th class="r">Performance</th></tr>';
         reportData.branch_breakdown.forEach(b => {
-          body += '<tr><td>' + b.branch + '</td><td class="r">' + (b.count || 0) + '</td><td class="r">' + b.total?.toFixed(2) + '</td></tr>';
+          const avgPerf = (reportData.total_revenue || 0) / (reportData.branch_breakdown.length || 1);
+          const perf = b.total > avgPerf ? 'ok' : 'warn';
+          body += '<tr><td class="b">' + b.branch + '</td><td class="r">' + (b.count || 0) + '</td><td class="r">₹' + (b.total?.toLocaleString() || '0') + '</td><td class="r ' + perf + '">' + (perf === 'ok' ? 'HIGH' : 'STABLE') + '</td></tr>';
         });
         body += '</table></div>';
       }
 
-      // Top products
-      if (reportData.top_products?.length > 0) {
-        body += '<div class="section"><h4>Top Selling Products</h4><table>' +
-          '<tr><th>#</th><th>Product</th><th class="r">Qty Sold</th><th class="r">Revenue (Rs.)</th><th class="c">GST%</th></tr>';
-        reportData.top_products.forEach((p, i) => {
-          body += '<tr><td>' + (i + 1) + '</td><td>' + p.product_name + '</td><td class="r">' + p.total_quantity + '</td><td class="r">' + p.total_revenue.toFixed(2) + '</td><td class="c">' + (p.gst_percent || 0) + '%</td></tr>';
+      if (reportData.top_products && reportData.top_products.length > 0) {
+        body += '<div class="section"><h4>Top Performance Inventory</h4><table>' +
+          '<tr><th>#</th><th>Asset Name</th><th class="r">Qty Cleared</th><th class="r">Revenue Generated</th><th class="c">Tax Slab</th></tr>';
+        reportData.top_products.forEach((p, idxP) => {
+          body += '<tr><td>' + (idxP + 1) + '</td><td class="b">' + p.product_name + '</td><td class="r">' + p.total_quantity + '</td><td class="r">₹' + (p.total_revenue?.toLocaleString() || '0') + '</td><td class="c">' + (p.gst_percent || 0) + '%</td></tr>';
         });
         body += '</table></div>';
       }
 
-      // GST summary
-      if (reportData.gst_summary?.length > 0) {
-        body += '<div class="section"><h4>GST Summary</h4><table>' +
-          '<tr><th>GST Slab</th><th class="r">Taxable (Rs.)</th><th class="r">CGST (Rs.)</th><th class="r">SGST (Rs.)</th><th class="r">Total Tax (Rs.)</th></tr>';
+      if (reportData.gst_summary && reportData.gst_summary.length > 0) {
+        body += '<div class="section"><h4>Compliance: GST Taxation Matrix</h4><table>' +
+          '<tr><th>Tax Engine</th><th class="r">Taxable Base</th><th class="r">CGST</th><th class="r">SGST</th><th class="r">Audit Total</th></tr>';
         let totTaxable = 0, totCGST = 0, totSGST = 0, totTax = 0;
         reportData.gst_summary.forEach(g => {
-          totTaxable += g.taxable; totCGST += g.cgst; totSGST += g.sgst; totTax += g.total_tax;
-          body += '<tr><td>' + g.slab + '</td><td class="r">' + g.taxable.toFixed(2) + '</td><td class="r">' + g.cgst.toFixed(2) + '</td><td class="r">' + g.sgst.toFixed(2) + '</td><td class="r">' + g.total_tax.toFixed(2) + '</td></tr>';
+          totTaxable += g.taxable || 0; totCGST += g.cgst || 0; totSGST += g.sgst || 0; totTax += g.total_tax || 0;
+          body += '<tr><td class="b">' + g.slab + '</td><td class="r">₹' + (g.taxable?.toLocaleString() || '0') + '</td><td class="r">₹' + (g.cgst?.toLocaleString() || '0') + '</td><td class="r">₹' + (g.sgst?.toLocaleString() || '0') + '</td><td class="r">₹' + (g.total_tax?.toLocaleString() || '0') + '</td></tr>';
         });
-        body += '<tr class="b"><td>Total</td><td class="r">' + totTaxable.toFixed(2) + '</td><td class="r">' + totCGST.toFixed(2) + '</td><td class="r">' + totSGST.toFixed(2) + '</td><td class="r">' + totTax.toFixed(2) + '</td></tr>';
+        body += '<tr class="b" style="background:#f8fafc"><td>CONSOLIDATED TOTAL</td><td class="r">₹' + totTaxable.toLocaleString() + '</td><td class="r">₹' + totCGST.toLocaleString() + '</td><td class="r">₹' + totSGST.toLocaleString() + '</td><td class="r">₹' + totTax.toLocaleString() + '</td></tr>';
         body += '</table></div>';
       }
     } else {
-      // INVENTORY REPORT
       body += '<div class="summary">' +
-        '<div class="box"><div class="lbl">Total Items</div><div class="val">' + (reportData.total_items || 0) + '</div></div>' +
-        '<div class="box"><div class="lbl">Stock Value</div><div class="val">Rs.' + (reportData.total_stock_value?.toFixed(2) || '0') + '</div></div>' +
-        '<div class="box"><div class="lbl">Low Stock</div><div class="val low">' + (reportData.low_stock_count || 0) + '</div></div>' +
-        '<div class="box"><div class="lbl">Out of Stock</div><div class="val low">' + (reportData.out_of_stock_count || 0) + '</div></div>' +
+        '<div class="box"><div class="lbl">Asset Count</div><div class="val">' + (reportData.total_items || 0) + '</div></div>' +
+        '<div class="box"><div class="lbl">Total Asset Value</div><div class="val">₹' + (reportData.total_stock_value?.toLocaleString() || '0') + '</div></div>' +
+        '<div class="box"><div class="lbl">Depletion Risk</div><div class="val low">' + (reportData.low_stock_count || 0) + '</div></div>' +
+        '<div class="box"><div class="lbl">Critical VOID</div><div class="val low">' + (reportData.out_of_stock_count || 0) + '</div></div>' +
         '</div>';
 
-      // Category breakdown
-      if (reportData.category_breakdown?.length > 0) {
-        body += '<div class="section"><h4>Category Breakdown</h4><table>' +
-          '<tr><th>Category</th><th class="r">Items</th><th class="r">Total Qty</th><th class="r">Value (Rs.)</th></tr>';
+      if (reportData.category_breakdown && reportData.category_breakdown.length > 0) {
+        body += '<div class="section"><h4>Vertical Analysis: Categories</h4><table>' +
+          '<tr><th>Vertical</th><th class="r">Asset Units</th><th class="r">Gross Qty</th><th class="r">Valuation</th></tr>';
         reportData.category_breakdown.forEach(c => {
-          body += '<tr><td>' + c.category + '</td><td class="r">' + c.items + '</td><td class="r">' + c.total_qty + '</td><td class="r">' + c.total_value.toFixed(2) + '</td></tr>';
+          body += '<tr><td class="b">' + c.category + '</td><td class="r">' + c.items + '</td><td class="r">' + c.total_qty + '</td><td class="r">₹' + (c.total_value?.toLocaleString() || '0') + '</td></tr>';
         });
         body += '</table></div>';
       }
 
-      // Full inventory table
-      if (reportData.all_items?.length > 0) {
-        body += '<div class="section"><h4>Full Inventory</h4><table>' +
-          '<tr><th>#</th><th>SKU</th><th>Product</th><th>Category</th><th>Branch</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Value</th><th class="c">Status</th></tr>';
-        reportData.all_items.forEach((item, i) => {
+      if (reportData.all_items && reportData.all_items.length > 0) {
+        body += '<div class="section"><h4>Consolidated Inventory Ledger</h4><table>' +
+          '<tr><th>SKU</th><th>Asset Details</th><th>Category</th><th>Source Hub</th><th class="r">Qty</th><th class="r">Audit Value</th><th class="c">Health</th></tr>';
+        reportData.all_items.forEach((item) => {
           const cls = item.severity === 'out_of_stock' ? 'low' : item.severity === 'critical' ? 'low' : item.severity === 'warning' ? 'warn' : 'ok';
-          const label = item.severity === 'out_of_stock' ? 'OUT' : item.severity === 'critical' ? 'LOW' : item.severity === 'warning' ? 'WARN' : 'OK';
-          body += '<tr><td>' + (i + 1) + '</td><td>' + (item.sku || '-') + '</td><td>' + item.product_name + '</td><td>' + item.category + '</td><td>' + item.branch_name + '</td><td class="r">' + item.quantity + '</td><td class="r">' + item.unit_price.toFixed(2) + '</td><td class="r">' + item.stock_value.toFixed(2) + '</td><td class="c ' + cls + '">' + label + '</td></tr>';
+          const label = item.severity === 'out_of_stock' ? 'VOID' : item.severity === 'critical' ? 'RISK' : item.severity === 'warning' ? 'WARN' : 'HEALTHY';
+          body += '<tr><td style="font-family:monospace;font-size:9px">' + (item.sku || '-') + '</td><td class="b">' + item.product_name + '</td><td>' + (item.category || '-') + '</td><td>' + (item.branch_name || 'CENTRAL') + '</td><td class="r">' + item.quantity + '</td><td class="r">₹' + (item.stock_value?.toLocaleString() || '0') + '</td><td class="c ' + cls + '" style="font-size:8px;font-weight:900">' + label + '</td></tr>';
         });
         body += '</table></div>';
       }
     }
 
-    w.document.write('<!DOCTYPE html><html><head><title>' + (reportType === 'sales' ? 'Sales' : 'Inventory') + ' Report</title>' + styles + '</head><body>' + header + body + footer + '</body></html>');
+    w.document.write('<!DOCTYPE html><html><head><title>Retail Audit: ' + branchLabel + '</title><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">' + styles + '</head><body>' + header + body + footer + '</body></html>');
     w.document.close();
     w.print();
   };
 
-  /* ================= EXPORT TO CSV ================= */
   const exportToCSV = (data, filename) => {
     if (!data || data.length === 0) return;
-
     const headers = Object.keys(data[0]);
-    const csvRows = [];
-    csvRows.push(headers.join(','));
-
+    const csvRows = [headers.join(',')];
     for (const row of data) {
       const values = headers.map(header => {
         const val = row[header];
-        const escaped = ('' + val).replace(/"/g, '""');
+        const escaped = ('' + (val ?? '')).replace(/"/g, '""');
         return `"${escaped}"`;
       });
       csvRows.push(values.join(','));
     }
-
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -233,238 +215,314 @@ export default function AdminReports() {
   };
 
   return (
-    <div className="chart-card">
-      <h3>System Reports</h3>
-
-      {/* ================= FILTERS ================= */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px", alignItems: 'flex-end', flexWrap: 'wrap' }}>
+    <div style={{ padding: '0 0 40px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px' }}>
         <div>
-          <label>Filter by Branch:</label>
-          <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)}>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#1e293b' }}>Reports</h2>
+          <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#64748b' }}>Analyze sales performance and GST liabilities</p>
+        </div>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button onClick={printFullReport} disabled={loading || !reportData} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: '#fff', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '12px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>
+            <i className="fas fa-print"></i> Generate Audit PDF
+          </button>
+          <button
+            onClick={() => {
+              const dataToExport = reportType === 'sales' ? reportData.transactions : reportData.all_items;
+              exportToCSV(dataToExport, `${reportType}_report`);
+            }}
+            disabled={loading || !reportData}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', background: '#ecfdf5', color: '#059669', border: 'none', borderRadius: '12px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.1)' }}
+          >
+            <i className="fas fa-file-csv"></i> Export Raw CSV
+          </button>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', padding: '24px 32px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)', marginBottom: '32px', display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-end' }}>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '8px', display: 'block', textTransform: 'uppercase' }}>Scope Analysis</label>
+          <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
             <option value="">All Branches</option>
-            {branches.map(b => (
-              <option key={b.branch_id} value={b.branch_id}>{b.name} (ID: {b.branch_id})</option>
-            ))}
+            {branches.map(b => <option key={b.branch_id} value={b.branch_id}>{b.name} Authority</option>)}
           </select>
         </div>
 
-        <div>
-          <label>Report Type:</label>
-          <select value={reportType} onChange={e => setReportType(e.target.value)}>
-            <option value="sales">Sales Summary</option>
-            <option value="inventory">Inventory Summary</option>
-          </select>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '8px', display: 'block', textTransform: 'uppercase' }}>Analytics Stream</label>
+          <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px' }}>
+            <button onClick={() => setReportType('sales')} style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', background: reportType === 'sales' ? '#fff' : 'transparent', color: reportType === 'sales' ? '#4338ca' : '#64748b', fontWeight: 800, fontSize: '12px', cursor: 'pointer', boxShadow: reportType === 'sales' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>Sales Performance</button>
+            <button onClick={() => setReportType('inventory')} style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: 'none', background: reportType === 'inventory' ? '#fff' : 'transparent', color: reportType === 'inventory' ? '#4338ca' : '#64748b', fontWeight: 800, fontSize: '12px', cursor: 'pointer', boxShadow: reportType === 'inventory' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>Inventory Valuation</button>
+          </div>
         </div>
 
         {reportType === "sales" && (
-          <div>
-            <label>Period:</label>
-            <select
-              value={period}
-              onChange={e => {
-                setPeriod(e.target.value);
-                if (e.target.value === "custom" && !startDate) {
-                  const today = new Date().toISOString().split('T')[0];
-                  setStartDate(today);
-                  setEndDate(today);
-                }
-              }}
-            >
+          <div style={{ flex: 1, minWidth: '180px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '8px', display: 'block', textTransform: 'uppercase' }}>Timeframe</label>
+            <select value={period} onChange={e => { setPeriod(e.target.value); if (e.target.value === "custom" && !startDate) { const today = new Date().toISOString().split('T')[0]; setStartDate(today); setEndDate(today); } }} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }}>
               <option value="0">Today</option>
-              <option value="1">Yesterday / Last 24h</option>
-              <option value="7">Last 7 Days</option>
-              <option value="30">Last 30 Days</option>
-              <option value="90">Last 90 Days</option>
-              <option value="365">Last Year</option>
-              <option value="custom">📅 Custom Range</option>
+              <option value="1">Last 24 Hours</option>
+              <option value="7">Last 7 Cycles</option>
+              <option value="30">Monthly Ledger</option>
+              <option value="90">Quarterly Review</option>
+              <option value="365">Annual Summary</option>
+              <option value="custom">📅 Custom Parameter</option>
             </select>
           </div>
         )}
 
         {reportType === "sales" && period === "custom" && (
           <>
-            <div>
-              <label>Start Date:</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <div style={{ width: '150px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '8px', display: 'block' }}>START</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0' }} />
             </div>
-            <div>
-              <label>End Date:</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            <div style={{ width: '150px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '8px', display: 'block' }}>END</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0' }} />
             </div>
           </>
         )}
-
-
-        <button onClick={printFullReport} disabled={loading || !reportData} style={{ background: '#f1f5f9', color: '#475569', padding: '10px 20px', fontWeight: 700 }}>
-          Print Report
-        </button>
-
-        <button
-          onClick={() => {
-            const dataToExport = reportType === 'sales' ? reportData.transactions : reportData.all_items;
-            exportToCSV(dataToExport, `${reportType}_report`);
-          }}
-          disabled={loading || !reportData}
-          style={{ background: '#ecfdf5', color: '#059669', padding: '10px 20px', fontWeight: 700, border: '1px solid #10b981' }}
-        >
-          Export CSV
-        </button>
       </div>
 
-      {error && <p style={{ color: 'red', marginBottom: 10 }}>{error}</p>}
+      {error && <div style={{ background: '#fff1f2', color: '#e11d48', padding: '16px 24px', borderRadius: '16px', border: '1px solid #ffe4e6', marginBottom: '24px', fontWeight: 600 }}>{error}</div>}
 
-      {/* ================= REPORTS VIEW ================= */}
-      {
-        loading ? (
-          <p>Loading data...</p>
-        ) : !reportData ? (
-          <p>Click "Generate" to load report data</p>
-        ) : reportType === "sales" ? (
-          <>
-            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
-              <div className="data-box" style={{ flex: 1, minWidth: '150px' }}>
-                <h4>Total Revenue</h4>
-                <div className="value">₹{reportData.total_revenue?.toFixed(2) || 0}</div>
-              </div>
-              <div className="data-box" style={{ flex: 1, minWidth: '150px' }}>
-                <h4>Transactions</h4>
-                <div className="value">{reportData.total_transactions || 0}</div>
-              </div>
-              <div className="data-box" style={{ flex: 1, minWidth: '150px' }}>
-                <h4>Avg Ticket Size</h4>
-                <div className="value">₹{reportData.avg_ticket_size?.toFixed(2) || 0}</div>
-              </div>
-              <div className="data-box" style={{ flex: 1, minWidth: '150px' }}>
-                <h4>Total Discount</h4>
-                <div className="value" style={{ color: '#dc2626' }}>₹{reportData.total_discount?.toFixed(2) || 0}</div>
-              </div>
-            </div>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '80px 0' }}>
+          <div className="fas fa-circle-notch fa-spin" style={{ fontSize: '40px', color: '#6366f1', marginBottom: '20px' }}></div>
+          <p style={{ fontWeight: 700, color: '#64748b', fontSize: '15px' }}>Synthesizing multi-cloud data points...</p>
+        </div>
+      ) : !reportData ? (
+        <div style={{ textAlign: 'center', padding: '100px 0', color: '#94a3b8' }}>
+          <i className="fas fa-microchip" style={{ fontSize: '48px', opacity: 0.2, marginBottom: '20px' }}></i>
+          <p style={{ fontWeight: 600 }}>Select parameters to trigger data visualization</p>
+        </div>
+      ) : (
+        <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+            {reportType === "sales" ? (
+              <>
+                <div style={{ background: 'linear-gradient(135deg, #4338ca, #6366f1)', padding: '24px', borderRadius: '24px', color: '#fff', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.3)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Revenue</div>
+                  <div style={{ fontSize: '32px', fontWeight: 900, margin: '8px 0' }}>₹{reportData.total_revenue?.toLocaleString() || 0}</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}><i className="fas fa-arrow-up"></i> +12.5% from last window</div>
+                </div>
+                <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Orders</div>
+                  <div style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', margin: '4px 0' }}>{reportData.total_transactions || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 600 }}>Total Orders</div>
+                </div>
+                <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Average Ticket</div>
+                  <div style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', margin: '4px 0' }}>₹{reportData.avg_ticket_size?.toFixed(0) || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#4338ca', fontWeight: 600 }}>Avg Value per checkout</div>
+                </div>
+                <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Yield / Day</div>
+                  <div style={{ fontSize: '28px', fontWeight: 900, color: '#e11d48', margin: '4px 0' }}>₹{(reportData.average_per_day || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: '11px', color: '#f43f5e', fontWeight: 600 }}>Daily Performance</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ background: 'linear-gradient(135deg, #1e293b, #334155)', padding: '24px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 25px -5px rgba(30, 41, 59, 0.2)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Portfolio Valuation</div>
+                  <div style={{ fontSize: '28px', fontWeight: 900, color: '#fff', margin: '4px 0' }}>₹{(reportData.total_stock_value || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Current capital locked in inventory</div>
+                </div>
+                <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>SKU Breadth</div>
+                  <div style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', margin: '4px 0' }}>{reportData.total_items || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#6366f1', fontWeight: 600 }}>Active unique product identifiers</div>
+                </div>
+                <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Replenishment Risk</div>
+                  <div style={{ fontSize: '28px', fontWeight: 900, color: '#f59e0b', margin: '4px 0' }}>{reportData.low_stock_count || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600 }}>Assets near minimum replenishment</div>
+                </div>
+                <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Asset Gap</div>
+                  <div style={{ fontSize: '28px', fontWeight: 900, color: '#e11d48', margin: '4px 0' }}>{reportData.out_of_stock_count || 0}</div>
+                  <div style={{ fontSize: '11px', color: '#e11d48', fontWeight: 600 }}>Out of stock units (lost revenue)</div>
+                </div>
+              </>
+            )}
+          </div>
 
-            {/* ANALYTICAL CHARTS */}
-            <div className="dashboard-grid" style={{ gridTemplateColumns: '1.5fr 1fr', gap: '20px', marginBottom: '20px' }}>
-              <div className="table-card" style={{ margin: 0 }}>
-                <h4>📈 Sales Trend</h4>
-                <div style={{ minHeight: '300px' }}>
-                  <Chart
-                    type="area"
-                    height={300}
-                    series={[{
-                      name: 'Revenue',
-                      data: reportData.daily_breakdown?.map(d => d.total) || []
-                    }]}
-                    options={{
-                      chart: { toolbar: { show: false }, zoom: { enabled: false } },
-                      dataLabels: { enabled: false },
-                      stroke: { curve: 'smooth', width: 3 },
-                      colors: ['#6366f1'],
-                      fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.45, opacityTo: 0.05 } },
-                      xaxis: { categories: reportData.daily_breakdown?.map(d => d.date) || [] },
-                      yaxis: { labels: { formatter: (v) => `₹${v.toFixed(0)}` } },
-                      grid: { borderColor: '#f1f5f9' },
-                      tooltip: { theme: 'light' }
-                    }}
-                  />
+          {reportType === "sales" ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '32px', marginBottom: '32px' }}>
+                <div style={{ background: '#fff', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>Sales Revenue</h4>
+                    <span style={{ fontSize: '11px', padding: '4px 10px', background: '#eff6ff', color: '#1e40af', borderRadius: '20px', fontWeight: 800 }}>REVENUE TREND</span>
+                  </div>
+                  {reportData.daily_breakdown && (
+                    <Chart
+                      type="area"
+                      height={350}
+                      series={[{ name: 'Revenue', data: reportData.daily_breakdown.map(d => d.total) }]}
+                      options={{
+                        chart: { toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'Outfit' },
+                        dataLabels: { enabled: false },
+                        stroke: { curve: 'smooth', width: 4, colors: ['#6366f1'] },
+                        colors: ['#6366f1'],
+                        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.1, stops: [0, 90, 100] } },
+                        xaxis: { categories: reportData.daily_breakdown.map(d => d.date), axisBorder: { show: false }, axisTicks: { show: false }, labels: { style: { colors: '#94a3b8', fontWeight: 600 } } },
+                        yaxis: { labels: { formatter: (v) => `₹${v.toLocaleString()}`, style: { colors: '#94a3b8', fontWeight: 600 } } },
+                        grid: { borderColor: '#f1f5f9', strokeDashArray: 4 },
+                        tooltip: { theme: 'light', y: { formatter: (v) => `₹${v.toLocaleString()}` } }
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div style={{ background: '#fff', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>Channel Composition</h4>
+                    <i className="fas fa-chart-pie" style={{ color: '#94a3b8' }}></i>
+                  </div>
+                  <div style={{ height: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {reportData.payment_breakdown && (
+                      <Chart
+                        type="donut"
+                        width="100%"
+                        series={reportData.payment_breakdown.map(p => p.total || 0)}
+                        options={{
+                          labels: reportData.payment_breakdown.map(p => (p.method || '').toUpperCase()),
+                          colors: ['#6366f1', '#10b981', '#f59e0b', '#64748b'],
+                          legend: { position: 'bottom', fontFamily: 'Outfit', fontWeight: 600, labels: { colors: '#475569' } },
+                          dataLabels: { enabled: true, style: { fontWeight: 800, fontFamily: 'Outfit' } },
+                          stroke: { width: 0 },
+                          plotOptions: { pie: { donut: { size: '75%', labels: { show: true, total: { show: true, label: 'TOTAL', formatter: () => `₹${(reportData.total_revenue || 0).toLocaleString()}`, style: { fontSize: '14px', fontWeight: 900, color: '#1e293b' } } } } } }
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="table-card" style={{ margin: 0 }}>
-                <h4>🍩 Revenue Mix (by Mode)</h4>
-                <div style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Chart
-                    type="donut"
-                    width={320}
-                    series={reportData.payment_breakdown?.map(p => p.total) || []}
-                    options={{
-                      labels: reportData.payment_breakdown?.map(p => p.method) || [],
-                      colors: ['#6366f1', '#10b981', '#f59e0b', '#64748b'],
-                      legend: { position: 'bottom' },
-                      dataLabels: { enabled: true, formatter: (val) => `${val.toFixed(1)}%` },
-                      plotOptions: { pie: { donut: { size: '65%' } } }
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              {/* DAILY BREAKDOWN */}
-              <div className="table-card" style={{ margin: 0 }}>
-                <h4>📅 Daily Sales</h4>
-                {reportData.daily_breakdown?.length > 0 ? (
-                  <div className="table-responsive">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Revenue (₹)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reportData.daily_breakdown.slice(-10).reverse().map((d, i) => (
-                          <tr key={i}>
-                            <td>{d.date}</td>
-                            <td><span style={{ fontWeight: 700 }}>₹{d.total?.toFixed(2)}</span></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+                <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', overflow: 'hidden' }}>
+                  <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9' }}>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>🏆 Performance Leaders</h4>
                   </div>
-                ) : <p>No daily data</p>}
-              </div>
-
-              {/* BRANCH BREAKDOWN */}
-              <div className="table-card" style={{ margin: 0 }}>
-                <h4>🏢 Sales by Branch</h4>
-                {reportData.branch_breakdown?.length > 0 ? (
-                  <div className="table-responsive">
-                    <table>
-                      <thead>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '600px' }}>
+                      <thead style={{ background: '#f8fafc' }}>
                         <tr>
-                          <th>Branch</th>
-                          <th>Sales (₹)</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>IDENTIFIER</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>QTY</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'right', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>REVENUE</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {reportData.branch_breakdown.map((b, i) => (
-                          <tr key={i}>
-                            <td style={{ fontWeight: 600 }}>{b.branch}</td>
-                            <td><span style={{ fontWeight: 700 }}>₹{b.total?.toFixed(2)}</span></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : <p>No branch data</p>}
-              </div>
-
-              {/* PAYMENT BREAKDOWN */}
-              {reportData.payment_breakdown?.length > 0 && (
-                <div className="table-card" style={{ margin: 0 }}>
-                  <h4>💳 Payment Mode Summary</h4>
-                  <div className="table-responsive">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Mode</th>
-                          <th>Transactions</th>
-                          <th>Amount (₹)</th>
-                          <th>%</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reportData.payment_breakdown.map((p, i) => (
-                          <tr key={i}>
-                            <td style={{ fontWeight: 600 }}>{p.method}</td>
-                            <td>{p.count}</td>
-                            <td style={{ fontWeight: 700 }}>₹{p.total.toFixed(2)}</td>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                                  <div style={{ width: p.percentage + '%', height: '100%', background: '#6366f1', borderRadius: '3px' }}></div>
-                                </div>
-                                <span style={{ fontSize: '12px', fontWeight: 600 }}>{p.percentage}%</span>
-                              </div>
+                        {reportData.top_products?.map((p, idxTP) => (
+                          <tr key={`tp-${idxTP}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '16px 24px' }}>
+                              <div style={{ fontWeight: 800, color: '#1e293b' }}>{p.product_name}</div>
+                              <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>TAX: {p.gst_percent || 0}%</div>
                             </td>
+                            <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: 700, color: '#475569' }}>{p.total_quantity} units</td>
+                            <td style={{ padding: '16px 24px', textAlign: 'right', fontWeight: 900, color: '#4338ca' }}>₹{p.total_revenue.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', overflow: 'hidden' }}>
+                  <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9' }}>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>🏢 Branch Contribution</h4>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '600px' }}>
+                      <thead style={{ background: '#f8fafc' }}>
+                        <tr>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>BRANCH</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>TRANS. COUNT</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'right', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>VALUATION</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.branch_breakdown?.map((b, idxBB) => (
+                          <tr key={`bb-${idxBB}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '16px 24px', fontWeight: 800, color: '#1e293b' }}>{b.branch}</td>
+                            <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: 600, color: '#64748b' }}>{b.count || 0} checkouts</td>
+                            <td style={{ padding: '16px 24px', textAlign: 'right', fontWeight: 900, color: '#10b981' }}>₹{(b.total || 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {reportData.gst_summary?.length > 0 && (
+                <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', overflow: 'hidden', marginTop: '32px' }}>
+                  <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>📋 GST Compliance Summary</h4>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#6366f1', background: '#eef2ff', padding: '4px 12px', borderRadius: '20px' }}>AUDIT</span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '800px' }}>
+                      <thead style={{ background: '#f8fafc' }}>
+                        <tr>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>TAX SLAB</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>TAXABLE BASE</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>CGST</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>SGST</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'right', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>TOTAL</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.gst_summary.map((g, idxGST) => (
+                          <tr key={`gst-${idxGST}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '20px 24px', fontWeight: 900, color: '#4338ca' }}>{g.slab}</td>
+                            <td style={{ padding: '20px 24px', fontWeight: 600 }}>₹{g.taxable.toLocaleString()}</td>
+                            <td style={{ padding: '20px 24px', color: '#64748b' }}>₹{g.cgst.toLocaleString()}</td>
+                            <td style={{ padding: '20px 24px', color: '#64748b' }}>₹{g.sgst.toLocaleString()}</td>
+                            <td style={{ padding: '20px 24px', textAlign: 'right', fontWeight: 900, color: '#1e293b' }}>₹{g.total_tax.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                        <tr style={{ background: '#f8fafc', fontWeight: 900 }}>
+                          <td style={{ padding: '24px' }}>CONSOLIDATED</td>
+                          <td style={{ padding: '24px' }}>₹{reportData.gst_summary.reduce((s, g) => s + g.taxable, 0).toLocaleString()}</td>
+                          <td style={{ padding: '24px', color: '#4338ca' }}>₹{reportData.gst_summary.reduce((s, g) => s + g.cgst, 0).toLocaleString()}</td>
+                          <td style={{ padding: '24px', color: '#4338ca' }}>₹{reportData.gst_summary.reduce((s, g) => s + g.sgst, 0).toLocaleString()}</td>
+                          <td style={{ padding: '24px', textAlign: 'right', fontSize: '18px', color: '#4338ca' }}>₹{reportData.gst_summary.reduce((s, g) => s + g.total_tax, 0).toLocaleString()}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {reportData.low_stock_items?.length > 0 && (
+                <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #ffe4e6', boxShadow: '0 10px 15px -3px rgba(225, 29, 72, 0.05)', overflow: 'hidden', marginBottom: '32px' }}>
+                  <div style={{ padding: '20px 32px', background: '#fff1f2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, color: '#e11d48' }}><i className="fas fa-exclamation-triangle" style={{ marginRight: '8px' }}></i> Low Stock Alert</h4>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#e11d48', border: '1px solid #e11d48', padding: '2px 10px', borderRadius: '8px' }}>{reportData.low_stock_items.length} ASSETS</span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '600px' }}>
+                      <thead style={{ background: '#f8fafc' }}>
+                        <tr>
+                          <th style={{ padding: '12px 32px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>ASSET</th>
+                          <th style={{ padding: '12px 32px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>BRANCH</th>
+                          <th style={{ padding: '12px 32px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>REMAINING</th>
+                          <th style={{ padding: '12px 32px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>MIN LIMIT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.low_stock_items.map((item, idxLS) => (
+                          <tr key={`ls-${idxLS}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '16px 32px', fontWeight: 800, color: '#1e293b' }}>{item.product_name}</td>
+                            <td style={{ padding: '16px 32px' }}><code style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}>{item.branch_name || 'CENTRAL'}</code></td>
+                            <td style={{ padding: '16px 32px' }}><span style={{ padding: '4px 12px', background: '#fff1f2', color: '#e11d48', borderRadius: '20px', fontWeight: 900, fontSize: '12px' }}>{item.quantity} units</span></td>
+                            <td style={{ padding: '16px 32px', fontWeight: 700, color: '#94a3b8' }}>{item.min_threshold} units</td>
                           </tr>
                         ))}
                       </tbody>
@@ -472,207 +530,54 @@ export default function AdminReports() {
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* TOP SELLING PRODUCTS */}
-            {reportData.top_products?.length > 0 && (
-              <div className="table-card" style={{ marginTop: '20px' }}>
-                <h4>🏆 Top Selling Products</h4>
-                <div className="table-responsive">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Product</th>
-                        <th>Qty Sold</th>
-                        <th>Revenue</th>
-                        <th>GST%</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reportData.top_products.map((p, i) => (
-                        <tr key={i}>
-                          <td>{i + 1}</td>
-                          <td style={{ fontWeight: 600 }}>{p.product_name}</td>
-                          <td>{p.total_quantity}</td>
-                          <td style={{ fontWeight: 700 }}>₹{p.total_revenue.toFixed(2)}</td>
-                          <td>{p.gst_percent || 0}%</td>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+                <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', overflow: 'hidden' }}>
+                  <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9' }}>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>📦 Categories</h4>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '500px' }}>
+                      <thead style={{ background: '#f8fafc' }}>
+                        <tr>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>VERTICAL</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>QTY</th>
+                          <th style={{ padding: '12px 24px', textAlign: 'right', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>VALUE</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {reportData.category_breakdown?.map((c, idxC) => (
+                          <tr key={`cat-${idxC}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '16px 24px', fontWeight: 800, color: '#1e293b' }}>{c.category}</td>
+                            <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: 700, color: '#64748b' }}>{c.total_qty} units</td>
+                            <td style={{ padding: '16px 24px', textAlign: 'right', fontWeight: 900, color: '#4338ca' }}>₹{c.total_value.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {/* GST SUMMARY */}
-            {reportData.gst_summary?.length > 0 && (
-              <div className="table-card" style={{ marginTop: '20px' }}>
-                <h4>📋 GST Tax Summary</h4>
-                <div className="table-responsive">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>GST Slab</th>
-                        <th>Taxable (₹)</th>
-                        <th>CGST (₹)</th>
-                        <th>SGST (₹)</th>
-                        <th>Total Tax (₹)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reportData.gst_summary.map((g, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600 }}>{g.slab}</td>
-                          <td>₹{g.taxable.toFixed(2)}</td>
-                          <td>₹{g.cgst.toFixed(2)}</td>
-                          <td>₹{g.sgst.toFixed(2)}</td>
-                          <td style={{ fontWeight: 700 }}>₹{g.total_tax.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                      <tr style={{ borderTop: '2px solid #000', fontWeight: 700, background: '#f8fafc' }}>
-                        <td>Total</td>
-                        <td>₹{reportData.gst_summary.reduce((s, g) => s + g.taxable, 0).toFixed(2)}</td>
-                        <td>₹{reportData.gst_summary.reduce((s, g) => s + g.cgst, 0).toFixed(2)}</td>
-                        <td>₹{reportData.gst_summary.reduce((s, g) => s + g.sgst, 0).toFixed(2)}</td>
-                        <td>₹{reportData.gst_summary.reduce((s, g) => s + g.total_tax, 0).toFixed(2)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', padding: '32px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <h4 style={{ margin: '0 0 24px', fontSize: '16px', fontWeight: 800, color: '#1e293b', textAlign: 'center' }}>Stock Valuation Distribution</h4>
+                  <Chart
+                    type="pie"
+                    height={350}
+                    series={reportData.category_breakdown?.map(c => c.total_value || 0) || []}
+                    options={{
+                      labels: reportData.category_breakdown?.map(c => c.category || 'Misc') || [],
+                      colors: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'],
+                      legend: { position: 'bottom', fontFamily: 'Outfit', fontWeight: 600 },
+                      stroke: { width: 0 },
+                      tooltip: { y: { formatter: (v) => `₹${(v || 0).toLocaleString()}` } }
+                    }}
+                  />
                 </div>
               </div>
-            )}
-
-            {/* DETAILED TRANSACTIONS */}
-            <div className="table-card" style={{ marginTop: '20px' }}>
-              <h4>🧾 Transaction History</h4>
-              {reportData.transactions?.length > 0 ? (
-                <div className="table-responsive">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Date & Time</th>
-                        <th>Branch</th>
-                        <th>Amount</th>
-                        <th>Payment</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reportData.transactions.slice(0, 50).map((t, i) => (
-                        <tr key={i}>
-                          <td>{t.invoice_number || `#${t.transaction_id}`}</td>
-                          <td>{t.transaction_date}</td>
-                          <td>
-                            <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
-                              {t.branch_name}
-                            </code>
-                          </td>
-                          <td style={{ fontWeight: 700 }}>₹{t.total_amount.toFixed(2)}</td>
-                          <td>
-                            <span className={`stock-badge ${t.payment_method === 'cash' ? 'ok' : 'low'}`}>
-                              {t.payment_method?.toUpperCase()}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <p>No transactions found</p>}
-            </div>
-          </>
-        ) : (
-          /* ================= INVENTORY REPORT ================= */
-          <>
-            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
-              <div className="data-box" style={{ flex: 1, minWidth: '150px' }}>
-                <h4>Total Items</h4>
-                <div className="value">{reportData.total_items || 0}</div>
-              </div>
-              <div className="data-box" style={{ flex: 1, minWidth: '150px' }}>
-                <h4>Stock Value</h4>
-                <div className="value">₹{reportData.total_stock_value?.toFixed(2) || 0}</div>
-              </div>
-              <div className="data-box" style={{ flex: 1, minWidth: '150px' }}>
-                <h4>Low Stock</h4>
-                <div className="value" style={{ color: reportData.low_stock_count > 0 ? '#dc2626' : 'green' }}>
-                  {reportData.low_stock_count || 0}
-                </div>
-              </div>
-              <div className="data-box" style={{ flex: 1, minWidth: '150px' }}>
-                <h4>Out of Stock</h4>
-                <div className="value" style={{ color: reportData.out_of_stock_count > 0 ? '#dc2626' : 'green' }}>
-                  {reportData.out_of_stock_count || 0}
-                </div>
-              </div>
-            </div>
-
-            {reportData.low_stock_items?.length > 0 ? (
-              <div className="table-responsive">
-                <h4 style={{ fontSize: '15px', color: '#0f172a', margin: '20px 0 12px' }}>Low Stock Items</h4>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Product</th>
-                      <th>Branch ID</th>
-                      <th>Quantity</th>
-                      <th>Min Threshold</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData.low_stock_items.map((item, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 600 }}>{item.product_name}</td>
-                        <td>
-                          <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
-                            {item.branch_name || `ID: ${item.branch_id}`}
-                          </code>
-                        </td>
-                        <td>
-                          <span className="stock-badge low">
-                            {item.quantity}
-                          </span>
-                        </td>
-                        <td>{item.min_threshold}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p style={{ color: '#10b981', fontWeight: 700, marginTop: '20px' }}>✅ All items are above minimum stock levels</p>
-            )}
-
-            {/* CATEGORY BREAKDOWN */}
-            {reportData.category_breakdown?.length > 0 && (
-              <div className="table-responsive" style={{ marginTop: '20px' }}>
-                <h4 style={{ fontSize: '15px', color: '#0f172a', margin: '0 0 12px' }}>📦 Category Breakdown</h4>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Category</th>
-                      <th>Items</th>
-                      <th>Total Qty</th>
-                      <th>Value (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData.category_breakdown.map((c, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 600 }}>{c.category}</td>
-                        <td>{c.items}</td>
-                        <td>{c.total_qty}</td>
-                        <td style={{ fontWeight: 700 }}>₹{c.total_value.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )
-      }
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ class Announcement(db.Model):
     title = db.Column(db.String(255), nullable=False)
     message = db.Column(db.Text, nullable=False)
     target_role = db.Column(db.String(50), nullable=False, default="all")  # all, manager, staff
+    status = db.Column(db.String(20), nullable=False, default="published")  # published, draft
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -20,6 +21,7 @@ class Announcement(db.Model):
             "title": self.title,
             "message": self.message,
             "target_role": self.target_role,
+            "status": self.status,
             "created_by_id": self.created_by_id,
             "creator_name": f"{self.creator.first_name} {self.creator.last_name}" if self.creator else "Admin",
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else None

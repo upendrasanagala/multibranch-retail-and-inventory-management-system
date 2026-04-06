@@ -66,7 +66,7 @@ export default function ManagerStaffActivity() {
     setMessage("");
 
     if (formData.mobile && !/^[6-9]\d{9}$/.test(formData.mobile)) {
-      setMessage("❌ Invalid mobile number. Must be 10 digits starting with 6,7,8,9.");
+      setMessage("❌ Invalid mobile number. Must be 10 digits starting with 6-9.");
       setLoading(false);
       return;
     }
@@ -74,7 +74,7 @@ export default function ManagerStaffActivity() {
     try {
       if (editMode) {
         await api.manager.updateStaff(editingStaffId, formData);
-        setMessage("✅ Staff updated successfully");
+        setMessage("✅ Personnel records updated successfully");
       } else {
         const res = await api.manager.createStaff(formData);
         setMessage(res.message);
@@ -83,7 +83,7 @@ export default function ManagerStaffActivity() {
       resetForm();
       loadStaff();
     } catch (err) {
-      setMessage("❌ Error: " + (err.response?.data?.message || "Failed to process request"));
+      setMessage("❌ Error: " + (err.response?.data?.message || "Failed to process personnel request"));
     }
     setLoading(false);
     setTimeout(() => setMessage(""), 3000);
@@ -94,7 +94,7 @@ export default function ManagerStaffActivity() {
       firstName: s.firstName || "",
       lastName: s.lastName || "",
       email: s.email || "",
-      password: "", // Keep password empty for security
+      password: "",
       mobile: s.phone || "",
       address: s.address || "",
       bank_name: s.bank_name || "",
@@ -126,219 +126,166 @@ export default function ManagerStaffActivity() {
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: "20px" }}>
+    <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
+      
+      {/* ================= ACTIONS BAR ================= */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div>
-          <h2 style={{ margin: 0 }}>Staff Management</h2>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: '5px 0 0 0' }}>Manage branch employees, status, and performance.</p>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 900, color: '#1e293b', letterSpacing: '-0.5px' }}>Staff Management</h2>
+          <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Manage branch employees and recruitment</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="secondary-btn" onClick={loadStaff} disabled={loading}>
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-          <button className="primary-btn" onClick={() => { resetForm(); setShowModal(true); }}>+ Add Staff</button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+           <button onClick={loadStaff} disabled={loading} style={{ padding: '12px 20px', background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: '14px', fontSize: '13px', fontWeight: 700, color: '#64748b', cursor: 'pointer' }}>
+             <i className={`fas fa-sync ${loading ? 'fa-spin' : ''}`} style={{ marginRight: '8px' }}></i> Sync Data
+           </button>
+           <button onClick={() => { resetForm(); setShowModal(true); }} style={{ padding: '12px 24px', background: '#4338ca', color: 'white', border: 'none', borderRadius: '14px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.3)' }}>
+             <i className="fas fa-user-plus" style={{ marginRight: '8px' }}></i> Add New Staff
+           </button>
         </div>
       </div>
 
       {message && (
-        <div style={{
-          padding: '12px',
-          background: message.includes('✅') ? '#d1fae5' : '#e0f2fe',
-          color: message.includes('✅') ? '#065f46' : '#0369a1',
-          borderRadius: '8px',
-          marginBottom: '20px',
-          fontWeight: 500
-        }}>
+        <div style={{ padding: '14px 20px', background: message.includes('✅') ? '#ecfdf5' : '#fef2f2', color: message.includes('✅') ? '#059669' : '#dc2626', borderRadius: '14px', marginBottom: '25px', fontWeight: 700, border: '1px solid currentColor', fontSize: '13px' }}>
           {message}
         </div>
       )}
 
-      <div className="table-card">
-        <table>
+      {/* ================= TABLE ================= */}
+      <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr>
-              <th>Name</th>
-              <th>Contact</th>
-              <th>Status</th>
-              <th>Interview Progress</th>
-              <th>Perf. Score</th>
-              <th>Activity</th>
-              <th>Actions</th>
+            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
+              <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Date & Product</th>
+              <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Quantity</th>
+              <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Branch</th>
+              <th style={{ padding: '16px 20px', textAlign: 'right', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Status</th>
             </tr>
           </thead>
-
           <tbody>
             {staff.length === 0 ? (
-              <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>No staff found in this branch</td>
-              </tr>
+              <tr><td colSpan="4" style={{ textAlign: 'center', padding: '60px', color: '#94a3b8', fontWeight: 600 }}>No staff recorded in system.</td></tr>
             ) : (
-              staff.map((s, i) => (
-                <tr key={i}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{s.firstName} {s.lastName}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>{s.email}</div>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: '13px' }}>{s.phone || 'N/A'}</div>
-                  </td>
-                  <td>
-                    <span className={`stock-badge ${s.status === 'approved' ? 'ok' : 'low'}`} style={{ fontSize: '11px' }}>
-                      {s.status}
-                    </span>
-                  </td>
-                  <td>
-                    <select
-                      value={s.interview_status || "not_started"}
-                      onChange={(e) => handleStatusUpdate(s.user_id, e.target.value)}
-                      className="status-select"
-                      style={{ padding: '4px', borderRadius: '4px', fontSize: '12px', width: '120px' }}
-                      disabled={s.interview_status === 'completed'}
-                    >
-                      <option value="not_started">Not Started</option>
-                      <option value="round_1">Round 1</option>
-                      <option value="round_2">Round 2</option>
-                      <option value="final_round">Final Round</option>
-                      <option value="completed">Completed</option>
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      value={s.score || 0}
-                      onChange={(e) => handleScoreUpdate(s.user_id, e.target.value)}
-                      style={{
-                        width: '55px',
-                        padding: '4px',
-                        borderRadius: '4px',
-                        border: '1px solid #e2e8f0',
-                        fontSize: '12px',
-                        fontWeight: 600
-                      }}
-                      min="0"
-                      max="100"
-                      disabled={s.interview_status === 'completed'}
-                    />
-                  </td>
-                  <td>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>
-                      Last: {s.created_at ? formatDate(s.created_at) : "N/A"}
-                    </div>
-                  </td>
-                  <td>
-                    <button
-                      className="secondary-btn"
-                      style={{
-                        padding: '5px 10px', fontSize: '12px',
-                        opacity: s.interview_status === 'completed' ? 0.5 : 1,
-                        cursor: s.interview_status === 'completed' ? 'not-allowed' : 'pointer'
-                      }}
-                      onClick={() => handleEdit(s)}
-                      disabled={s.interview_status === 'completed'}
-                      title={s.interview_status === 'completed' ? 'Interview completed — details locked' : 'Edit staff details'}
-                    >
-                      {s.interview_status === 'completed' ? '🔒 Locked' : 'Edit Details'}
-                    </button>
-                  </td>
-                </tr>
-              ))
+              staff.map((s, i) => {
+                const isCompleted = s.interview_status === 'completed';
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eef2ff', color: '#4338ca', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '16px' }}>{s.firstName?.[0]}{s.lastName?.[0]}</div>
+                        <div>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px' }}>{s.firstName} {s.lastName}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>{s.email} | {s.phone || 'No Mobile'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ padding: '4px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 800, background: s.status === 'approved' ? '#dcfce7' : '#fef2f2', color: s.status === 'approved' ? '#15803d' : '#ef4444', textTransform: 'uppercase' }}>{s.status}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 700 }}>Score:</span>
+                          <input
+                            type="number"
+                            value={s.score || 0}
+                            onChange={(e) => handleScoreUpdate(s.user_id, e.target.value)}
+                            style={{ width: '50px', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '2px 4px', fontSize: '12px', fontWeight: 900, textAlign: 'center', background: '#f8fafc' }}
+                            min="0" max="100"
+                            disabled={isCompleted}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                      <select
+                        value={s.interview_status || "not_started"}
+                        onChange={(e) => handleStatusUpdate(s.user_id, e.target.value)}
+                        style={{ padding: '6px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, border: '1.5px solid #e2e8f0', background: '#fff', color: '#4b5563', outline: 'none' }}
+                        disabled={isCompleted}
+                      >
+                        <option value="not_started">Pre-Screening</option>
+                        <option value="round_1">Interview R1</option>
+                        <option value="round_2">Technical R2</option>
+                        <option value="final_round">HR General</option>
+                        <option value="completed">Onboarded</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                      <button 
+                        onClick={() => handleEdit(s)}
+                        disabled={isCompleted}
+                        style={{ padding: '8px 16px', background: isCompleted ? '#f8fafc' : '#fff', border: '1.5px solid #e2e8f0', borderRadius: '12px', fontSize: '12px', fontWeight: 800, color: isCompleted ? '#94a3b8' : '#4338ca', cursor: isCompleted ? 'not-allowed' : 'pointer' }}
+                      >
+                        {isCompleted ? 'Profile Locked' : 'Modify Record'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
-      {/* STAFF MODAL (Add/Edit) */}
+      {/* ================= STAFF MODAL ================= */}
       {showModal && (
-        <div className="profile-overlay">
-          <div className="profile-modal" style={{ maxWidth: '600px', width: '90%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0 }}>{editMode ? 'Edit Staff Member' : 'Create Staff Account'}</h2>
-              <button
-                onClick={() => { setShowModal(false); resetForm(); }}
-                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}
-              >
-                &times;
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div style={{ background: '#fff', width: '100%', maxWidth: '700px', borderRadius: '28px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', animation: 'scaleUp 0.3s ease-out' }}>
+            <div style={{ background: '#1e293b', padding: '25px 30px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>New Transfer Request</h3>
+                <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800 }}>{editMode ? 'Edit Staff Member' : 'Add New Staff Member'}</h3>
+                <p style={{ margin: '5px 0 0', opacity: 0.7, fontSize: '13px' }}>Employee Details Form</p>
+              </div>
+              <button onClick={() => { setShowModal(false); resetForm(); }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '36px', height: '36px', borderRadius: '12px', cursor: 'pointer' }}>
+                <i className="fas fa-times"></i>
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '15px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>FIRST NAME</label>
-                  <input name="firstName" value={formData.firstName} onChange={handleChange} required />
-                </div>
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>LAST NAME</label>
-                  <input name="lastName" value={formData.lastName} onChange={handleChange} required />
-                </div>
-              </div>
+            <form onSubmit={handleSubmit} style={{ padding: '30px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>First Name</label>
+                 <input name="firstName" value={formData.firstName} onChange={handleChange} required style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }} />
+               </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Last Name</label>
+                 <input name="lastName" value={formData.lastName} onChange={handleChange} required style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }} />
+               </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Corporate Email</label>
+                 <input type="email" name="email" value={formData.email} onChange={handleChange} required style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }} />
+               </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>{editMode ? 'Reset Password' : 'Mobile Number'}</label>
+                 {editMode ? (
+                   <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Leave blank to keep current" style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }} />
+                 ) : (
+                   <input name="mobile" value={formData.mobile} onChange={handleChange} required style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }} />
+                 )}
+               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>EMAIL ADDRESS</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} required />
-                </div>
-                {/* Password removed for Create (auto-generated), shown only if editing password (optional) */}
-                {editMode && (
-                  <div className="input-group">
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>NEW PASSWORD (OPTIONAL)</label>
-                    <input type="password" name="password" value={formData.password} onChange={handleChange} />
-                  </div>
-                )}
-                {!editMode && (
-                  <div className="input-group">
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>INTERVIEW SCORE</label>
-                    <input type="number" name="score" value={formData.score || ""} onChange={handleChange} required min="0" max="100" />
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>MOBILE NUMBER</label>
-                  <input name="mobile" value={formData.mobile} onChange={handleChange} required />
-                </div>
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>ACCOUNT STATUS</label>
-                  <select name="status" value={formData.status} onChange={handleChange}>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="input-group">
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>HOME ADDRESS</label>
-                <textarea name="address" value={formData.address} onChange={handleChange} style={{ minHeight: '60px' }} />
-              </div>
-
-              <div style={{ padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '5px' }}>
-                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px' }}>Bank Details (Financial)</h4>
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <div className="input-group">
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>BANK NAME</label>
-                    <input name="bank_name" value={formData.bank_name} onChange={handleChange} placeholder="e.g. State Bank of India" />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div className="input-group">
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>ACCOUNT NO</label>
-                      <input name="account_number" value={formData.account_number} onChange={handleChange} />
+               <div style={{ gridColumn: 'span 2', background: '#f8fafc', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+                  <h4 style={{ margin: '0 0 15px 0', fontSize: '13px', fontWeight: 900, color: '#1e293b' }}>Settlement Details (Banking)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>Bank Service Provider</label>
+                      <input name="bank_name" value={formData.bank_name} onChange={handleChange} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px' }} />
                     </div>
-                    <div className="input-group">
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>IFSC CODE</label>
-                      <input name="ifsc_code" value={formData.ifsc_code} onChange={handleChange} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>Account Identifier</label>
+                      <input name="account_number" value={formData.account_number} onChange={handleChange} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>Network Code (IFSC)</label>
+                      <input name="ifsc_code" value={formData.ifsc_code} onChange={handleChange} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px' }} />
                     </div>
                   </div>
-                </div>
-              </div>
+               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" className="primary-btn" disabled={loading} style={{ flex: 1 }}>
-                  {loading ? (editMode ? "Updating..." : "Creating...") : (editMode ? "Save Changes" : "Create Account")}
-                </button>
-                <button type="button" onClick={() => { setShowModal(false); resetForm(); }} className="secondary-btn" style={{ flex: 1 }}>Cancel</button>
-              </div>
+               <div style={{ gridColumn: 'span 2', display: 'flex', gap: '15px', marginTop: '10px' }}>
+                 <button type="submit" disabled={loading} style={{ flex: 2, background: '#4338ca', color: 'white', border: 'none', padding: '14px', borderRadius: '14px', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}>
+                    {loading ? 'Processing...' : (editMode ? 'Save Changes' : 'Add Staff Member')}
+                 </button>
+                 <button type="button" onClick={() => { setShowModal(false); resetForm(); }} style={{ flex: 1, background: '#f1f5f9', color: '#64748b', border: 'none', padding: '14px', borderRadius: '14px', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}>Cancel</button>
+               </div>
             </form>
           </div>
         </div>

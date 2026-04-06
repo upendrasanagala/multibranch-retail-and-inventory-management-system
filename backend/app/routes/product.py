@@ -11,6 +11,7 @@ from app.models.product import Product
 from app.models.category import Category
 from app.utils.decorators import roles_required
 from app.routes import product_bp
+from app.utils.categorization import predict_category
 import math 
 
 
@@ -144,6 +145,23 @@ def get_product_inventory_branches(product_id):
         "sku": product.sku,
         "inventory": distribution
     }), 200
+
+
+
+# =============================
+# Predict Category (AI)
+# =============================
+@product_bp.route("/predict-category", methods=["POST"])
+@jwt_required()
+def get_predicted_category():
+    data = request.get_json() or {}
+    product_name = data.get("name")
+    
+    if not product_name:
+        return jsonify({"message": "Product name is required"}), 400
+        
+    prediction = predict_category(product_name)
+    return jsonify(prediction), 200
 
 
 # =============================

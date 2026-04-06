@@ -28,4 +28,10 @@ class Product(db.Model):
     is_b1g1 = db.Column(db.Boolean, default=False) # Buy 1 Get 1 Free Offer
     supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.supplier_id"), nullable=False)
     
+    # Relationships
+    category = db.relationship("Category", backref="products", lazy=True)
+    # supplier backref is already in supplier.py, but we can define it here for clarity if needed.
+    # Actually, supplier.py has: products = db.relationship("Product", backref="supplier", lazy=True)
+    # So Product.supplier is already available.
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

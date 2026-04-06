@@ -3,7 +3,7 @@
  * Connects React frontend to Flask backend
  */
 
-const API_BASE_URL = "http://127.0.0.1:5001/api";
+const API_BASE_URL = "/api";
 
 
 /* =====================================================
@@ -191,7 +191,13 @@ const api = {
       `${API_BASE_URL}/products/imports/${encodeURIComponent(filename)}`,
 
     updateGST: () =>
-      apiRequest("/products/update-gst", { method: "POST" })
+      apiRequest("/products/update-gst", { method: "POST" }),
+
+    predictCategory: (name) =>
+      apiRequest("/products/predict-category", {
+        method: "POST",
+        body: JSON.stringify({ name })
+      })
   },
 
   /* ===================== INVENTORY ===================== */
@@ -341,7 +347,45 @@ const api = {
     },
 
     getRebalanceSuggestions: () =>
-      apiRequest("/admin/inventory/rebalance-suggestions")
+      apiRequest("/admin/inventory/rebalance-suggestions"),
+
+    getAiInsights: () =>
+      apiRequest("/admin/stats/ai-insights"),
+
+    getPricingAlerts: () =>
+      apiRequest("/admin/stats/pricing-alerts"),
+
+    getRebalanceSuggestions: () =>
+      apiRequest("/admin/stats/rebalance"),
+
+    getWastageAlerts: () =>
+      apiRequest("/admin/stats/wastage"),
+
+    simulateProfit: (data) =>
+      apiRequest("/admin/stats/simulate", {
+        method: "POST",
+        body: JSON.stringify(data)
+      }),
+
+    triggerAIAnnouncements: () =>
+      apiRequest("/admin/stats/trigger-announcements", {
+        method: "POST"
+      }),
+
+    getDraftAnnouncements: () =>
+      apiRequest("/announcements/drafts"),
+
+    publishAnnouncement: (id) =>
+      apiRequest(`/announcements/${id}/publish`, { method: "POST" }),
+
+    updateAnnouncement: (id, data) =>
+      apiRequest(`/announcements/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data)
+      }),
+
+    deleteAnnouncement: (id) =>
+      apiRequest(`/announcements/${id}`, { method: "DELETE" }),
   },
 
   /* ===================== MANAGER ===================== */
@@ -372,6 +416,12 @@ const api = {
         method: "PUT",
         body: JSON.stringify(data)
       }),
+
+    getAiInsights: () =>
+      apiRequest("/manager/stats/ai-insights"),
+
+    getStaffPerformance: () =>
+      apiRequest("/manager/stats/staff-performance"),
   },
 
   /* ===================== SUPPLIERS ===================== */
@@ -436,4 +486,18 @@ const api = {
 };
 
 export default api;
+export const { 
+  auth: authApi, 
+  branches: branchApi, 
+  categories: categoryApi, 
+  products: productApi, 
+  inventory: inventoryApi, 
+  sales: salesApi, 
+  transfers: transferApi, 
+  admin: adminApi, 
+  manager: managerApi, 
+  suppliers: supplierApi, 
+  contact: contactApi, 
+  announcements: announcementApi 
+} = api;
 export { API_BASE_URL, getToken, apiRequest };

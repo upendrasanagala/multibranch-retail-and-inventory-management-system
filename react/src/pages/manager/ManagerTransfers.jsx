@@ -9,18 +9,12 @@ export default function ManagerTransfers() {
   const { showConfirm, showPrompt } = useConfirm();
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("incoming"); // incoming | requests
+  const [activeTab, setActiveTab] = useState("incoming");
 
-  // Form states
   const [showNewModal, setShowNewModal] = useState(false);
   const [products, setProducts] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [form, setForm] = useState({
-    product_id: "",
-    from_branch_id: "",
-    quantity: "",
-    notes: ""
-  });
+  const [form, setForm] = useState({ product_id: "", from_branch_id: "", quantity: "", notes: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
@@ -51,7 +45,6 @@ export default function ManagerTransfers() {
         api.branches.getAll()
       ]);
       setProducts(prodRes.products || []);
-      // Exclude current branch from options
       setBranches((branchRes.branches || []).filter(b => b.branch_id !== branchId));
     } catch (err) {
       console.error("Failed to load dropdown data", err);
@@ -59,37 +52,37 @@ export default function ManagerTransfers() {
   };
 
   const handleApprove = async (id) => {
-    if (!(await showConfirm("Approve this transfer? Stock will be deducted from your branch.", "Approve Transfer"))) return;
+    const verified = await showConfirm("Approve this logistics transfer? Stock will be immediately deducted from your inventory.", "Approve Logistics");
+    if (!verified) return;
     try {
       await api.transfers.approve(id);
-      showToast("Transfer approved!", "success");
+      showToast("Logistics transfer approved", "success");
       loadTransfers();
       window.dispatchEvent(new Event("transfersUpdated"));
     } catch (err) {
-      showToast("Failed to approve: " + (err.response?.data?.message || err.message), "error");
+      showToast("Approval failed: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
   const handleReject = async (id) => {
-    const reason = await showPrompt("Enter rejection reason:", "Reject Transfer", "Reason...");
+    const reason = await showPrompt("Please provide a justification for rejection:", "Reject Transfer", "e.g. Insufficient stock locally...");
     if (!reason) return;
     try {
       await api.transfers.reject(id, reason);
-      showToast("Transfer rejected.", "info");
+      showToast("Transfer rejected", "info");
       loadTransfers();
       window.dispatchEvent(new Event("transfersUpdated"));
     } catch (err) {
-      showToast("Failed to reject: " + (err.response?.data?.message || err.message), "error");
+      showToast("Rejection failed: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
   const handleCreateRequest = async (e) => {
     e.preventDefault();
     if (!form.product_id || !form.from_branch_id || !form.quantity) {
-      showToast("Please fill all required fields", "warning");
+      showToast("Required fields: Product, Source, Quantity", "warning");
       return;
     }
-
     setIsSubmitting(true);
     try {
       await api.transfers.create({
@@ -99,14 +92,14 @@ export default function ManagerTransfers() {
         quantity: parseInt(form.quantity),
         notes: form.notes
       });
-      showToast("Stock transfer request sent successfully!", "success");
+      showToast("Inventory request dispatched", "success");
       setShowNewModal(false);
       setForm({ product_id: "", from_branch_id: "", quantity: "", notes: "" });
       setActiveTab("requests");
       loadTransfers();
       window.dispatchEvent(new Event("transfersUpdated"));
     } catch (err) {
-      showToast(err.response?.data?.message || "Failed to create request", "error");
+      showToast(err.response?.data?.message || "Deployment failed", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -117,196 +110,139 @@ export default function ManagerTransfers() {
   const displayedTransfers = activeTab === "requests" ? myRequests : incomingRequests;
 
   return (
-    <div>
-      <header className="topbar">
-        <h2>🚚 Stock Transfers</h2>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="primary-btn" onClick={() => setShowNewModal(true)}>
-            <i className="fas fa-plus"></i> New Request
-          </button>
-          <button className="secondary-btn" onClick={loadTransfers} disabled={loading}>
-            <i className="fas fa-sync-alt"></i> {loading ? "Refreshing..." : "Refresh"}
-          </button>
+    <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
+      
+      {/* ================= ACTIONS BAR ================= */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+        <div style={{ display: 'flex', gap: '8px', background: '#fff', padding: '6px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+          <button
+            onClick={() => setActiveTab("incoming")}
+            style={{
+              padding: '10px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: '0.3s',
+              background: activeTab === "incoming" ? '#4338ca' : 'transparent',
+              color: activeTab === "incoming" ? '#fff' : '#64748b'
+            }}
+          >Incoming ({incomingRequests.length})</button>
+          <button
+            onClick={() => setActiveTab("requests")}
+            style={{
+              padding: '10px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: '0.3s',
+              background: activeTab === "requests" ? '#4338ca' : 'transparent',
+              color: activeTab === "requests" ? '#fff' : '#64748b'
+            }}
+          >Sent ({myRequests.length})</button>
         </div>
-      </header>
 
-      <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', borderBottom: '1px solid #ddd' }}>
-        <button
-          onClick={() => setActiveTab("incoming")}
-          style={{
-            padding: '10px 0',
-            border: 'none',
-            background: 'none',
-            borderBottom: activeTab === "incoming" ? '2px solid #2563eb' : 'none',
-            color: activeTab === "incoming" ? '#2563eb' : '#666',
-            fontWeight: activeTab === "incoming" ? '600' : '400',
-            cursor: 'pointer'
-          }}
-        >
-          Incoming Requests (Action Required)
-        </button>
-        <button
-          onClick={() => setActiveTab("requests")}
-          style={{
-            padding: '10px 0',
-            border: 'none',
-            background: 'none',
-            borderBottom: activeTab === "requests" ? '2px solid #2563eb' : 'none',
-            color: activeTab === "requests" ? '#2563eb' : '#666',
-            fontWeight: activeTab === "requests" ? '600' : '400',
-            cursor: 'pointer'
-          }}
-        >
-          My Requests (Sent)
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+           <button onClick={loadTransfers} disabled={loading} style={{ padding: '12px 20px', background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: '14px', fontSize: '13px', fontWeight: 700, color: '#64748b', cursor: 'pointer' }}>
+             <i className={`fas fa-sync ${loading ? 'fa-spin' : ''}`} style={{ marginRight: '8px' }}></i> Sync
+           </button>
+               <button onClick={() => setShowNewModal(true)} style={{ padding: '12px 24px', background: '#4338ca', color: 'white', border: 'none', borderRadius: '14px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.3)' }}>
+                 <i className="fas fa-plus" style={{ marginRight: '8px' }}></i> New Request
+               </button>
+        </div>
       </div>
 
-      <div className="table-card">
-        <h3>
-          {activeTab === "incoming"
-            ? "Requests from Other Branches (You need to Approve)"
-            : "Requests I Sent (Waiting for others)"}
-        </h3>
-
-        {displayedTransfers.length === 0 ? (
-          <p style={{ padding: "40px", textAlign: "center", color: "#666" }}>
-            <i className="fas fa-box-open" style={{ fontSize: '32px', color: '#cbd5e1', marginBottom: '10px' }}></i><br/>
-            No transfer requests found.
-          </p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Product</th>
-                <th>Qty</th>
-                <th>{activeTab === "incoming" ? "Requesting Branch" : "Source Branch"}</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedTransfers.map(t => (
-                <tr key={t.transfer_id}>
-                  <td>{formatDate(t.request_date)}</td>
-                  <td>{t.product_name}</td>
-                  <td style={{ fontWeight: "bold" }}>{t.quantity}</td>
-                  <td>
-                    {activeTab === "incoming" ? t.to_branch_name : t.from_branch_name}
-                  </td>
-                  <td>
-                    <span style={{
-                      padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "700",
-                      background: t.status === "pending" ? "#fef3c7" : t.status === "completed" ? "#dcfce7" : "#fee2e2",
-                      color: t.status === "pending" ? "#b45309" : t.status === "completed" ? "#15803d" : "#b91c1c"
-                    }}>
-                      {t.status.toUpperCase()}
-                    </span>
-                  </td>
-                  <td>
-                    {activeTab === "incoming" && t.status === "pending" && (
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          onClick={() => handleApprove(t.transfer_id)}
-                          style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
-                        >
-                          <i className="fas fa-check"></i> Approve
-                        </button>
-                        <button
-                          onClick={() => handleReject(t.transfer_id)}
-                          style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
-                        >
-                          <i className="fas fa-times"></i> Reject
-                        </button>
-                      </div>
-                    )}
-                    {t.notes && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', background: '#f8fafc', padding: '6px', borderRadius: '4px' }}><strong>Note:</strong> {t.notes}</div>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      {/* ================= TABLE ================= */}
+      <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
+              <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Date & Product</th>
+              <th style={{ padding: '16px 20px', textAlign: 'center', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Quantity</th>
+              <th style={{ padding: '16px 20px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Branch</th>
+              <th style={{ padding: '16px 20px', textAlign: 'right', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayedTransfers.length === 0 ? (
+              <tr><td colSpan="4" style={{ textAlign: 'center', padding: '60px', color: '#94a3b8', fontWeight: 600 }}>No active logistics logs for this view.</td></tr>
+            ) : (
+              displayedTransfers.map(t => {
+                const isIncoming = activeTab === "incoming";
+                const isPending = t.status === "pending";
+                return (
+                  <tr key={t.transfer_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '16px 20px' }}>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{formatDate(t.request_date)}</div>
+                      <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px', marginTop: '2px' }}>{t.product_name}</div>
+                      {t.notes && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', background: '#f8fafc', padding: '4px 8px', borderRadius: '6px', border: '1px solid #f1f5f9' }}>{t.notes}</div>}
+                    </td>
+                    <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '15px', fontWeight: 900, color: '#1e293b', background: '#f8fafc', padding: '4px 12px', borderRadius: '10px', display: 'inline-block' }}>{t.quantity}</div>
+                    </td>
+                    <td style={{ padding: '16px 20px' }}>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{isIncoming ? 'TARGET DEST' : 'SOURCE ORIGIN'}</div>
+                      <div style={{ fontWeight: 700, color: '#4b5563' }}>{isIncoming ? t.to_branch_name : t.from_branch_name}</div>
+                    </td>
+                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                         <span style={{ 
+                           padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase',
+                           background: t.status === "pending" ? "#fef3c7" : t.status === "completed" ? "#dcfce7" : "#fef2f2",
+                           color: t.status === "pending" ? "#b45309" : t.status === "completed" ? "#15803d" : "#ef4444"
+                         }}>{t.status}</span>
+                         
+                         {isIncoming && isPending && (
+                           <div style={{ display: 'flex', gap: '8px' }}>
+                              <button onClick={() => handleApprove(t.transfer_id)} style={{ background: '#dcfce7', border: 'none', color: '#15803d', padding: '6px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Release Stock</button>
+                              <button onClick={() => handleReject(t.transfer_id)} style={{ background: '#fef2f2', border: 'none', color: '#ef4444', padding: '6px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Deny</button>
+                           </div>
+                         )}
+                       </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* NEW REQUEST MODAL */}
+      {/* ================= MODAL ================= */}
       {showNewModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
-        }}>
-          <div style={{
-            background: '#fff', padding: '30px', borderRadius: '16px',
-            width: '450px', maxWidth: '90%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-          }} className="container-fade-in">
-            <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <i className="fas fa-paper-plane" style={{ color: '#3b82f6' }}></i> Request Stock from Branch
-            </h3>
-            
-            <form onSubmit={handleCreateRequest} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Select Product *</label>
-                <select 
-                  required
-                  value={form.product_id}
-                  onChange={(e) => setForm({...form, product_id: e.target.value})}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
-                >
-                  <option value="">-- Choose Product --</option>
-                  {products.map(p => (
-                    <option key={p.product_id} value={p.product_id}>{p.name} (SKU: {p.sku})</option>
-                  ))}
-                </select>
-              </div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div style={{ background: '#fff', width: '100%', maxWidth: '480px', borderRadius: '28px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', animation: 'scaleUp 0.3s ease-out' }}>
+            <div style={{ background: '#1e293b', padding: '25px 30px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>New Transfer Request</h3>
+              <button onClick={() => setShowNewModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer' }}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Request From Branch *</label>
-                <select 
-                  required
-                  value={form.from_branch_id}
-                  onChange={(e) => setForm({...form, from_branch_id: e.target.value})}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
-                >
-                  <option value="">-- Choose Branch --</option>
-                  {branches.map(b => (
-                    <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
-                  ))}
-                </select>
-              </div>
+            <form onSubmit={handleCreateRequest} style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Product</label>
+                 <select required value={form.product_id} onChange={(e) => setForm({...form, product_id: e.target.value})} style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600, appearance: 'none', background: '#fff' }}>
+                    <option value="">Choose Product</option>
+                    {products.map(p => <option key={p.product_id} value={p.product_id}>{p.name} ({p.sku})</option>)}
+                 </select>
+               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Quantity Needed *</label>
-                <input 
-                  type="number" 
-                  min="1" 
-                  required
-                  placeholder="e.g. 50"
-                  value={form.quantity}
-                  onChange={(e) => setForm({...form, quantity: e.target.value})}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
-                />
-              </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Source Branch</label>
+                 <select required value={form.from_branch_id} onChange={(e) => setForm({...form, from_branch_id: e.target.value})} style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 600, appearance: 'none', background: '#fff' }}>
+                    <option value="">Choose Branch</option>
+                    {branches.map(b => <option key={b.branch_id} value={b.branch_id}>{b.name}</option>)}
+                 </select>
+               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Urgency & Notes (Optional)</label>
-                <textarea 
-                  rows="3"
-                  placeholder="e.g. Urgent setup required by tomorrow"
-                  value={form.notes}
-                  onChange={(e) => setForm({...form, notes: e.target.value})}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', boxSizing: 'border-box', resize: 'vertical' }}
-                />
-              </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Quantity</label>
+                 <input type="number" required min="1" placeholder="Units required..." value={form.quantity} onChange={(e) => setForm({...form, quantity: e.target.value})} style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', fontWeight: 800 }} />
+               </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                <button type="submit" className="primary-btn" disabled={isSubmitting} style={{ flex: 1, padding: '12px', fontSize: '15px' }}>
-                  {isSubmitting ? "Sending..." : "Submit Request"}
-                </button>
-                <button type="button" className="secondary-btn" onClick={() => setShowNewModal(false)} style={{ flex: 1, padding: '12px', fontSize: '15px' }}>
-                  Cancel
-                </button>
-              </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Brief / Justification</label>
+                 <textarea rows="2" placeholder="e.g. Responding to high local demand..." value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} style={{ padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', resize: 'none' }} />
+               </div>
+
+               <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+                 <button type="submit" disabled={isSubmitting} style={{ flex: 2, background: '#4338ca', color: 'white', border: 'none', padding: '14px', borderRadius: '14px', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}>
+                   {isSubmitting ? 'Sending Request...' : 'Send Request'}
+                 </button>
+                 <button type="button" onClick={() => setShowNewModal(false)} style={{ flex: 1, background: '#f1f5f9', color: '#64748b', border: 'none', padding: '14px', borderRadius: '14px', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}>Cancel</button>
+               </div>
             </form>
           </div>
         </div>

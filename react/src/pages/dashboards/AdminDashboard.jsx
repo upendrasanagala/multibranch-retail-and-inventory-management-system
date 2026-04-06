@@ -19,6 +19,11 @@ import LiveClock from "../../components/LiveClock";
 import DashboardFAQ from "../../components/DashboardFAQ";
 import ConfirmModal from "../../components/ConfirmModal";
 import Chart from "react-apexcharts";
+import InventoryInsightCard from "../../components/InventoryInsightCard";
+import SmartRebalanceGrid from "../../components/SmartRebalanceGrid";
+import AIWastageAlerts from "../../components/admin/AIWastageAlerts";
+import AIProfitSimulator from "../../components/admin/AIProfitSimulator";
+import AIAnnouncementReview from "../../components/admin/AIAnnouncementReview";
 
 export default function AdminDashboard() {
   const { showToast } = useToast();
@@ -60,6 +65,11 @@ export default function AdminDashboard() {
     criticalItems: [],
     branchPerformance: []
   });
+
+  const [aiInsights, setAiInsights] = useState([]);
+  const [aiForecast, setAiForecast] = useState(null);
+  const [pricingAlerts, setPricingAlerts] = useState([]);
+  const [rebalanceSuggestions, setRebalanceSuggestions] = useState([]);
 
   /* ================= LOAD DATA FROM BACKEND ================= */
   useEffect(() => {
@@ -109,6 +119,27 @@ export default function AdminDashboard() {
           });
         } catch (err) {
           console.error("Failed to load stats:", err);
+        }
+      }
+
+      // Load AI Insights (independent)
+      if (activeSection === "dashboard") {
+        try {
+          const aiRes = await api.admin.getAiInsights();
+          setAiInsights(aiRes.insights || []);
+          setAiForecast(aiRes.forecast || null);
+        } catch (err) {
+          console.error("Failed to load AI insights:", err);
+        }
+
+        try {
+          const pricingRes = await api.admin.getPricingAlerts();
+          setPricingAlerts(pricingRes.alerts || []);
+
+          const rebalanceRes = await api.admin.getRebalanceSuggestions();
+          setRebalanceSuggestions(rebalanceRes.suggestions || []);
+        } catch (err) {
+          console.error("Failed to load additional AI metrics:", err);
         }
       }
 
@@ -244,49 +275,143 @@ export default function AdminDashboard() {
       <div className={`admin-layout ${selectedUser ? "blurred" : ""}`}>
 
         {/* ================= SIDEBAR ================= */}
-        <aside className="sidebar">
-          <nav>
-            <a className={activeSection === "dashboard" ? "active" : ""}
-              onClick={() => setActiveSection("dashboard")}>Dashboard</a>
+        {/* ================= SIDEBAR ================= */}
+        <aside className="sidebar" style={{
+          width: '260px',
+          backgroundColor: '#fff',
+          borderRight: '1px solid #e2e8f0',
+          height: '100vh',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '15px 0'
+        }}>
+          <div style={{ padding: '0 24px 15px', borderBottom: '1px solid #f1f5f9', marginBottom: '10px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#4338ca', margin: 0 }}>🛒 Retail</h2>
+            <p style={{ fontSize: '10px', color: '#94a3b8', margin: '4px 0 0', textTransform: 'uppercase', letterSpacing: '1px' }}></p>
+          </div>
 
-            <a className={activeSection === "users" ? "active" : ""}
-              onClick={() => setActiveSection("users")}>Users</a>
+          <nav style={{ flex: 1, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto', scrollbarWidth: 'none' }}>
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: 'fa-th-large' },
+              { id: 'users', label: 'Users', icon: 'fa-users' },
+              { id: 'inventory', label: 'Inventory', icon: 'fa-box' },
+              { id: 'branches', label: 'Branches', icon: 'fa-sitemap' },
+              { id: 'reports', label: 'Reports', icon: 'fa-chart-pie' },
+              { id: 'transfers', label: 'Stock Requests', icon: 'fa-exchange-alt', badge: true },
+              { id: 'suppliers', label: 'Suppliers', icon: 'fa-truck-loading' },
+              { id: 'messages', label: 'Messages', icon: 'fa-envelope' },
+              { id: 'announcements', label: 'Announcements', icon: 'fa-bullhorn' },
+            ].map(item => (
+              <a
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '9px 16px',
+                  borderRadius: '14px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  backgroundColor: activeSection === item.id ? '#eef2ff' : 'transparent',
+                  color: activeSection === item.id ? '#4338ca' : '#64748b',
+                  transform: activeSection === item.id ? 'translateX(4px)' : 'none',
+                  boxShadow: activeSection === item.id ? '0 4px 6px -1px rgba(67, 56, 202, 0.1)' : 'none'
+                }}
+                className="sidebar-link"
+              >
+                <i className={`fas ${item.icon}`} style={{ fontSize: '16px', width: '20px', textAlign: 'center', opacity: activeSection === item.id ? 1 : 0.7 }}></i>
+                <span style={{ flex: 1, letterSpacing: '0.01em' }}>{item.label}</span>
+                {item.badge && <UnreadTransfersBadge />}
+              </a>
+            ))}
 
-            <a className={activeSection === "inventory" ? "active" : ""}
-              onClick={() => setActiveSection("inventory")}>Inventory</a>
-
-            <a className={activeSection === "branches" ? "active" : ""}
-              onClick={() => setActiveSection("branches")}>Branches</a>
-
-            <a className={activeSection === "reports" ? "active" : ""}
-              onClick={() => setActiveSection("reports")}>Reports</a>
-
-            <a className={activeSection === "transfers" ? "active" : ""}
-              onClick={() => setActiveSection("transfers")}>Transfers <UnreadTransfersBadge /></a>
-
-            <a className={activeSection === "suppliers" ? "active" : ""}
-              onClick={() => setActiveSection("suppliers")}>Suppliers</a>
-
-            <a className={activeSection === "messages" ? "active" : ""}
-              onClick={() => setActiveSection("messages")}>Messages</a>
-
-            <a className={activeSection === "announcements" ? "active" : ""}
-              onClick={() => setActiveSection("announcements")}>
-              <i className="fas fa-bullhorn" style={{marginRight: '6px'}}></i>Announcements
-            </a>
-
-            <a onClick={() => setShowLogoutModal(true)}>Logout</a>
+            <div style={{ marginTop: 'auto', paddingTop: '15px', borderTop: '1px solid #f1f5f9' }}>
+              <a
+                onClick={() => setShowLogoutModal(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  color: '#ef4444'
+                }}
+              >
+                <i className="fas fa-sign-out-alt"></i>
+                Sign Out
+              </a>
+            </div>
           </nav>
-
-          <LiveClock />
         </aside>
 
         {/* ================= MAIN ================= */}
-        <main className="main-content">
+        {/* ================= MAIN ================= */}
+        <main className="main-content" style={{ marginLeft: '260px', width: 'calc(100% - 260px)', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
 
-          <header className="topbar">
-            <h1>Admin Dashboard</h1>
-            {loading && <span style={{ marginLeft: '10px', color: '#666' }}>Loading...</span>}
+          <header className="topbar" style={{
+            height: '70px',
+            backgroundColor: '#fff',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 30px',
+            position: 'sticky',
+            top: 0,
+            zIndex: 100
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #4338ca, #6366f1)',
+                color: '#fff',
+                padding: '6px 16px',
+                borderRadius: '20px',
+                fontSize: '10px',
+                fontWeight: 900,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                boxShadow: '0 4px 6px -1px rgba(67, 56, 202, 0.2)'
+              }}>
+                {activeSection}
+              </div>
+              <h1 style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b', margin: 0 }}>
+                {activeSection === 'dashboard' ? 'Dashboard' : activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
+              </h1>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '30px' }}>
+              <LiveClock />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '20px', borderLeft: '1px solid #e2e8f0' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Administrator</p>
+                  <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>admin@retail.com</p>
+                </div>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+                  color: '#4338ca',
+                  borderRadius: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  border: '1px solid #e2e8f0',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
+                }}>
+                  AD
+                </div>
+              </div>
+            </div>
           </header>
 
           {/* ================= ALERTS CENTER ================= */}
@@ -381,31 +506,93 @@ export default function AdminDashboard() {
               </div>
 
               {/* SECTION 2: HERO STATS (Financial Focus) */}
-              <div className="hero-stats-grid">
-                <div className="stat-card-hero primary">
-                  <span className="label">TODAY'S TOTAL REVENUE</span>
-                  <div className="value">₹{stats.todayRevenue?.toLocaleString() || 0}</div>
-                  <div className="trend">
-                    <i className="fas fa-chart-line"></i> Global performance across all branches
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+                <div style={{ background: 'linear-gradient(135deg, #4338ca, #6366f1)', padding: '24px', borderRadius: '16px', color: '#fff', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '1px' }}>Global Revenue</p>
+                    <div style={{ background: 'rgba(255,255,255,0.2)', padding: '8px', borderRadius: '10px' }}><i className="fas fa-wallet"></i></div>
+                  </div>
+                  <h2 style={{ margin: '12px 0 4px', fontSize: '28px', fontWeight: 800 }}>₹{stats.todayRevenue?.toLocaleString() || 0}</h2>
+                  <p style={{ margin: 0, fontSize: '11px', opacity: 0.8 }}>System-wide total for today</p>
+                </div>
+
+                {[
+                  { label: 'Cash Payments', value: stats.todayCash, icon: 'fa-money-bill-wave', color: '#059669', bg: '#ecfdf5' },
+                  { label: 'UPI Direct', value: stats.todayUpi, icon: 'fa-mobile-alt', color: '#2563eb', bg: '#eff6ff' },
+                  { label: 'QR Merchant', value: stats.todayQr, icon: 'fa-qrcode', color: '#0d9488', bg: '#f0fdfa' }
+                ].map((s, idx) => (
+                  <div key={idx} style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>{s.label}</p>
+                      <div style={{ backgroundColor: s.bg, color: s.color, padding: '8px', borderRadius: '10px' }}><i className={`fas ${s.icon}`}></i></div>
+                    </div>
+                    <h2 style={{ margin: '12px 0 4px', fontSize: '22px', fontWeight: 700, color: '#1e293b' }}>₹{s.value?.toLocaleString() || 0}</h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#059669', fontWeight: 600 }}>
+                      <i className="fas fa-arrow-up"></i>
+                      <span>Real-time</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* SECTION 2.5: AI SMART INSIGHTS */}
+              {aiInsights.length > 0 && (
+                <div style={{ marginBottom: '32px', animation: 'slideUp 0.6s ease-out' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                    <div style={{
+                      background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                      color: 'white',
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                    }}>
+                      <i className="fas fa-brain"></i>
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>AI-Powered Smart Insights</h3>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Predictive stock analysis & restock recommendations</p>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
+                    gap: '20px'
+                  }}>
+                    {aiInsights.map((insight, idx) => (
+                      <InventoryInsightCard key={idx} insight={insight} />
+                    ))}
                   </div>
                 </div>
+              )}
 
-                <div className="stat-card-hero secondary">
-                  <span className="label">Cash Payments</span>
-                  <div className="value" style={{ color: '#059669', fontSize: '24px' }}>₹{stats.todayCash?.toLocaleString() || 0}</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Physical Collections</div>
+              {/* SECTION 2.6: ADVANCED AI SUITE */}
+              <div style={{ marginBottom: '32px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{
+                    background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                    color: 'white',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <i className="fas fa-microchip"></i>
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>Advanced Business Intelligence</h3>
                 </div>
-
-                <div className="stat-card-hero secondary">
-                  <span className="label">UPI Transfers</span>
-                  <div className="value" style={{ color: '#2563eb', fontSize: '24px' }}>₹{stats.todayUpi?.toLocaleString() || 0}</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Digital Direct</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '24px' }}>
+                  <AIWastageAlerts />
+                  <AIProfitSimulator />
                 </div>
-
-                <div className="stat-card-hero secondary">
-                  <span className="label">QR Scans</span>
-                  <div className="value" style={{ color: '#0d9488', fontSize: '24px' }}>₹{stats.todayQr?.toLocaleString() || 0}</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '10px' }}>Merchant QR</div>
+                <div style={{ marginTop: '24px' }}>
+                  <AIAnnouncementReview />
                 </div>
               </div>
 
@@ -413,20 +600,24 @@ export default function AdminDashboard() {
               <div className="dashboard-main-grid">
 
                 {/* LEFT COLUMN: Charts & Performance */}
-                <div className="left-column" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
                   {/* PERFORMANCE CHART */}
-                  <div className="table-card" style={{ margin: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ margin: 0 }}>📊 Branch Sales Performance (Last 30 Days)</h3>
-                      <button className="primary-btn" onClick={() => setActiveSection('reports')} style={{ padding: '6px 12px', fontSize: '11px' }}>
-                        Deep Dive
+                  <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>📊 Branch Sales Performance (Last 30 Days)</h3>
+                      <button
+                        onClick={() => setActiveSection('reports')}
+                        style={{ background: '#f1f5f9', border: 'none', color: '#4338ca', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Detailed Reports
                       </button>
                     </div>
 
                     {!stats.branchPerformance || stats.branchPerformance.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                        <p>Waiting for sales data to generate analytics...</p>
+                      <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8' }}>
+                        <i className="fas fa-chart-area" style={{ fontSize: '32px', marginBottom: '16px', opacity: 0.5 }}></i>
+                        <p style={{ margin: 0, fontSize: '14px' }}>Waiting for sales data to generate analytics...</p>
                       </div>
                     ) : (
                       <div style={{ minHeight: '300px' }}>
@@ -461,112 +652,148 @@ export default function AdminDashboard() {
                     )}
                   </div>
 
-                  {/* FAQ SECION */}
-                  <DashboardFAQ faqs={[
-                    {
-                      question: "How do I approve new staff?",
-                      answer: "Go to the 'Users' tab in the sidebar. Staff waiting for approval will have a 'Pending' status and an 'Approve' button next to their details."
-                    },
-                    {
-                      question: "How to add a new branch?",
-                      answer: "Navigate to the 'Branches' tab and click the '+ Add Branch' button at the top right of the page."
-                    },
-                    {
-                      question: "Can I see global sales across all branches?",
-                      answer: "Yes, this Dashboard home provides a real-time system-wide revenue overview, and the 'Reports' tab offers detailed financial breakdowns."
-                    },
-                    {
-                      question: "How do I manage suppliers?",
-                      answer: "Use the 'Suppliers' tab to add, edit, or remove vendors for your inventory network."
-                    },
-                    {
-                      question: "What do the critical stock alerts mean?",
-                      answer: "The red alert bar at the top highlights items that have fallen below their minimum threshold across any branch. Click 'Manage Stock' to address these immediately."
-                    },
-                    {
-                      question: "How do I monitor branch performance?",
-                      answer: "The 'Branch Sales Performance' chart on this home page shows a 30-day revenue comparison. Detailed per-branch metrics are available in the 'Reports' section."
-                    },
-                    {
-                      question: "How do I initiate a stock transfer?",
-                      answer: "Go to the 'Transfers' tab. You can create a new request by selecting the source and destination branches along with the products to be moved."
-                    },
-                    {
-                      question: "Can I export or print reports?",
-                      answer: "Yes, in the 'Reports' tab, you can filter by date and branch, then use the 'Print' button to generate a physical or PDF copy of the financial data."
-                    },
-                    {
-                      question: "How do I update branch payment details?",
-                      answer: "Go to the 'Branches' tab, select 'Edit' on the desired branch, and you can update their UPI ID, Address, or Mobile number."
-                    },
-                    {
-                      question: "What happens when I delete a user?",
-                      answer: "Deleting a user removes their login access immediately. However, their past transaction signatures remain in the system for auditing and integrity."
-                    }
-                  ]} />
+                  {/* SMART REBALANCE SECTION */}
+                  <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                      <div style={{
+                        background: '#e0e7ff',
+                        color: '#4338ca',
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <i className="fas fa-shuffle" style={{ fontSize: '14px' }}></i>
+                      </div>
+                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>Smart Stock Rebalancing</h3>
+                    </div>
+                    <SmartRebalanceGrid suggestions={rebalanceSuggestions} />
+                  </div>
                 </div>
 
                 {/* RIGHT COLUMN: Critical Actions & Alerts */}
-                <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
                   {/* CRITICAL STOCK WIDGET */}
-                  <div className="table-card" style={{ margin: 0, borderTop: '4px solid #dc2626' }}>
-                    <div style={{ marginBottom: '15px' }}>
-                      <h3 style={{ margin: 0, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)', borderTop: '5px solid #ef4444' }}>
+                    <div style={{ marginBottom: '16px' }}>
+                      <h3 style={{ margin: 0, color: '#b91c1c', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <i className="fas fa-exclamation-triangle"></i> Low Stock Alerts
                       </h3>
                     </div>
 
                     {(!stats.criticalItems || stats.criticalItems.length === 0) ? (
-                      <div style={{ textAlign: 'center', padding: '20px', background: '#f0fdf4', borderRadius: '12px', color: '#166534' }}>
+                      <div style={{ textAlign: 'center', padding: '24px', background: '#ecfdf5', borderRadius: '12px', color: '#065f46' }}>
                         <i className="fas fa-check-circle" style={{ fontSize: '24px', marginBottom: '8px' }}></i>
                         <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>All stocks healthy</p>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {stats.criticalItems.slice(0, 5).map((item, i) => (
-                          <div key={i} style={{ padding: '10px', background: '#fef2f2', borderRadius: '10px', border: '1px solid #fee2e2' }}>
-                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#991b1b' }}>{item.product}</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#b91c1c', marginTop: '4px' }}>
-                              <span>{item.branch}</span>
+                          <div key={i} style={{ padding: '12px', background: '#fff', borderRadius: '10px', border: '1px solid #fee2e2' }}>
+                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>{item.product}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#ef4444', marginTop: '6px' }}>
+                              <span style={{ color: '#64748b' }}>{item.branch}</span>
                               <span style={{ fontWeight: 800 }}>{item.qty} left</span>
                             </div>
                           </div>
                         ))}
-                        <button className="secondary-btn" onClick={() => setActiveSection('inventory')} style={{ width: '100%', marginTop: '5px', fontSize: '12px' }}>
+                        <button
+                          onClick={() => setActiveSection('inventory')}
+                          style={{ width: '100%', marginTop: '8px', padding: '10px', background: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                        >
                           View Full Stock Report
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* PENDING APPROVALS WIDGET */}
-                  <div className="table-card" style={{ margin: 0 }}>
-                    <h3 style={{ marginBottom: '15px' }}>Pending Approvals</h3>
-                    {users.filter(u => u.status === 'pending').length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', background: '#f8fafc', borderRadius: '12px' }}>
-                        <p style={{ margin: 0, fontSize: '12px' }}>No users awaiting action</p>
-                      </div>
+                  {/* PRICING ALERTS WIDGET */}
+                  <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)', background: 'linear-gradient(to bottom right, #ffffff, #f8faff)' }}>
+                    <h3 style={{ marginBottom: '16px', color: '#1e293b', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fas fa-tag" style={{ color: '#6366f1' }}></i> Dynamic Pricing Analyst
+                    </h3>
+
+                    {pricingAlerts.length === 0 ? (
+                      <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '20px' }}>
+                        No pricing adjustments recommended today.
+                      </p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {users.filter(u => u.status === 'pending' && u.email !== 'admin@retail.com').slice(0, 3).map((u, i) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: '13px' }}>{u.firstName || u.first_name}</div>
-                              <div style={{ fontSize: '11px', color: '#64748b' }}>{u.role} | {u.branch_name}</div>
+                        {pricingAlerts.slice(0, 3).map((p, i) => (
+                          <div key={i} style={{
+                            padding: '16px',
+                            borderRadius: '12px',
+                            background: 'white',
+                            border: '1px solid #f1f5f9',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                          }}>
+                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '8px' }}>{p.product}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '12px', textDecoration: 'line-through', color: '#94a3b8' }}>₹{p.current_price}</span>
+                              <i className="fas fa-arrow-right" style={{ fontSize: '10px', color: '#cbd5e1' }}></i>
+                              <span style={{ fontSize: '16px', fontWeight: 800, color: p.type === 'increase' ? '#059669' : '#e11d48' }}>
+                                ₹{p.suggested_price}
+                              </span>
                             </div>
-                            <button onClick={() => approveUser(u.user_id || u.id)} className="primary-btn" style={{ padding: '5px 10px', fontSize: '11px' }}>
+                            <div style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.5', background: '#f8fafc', padding: '8px', borderRadius: '6px' }}>
+                              {p.reason}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PENDING APPROVALS WIDGET */}
+                  <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                    <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>Pending Approvals</h3>
+                    {users.filter(u => u.status === 'pending').length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', background: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                        <p style={{ margin: 0, fontSize: '13px' }}>No users awaiting action</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {users.filter(u => u.status === 'pending' && u.email !== 'admin@retail.com').slice(0, 3).map((u, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid #f1f5f9' }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>{u.firstName || u.first_name}</div>
+                              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{u.role} | {u.branch_name}</div>
+                            </div>
+                            <button
+                              onClick={() => approveUser(u.user_id || u.id)}
+                              style={{ padding: '6px 14px', background: '#4338ca', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                            >
                               Approve
                             </button>
                           </div>
                         ))}
-                        <button className="secondary-btn" onClick={() => setActiveSection('users')} style={{ width: '100%', fontSize: '12px' }}>
+                        <button
+                          onClick={() => setActiveSection('users')}
+                          style={{ width: '100%', padding: '10px', background: '#f1f5f9', border: 'none', color: '#4338ca', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                        >
                           Manage All Users
                         </button>
                       </div>
                     )}
                   </div>
+                </div>
 
+                <div style={{ marginTop: '40px' }}>
+                  <DashboardFAQ faqs={[
+                    { question: "How many branches can I manage?", answer: "InventoryPro Enterprise supports unlimited branches. You can scale your retail chain from two locations to hundreds." },
+                    { question: "Is the synchronization truly real-time?", answer: "Yes. Our sync engine ensures that any stock change, sale, or transfer is updated across all connected devices in under 200 milliseconds." },
+                    { question: "Can I transfer stock between branches?", answer: "Yes, our 'Inter-Branch Transfer' (IBT) feature allows you to move stock between locations with one click, complete with digital transit tracking." },
+                    { question: "Does it support barcode scanning?", answer: "Absolutely. The system is compatible with standard USB/Bluetooth scanners and mobile camera scanning." },
+                    { question: "What kind of reports can I generate?", answer: "You can generate detailed sales analytics, profit margin reports, tax summaries, and inventory turnover data." },
+                    { question: "Can I manage employee permissions?", answer: "Yes. Use our granular Role-Based Access Control (RBAC) to define what Admin, Manager, and Staff users can see and modify." },
+                    { question: "Does it work offline?", answer: "Yes, our 'Offline-First' architecture allows you to continue sales during internet outages. Data automatically syncs once restored." },
+                    { question: "Can I use it on mobile devices?", answer: "Absolutely. InventoryPro is a progressive web platform designed to work seamlessly on tablets, smartphones, and desktops." },
+                    { question: "How secure is my business data?", answer: "We use bank-grade AES-256 encryption for all data at rest and TLS 1.3 for data in transit." },
+                    { question: "Do you offer staff training?", answer: "Yes, we provide comprehensive onboarding and 24/7 dedicated support for all Enterprise customers." }
+                  ]} />
                 </div>
               </div>
             </div>
@@ -574,98 +801,127 @@ export default function AdminDashboard() {
 
           {/* ================= USERS ================= */}
           {activeSection === "users" && (
-            <>
+            <div style={{ padding: '30px', animation: 'fadeIn 0.5s ease-out' }}>
               {/* ========== MANAGERS SECTION ========== */}
-              <div className="table-card" style={{ marginBottom: '30px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                    <span style={{ background: '#6366f1', color: '#fff', padding: '2px 10px', borderRadius: '12px', fontSize: '13px' }}>Managers</span>
-                    Branch Managers ({users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length})
+              <div style={{
+                backgroundColor: '#fff',
+                borderRadius: '20px',
+                padding: '24px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+                marginBottom: '32px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0, fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>
+                    <span style={{ background: '#4338ca', color: '#fff', padding: '4px 12px', borderRadius: '10px', fontSize: '12px', textTransform: 'uppercase' }}>Managers</span>
+                    Branch Administration ({users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length})
                   </h3>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '12px' }}>
                     <button
                       onClick={() => setShowInactive(v => !v)}
                       style={{
-                        fontSize: '12px', padding: '8px 18px',
-                        borderRadius: '20px',
-                        border: showInactive ? '1.5px solid #fca5a5' : '1.5px solid #cbd5e1',
+                        fontSize: '12px',
+                        padding: '10px 20px',
+                        borderRadius: '12px',
+                        border: '1.5px solid #e2e8f0',
                         cursor: 'pointer',
-                        background: showInactive
-                          ? 'linear-gradient(135deg, #fef2f2, #fff1f2)'
-                          : 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
-                        color: showInactive ? '#b91c1c' : '#475569',
+                        background: showInactive ? '#fff1f2' : '#fff',
+                        color: showInactive ? '#e11d48' : '#64748b',
                         fontWeight: 700,
-                        letterSpacing: '0.3px',
-                        boxShadow: showInactive
-                          ? '0 2px 8px rgba(239, 68, 68, 0.15)'
-                          : '0 1px 4px rgba(0, 0, 0, 0.06)',
-                        transition: 'all 0.25s ease',
+                        transition: 'all 0.2s ease',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px'
+                        gap: '8px'
                       }}
                     >
-                      <i className={`fas ${showInactive ? 'fa-eye-slash' : 'fa-eye'}`} style={{ fontSize: '11px' }}></i>
+                      <i className={`fas ${showInactive ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                       {showInactive ? 'Hide Inactive' : 'Show Inactive'}
                     </button>
                     <button
-                      className="primary-btn"
-                      style={{ fontSize: '13px', padding: '6px 14px' }}
                       onClick={() => setShowAddManager(true)}
+                      style={{
+                        background: '#4338ca',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '12px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 6px -1px rgba(67, 56, 202, 0.2)'
+                      }}
                     >
-                      + Add Manager
+                      <i className="fas fa-plus" style={{ marginRight: '8px' }}></i> Add Manager
                     </button>
                   </div>
                 </div>
 
                 {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length > 0 ? (
                   <div className="table-responsive">
-                    <table>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
                       <thead>
-                        <tr>
-                          <th>Emp ID</th>
-                          <th>Name</th>
-                          <th>Email</th>
-                          <th>Branch</th>
-                          <th>Status</th>
-                          <th>Action</th>
+                        <tr style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 700 }}>Employee</th>
+                          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 700 }}>Contact info</th>
+                          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 700 }}>Branch</th>
+                          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 700 }}>Staus</th>
+                          <th style={{ padding: '12px', textAlign: 'right', fontWeight: 700 }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {users.filter(u => u.role === 'manager' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).map((u, i) => (
-                          <tr key={u.user_id || i}>
-                            <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{u.employee_id || '—'}</code></td>
-                            <td>{u.first_name || u.firstName} {u.last_name || u.lastName}</td>
-                            <td>{u.email}</td>
-                            <td>{u.branch_name || u.branch || 'N/A'}</td>
-                            <td>
-                              {u.status === "approved"
-                                ? <span style={{ color: "#10b981", fontWeight: 700 }}>Approved</span>
-                                : u.status === "suspended"
-                                  ? <span style={{ color: "#ef4444", fontWeight: 700 }}>Inactive</span>
-                                  : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
+                          <tr key={u.user_id || i} style={{ backgroundColor: '#fff', transition: 'transform 0.2s ease' }} className="table-row-hover">
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', borderLeft: '1px solid #f1f5f9', borderTopLeftRadius: '12px', borderBottomLeftRadius: '12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#f1f5f9', color: '#4338ca', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                                  {(u.first_name || u.firstName || 'U')[0]}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: '#1e293b' }}>{u.first_name || u.firstName} {u.last_name || u.lastName}</div>
+                                  <code style={{ fontSize: '10px', color: '#94a3b8' }}>ID: {u.employee_id || 'PENDING'}</code>
+                                </div>
+                              </div>
                             </td>
-                            <td style={{ display: 'flex', gap: '8px' }}>
-                              <button onClick={() => {
-                                setSelectedUser({ ...u, editUpi: u.upi_id || "" });
-                              }} style={{ background: '#f1f5f9', color: '#475569' }}>View</button>
-
-                              {u.status === "pending" && (
-                                <button
-                                  onClick={() => approveUser(u.user_id)}
-                                  className="primary-btn"
-                                  disabled={processingId === u.user_id}
-                                  style={{ opacity: processingId === u.user_id ? 0.7 : 1, cursor: processingId === u.user_id ? 'not-allowed' : 'pointer' }}
-                                >
-                                  {processingId === u.user_id ? "Approving..." : "Approve"}
-                                </button>
-                              )}
-
-                              {u.status === "suspended" ? (
-                                <button onClick={() => reactivateUser(u.user_id)} style={{ background: '#d1fae5', color: '#065f46' }}>Reactivate</button>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                              <div style={{ fontSize: '13px', color: '#475569' }}>{u.email}</div>
+                              <div style={{ fontSize: '11px', color: '#94a3b8' }}>{u.mobile || u.phone || 'No Phone'}</div>
+                            </td>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{u.branch_name || u.branch || '—'}</span>
+                            </td>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                              {u.status === "approved" ? (
+                                <span style={{ background: '#dcfce7', color: '#15803d', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>ACTIVE</span>
+                              ) : u.status === "suspended" ? (
+                                <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>INACTIVE</span>
                               ) : (
-                                <button onClick={() => deactivateUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Deactivate</button>
+                                <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>PENDING</span>
                               )}
+                            </td>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', borderRight: '1px solid #f1f5f9', borderTopRightRadius: '12px', borderBottomRightRadius: '12px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                <button
+                                  onClick={() => setSelectedUser({ ...u, editUpi: u.upi_id || "" })}
+                                  style={{ padding: '8px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b', cursor: 'pointer' }}
+                                  title="View Profile"
+                                >
+                                  <i className="fas fa-eye"></i>
+                                </button>
+                                {u.status === "pending" && (
+                                  <button
+                                    onClick={() => approveUser(u.user_id)}
+                                    disabled={processingId === u.user_id}
+                                    style={{ padding: '8px 16px', borderRadius: '8px', background: '#4338ca', color: '#fff', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                                  >
+                                    Approve
+                                  </button>
+                                )}
+                                {u.status === "suspended" ? (
+                                  <button onClick={() => reactivateUser(u.user_id)} style={{ padding: '8px 16px', borderRadius: '8px', background: '#ecfdf5', color: '#059669', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>Reactivate</button>
+                                ) : (
+                                  <button onClick={() => deactivateUser(u.user_id)} style={{ padding: '8px 16px', borderRadius: '8px', background: '#fff1f2', color: '#e11d48', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>Suspend</button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -673,67 +929,91 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 ) : (
-                  <p style={{ color: '#666', padding: '10px' }}>No managers registered yet.</p>
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                    <i className="fas fa-user-shield" style={{ fontSize: '32px', marginBottom: '16px', opacity: 0.3 }}></i>
+                    <p style={{ margin: 0 }}>No branch managers found.</p>
+                  </div>
                 )}
               </div>
 
               {/* ========== STAFF SECTION ========== */}
-              <div className="table-card">
-                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ background: '#0ea5e9', color: '#fff', padding: '2px 10px', borderRadius: '12px', fontSize: '13px' }}>Staff</span>
-                  Staff Members ({users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length})
+              <div style={{
+                backgroundColor: '#fff',
+                borderRadius: '20px',
+                padding: '24px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+              }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>
+                  <span style={{ background: '#0ea5e9', color: '#fff', padding: '4px 12px', borderRadius: '10px', fontSize: '12px', textTransform: 'uppercase' }}>Staff</span>
+                  Field Personnel ({users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).length})
                 </h3>
 
                 {users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com').length > 0 ? (
                   <div className="table-responsive">
-                    <table>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
                       <thead>
-                        <tr>
-                          <th>Emp ID</th>
-                          <th>Name</th>
-                          <th>Email</th>
-                          <th>Branch</th>
-                          <th>Status</th>
-                          <th>Action</th>
+                        <tr style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 700 }}>Employee</th>
+                          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 700 }}>Contact Info</th>
+                          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 700 }}>Branch</th>
+                          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 700 }}>Status</th>
+                          <th style={{ padding: '12px', textAlign: 'right', fontWeight: 700 }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {users.filter(u => u.role === 'staff' && u.email !== 'admin@retail.com' && (showInactive || u.status !== 'suspended')).map((u, i) => (
-                          <tr key={u.user_id || i}>
-                            <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{u.employee_id || '—'}</code></td>
-                            <td>{u.first_name || u.firstName} {u.last_name || u.lastName}</td>
-                            <td>{u.email}</td>
-                            <td>{u.branch_name || u.branch || 'N/A'}</td>
-
-                            <td>
-                              {u.status === "approved"
-                                ? <span style={{ color: "#10b981", fontWeight: 700 }}>Approved</span>
-                                : u.status === "suspended"
-                                  ? <span style={{ color: "#ef4444", fontWeight: 700 }}>Inactive</span>
-                                  : <span style={{ color: "#f59e0b", fontWeight: 700 }}>Pending</span>}
+                          <tr key={u.user_id || i} style={{ backgroundColor: '#fff' }}>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', borderLeft: '1px solid #f1f5f9', borderTopLeftRadius: '12px', borderBottomLeftRadius: '12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#f0f9ff', color: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                                  {(u.first_name || u.firstName || 'U')[0]}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: '#1e293b' }}>{u.first_name || u.firstName} {u.last_name || u.lastName}</div>
+                                  <code style={{ fontSize: '10px', color: '#94a3b8' }}>ID: {u.employee_id || 'PENDING'}</code>
+                                </div>
+                              </div>
                             </td>
-
-                            <td style={{ display: 'flex', gap: '8px' }}>
-                              <button onClick={() => {
-                                setSelectedUser({ ...u, editUpi: u.upi_id || "" });
-                              }} style={{ background: '#f1f5f9', color: '#475569' }}>View</button>
-
-                              {u.status === "pending" && (
-                                <button
-                                  onClick={() => approveUser(u.user_id)}
-                                  className="primary-btn"
-                                  disabled={processingId === u.user_id}
-                                  style={{ opacity: processingId === u.user_id ? 0.7 : 1, cursor: processingId === u.user_id ? 'not-allowed' : 'pointer' }}
-                                >
-                                  {processingId === u.user_id ? "Approving..." : "Approve"}
-                                </button>
-                              )}
-
-                              {u.status === "suspended" ? (
-                                <button onClick={() => reactivateUser(u.user_id)} style={{ background: '#d1fae5', color: '#065f46' }}>Reactivate</button>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                              <div style={{ fontSize: '13px', color: '#475569' }}>{u.email}</div>
+                              <div style={{ fontSize: '11px', color: '#94a3b8' }}>{u.mobile || u.phone || 'No Phone'}</div>
+                            </td>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{u.branch_name || u.branch || '—'}</span>
+                            </td>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+                              {u.status === "approved" ? (
+                                <span style={{ background: '#dcfce7', color: '#15803d', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>ACTIVE</span>
+                              ) : u.status === "suspended" ? (
+                                <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>INACTIVE</span>
                               ) : (
-                                <button onClick={() => deactivateUser(u.user_id)} style={{ background: '#fee2e2', color: '#dc2626' }}>Deactivate</button>
+                                <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>PENDING</span>
                               )}
+                            </td>
+                            <td style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', borderRight: '1px solid #f1f5f9', borderTopRightRadius: '12px', borderBottomRightRadius: '12px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                <button
+                                  onClick={() => setSelectedUser({ ...u, editUpi: u.upi_id || "" })}
+                                  style={{ padding: '8px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b', cursor: 'pointer' }}
+                                >
+                                  <i className="fas fa-eye"></i>
+                                </button>
+                                {u.status === "pending" && (
+                                  <button
+                                    onClick={() => approveUser(u.user_id)}
+                                    disabled={processingId === u.user_id}
+                                    style={{ padding: '8px 16px', borderRadius: '8px', background: '#4338ca', color: '#fff', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                                  >
+                                    Approve
+                                  </button>
+                                )}
+                                {u.status === "suspended" ? (
+                                  <button onClick={() => reactivateUser(u.user_id)} style={{ padding: '8px 16px', borderRadius: '8px', background: '#ecfdf5', color: '#059669', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>Reactivate</button>
+                                ) : (
+                                  <button onClick={() => deactivateUser(u.user_id)} style={{ padding: '8px 16px', borderRadius: '8px', background: '#fff1f2', color: '#e11d48', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>Suspend</button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -741,12 +1021,15 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 ) : (
-                  <p style={{ color: '#666', padding: '10px' }}>No staff members registered yet.</p>
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                    <i className="fas fa-user-tag" style={{ fontSize: '32px', marginBottom: '16px', opacity: 0.3 }}></i>
+                    <p style={{ margin: 0 }}>No field personnel recorded.</p>
+                  </div>
                 )}
               </div>
-            </>
-          )
-          }
+            </div>
+          )}
+
 
           {activeSection === "inventory" && <AdminInventory setActiveSection={setActiveSection} />}
           {activeSection === "branches" && <AdminBranches />}
@@ -760,201 +1043,121 @@ export default function AdminDashboard() {
       </div>
 
       {/* ================= USER PROFILE MODAL ================= */}
-      {
-        selectedUser && (
-          <div className="profile-overlay" onClick={() => setSelectedUser(null)}>
-            <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                <h2 style={{ margin: 0 }}>User Profile</h2>
-                <button
-                  onClick={() => setSelectedUser(null)}
-                  style={{ background: '#f1f5f9', color: '#64748b', padding: '8px', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <i className="fas fa-times"></i>
-                </button>
+      {selectedUser && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={() => setSelectedUser(null)}>
+          <div style={{ backgroundColor: '#fff', width: '100%', maxWidth: '550px', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'modalSlideUp 0.3s ease-out' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '24px 32px', background: 'linear-gradient(135deg, #4338ca, #6366f1)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800 }}>Profile Intelligence</h2>
+                <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.8, letterSpacing: '0.5px', textTransform: 'uppercase' }}>System Identity & Credentials</p>
               </div>
+              <button onClick={() => setSelectedUser(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', width: '36px', height: '36px', borderRadius: '10px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
 
-              <div className="info-row">
-                <span className="info-label">Employee ID</span>
-                <span className="info-value"><code style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>{selectedUser.employee_id || 'Not assigned'}</code></span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Full Name</span>
-                <span className="info-value">{selectedUser.first_name || selectedUser.firstName} {selectedUser.last_name || selectedUser.lastName}</span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Email Address</span>
-                <span className="info-value">{selectedUser.email}</span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Mobile Number</span>
-                <span className="info-value">{selectedUser.phone || selectedUser.mobile || 'N/A'}</span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">System Role</span>
-                <span className="info-value" style={{ textTransform: 'capitalize' }}>{selectedUser.role}</span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Branch</span>
-                <span className="info-value">{selectedUser.branch_name || selectedUser.branch?.name || selectedUser.branch || 'N/A'}</span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Current Status</span>
-                <span className="info-value">
-                  <span style={{ color: selectedUser.status === 'approved' ? '#10b981' : selectedUser.status === 'suspended' ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>
-                    {selectedUser.status === 'suspended' ? 'INACTIVE' : selectedUser.status?.toUpperCase()}
-                  </span>
-                </span>
-              </div>
-
-              {selectedUser.role === 'staff' && (
-                <>
-                  <div className="info-row">
-                    <span className="info-label">Interview</span>
-                    <span className="info-value">{(selectedUser.interview_status || 'not_started').replace('_', ' ').toUpperCase()}</span>
+            <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', paddingBottom: '20px', borderBottom: '1px solid #f1f5f9' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: '#e0e7ff', color: '#4338ca', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: 800 }}>
+                  {(selectedUser.first_name || selectedUser.firstName || 'U')[0]}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>{selectedUser.first_name || selectedUser.firstName} {selectedUser.last_name || selectedUser.lastName}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1', background: '#eff6ff', padding: '2px 8px', borderRadius: '6px' }}>{selectedUser.role?.toUpperCase()}</span>
+                    <span style={{ height: '4px', width: '4px', borderRadius: '50%', background: '#cbd5e1' }}></span>
+                    <span style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>{selectedUser.employee_id || 'ID_NOT_SET'}</span>
                   </div>
-                  <div className="info-row">
-                    <span className="info-label">Interviewer</span>
-                    <span className="info-value">{selectedUser.interviewer_name || 'N/A'}</span>
-                  </div>
-                  <div className="info-row">
-                    <span className="info-label">Score</span>
-                    <span className="info-value" style={{ fontWeight: 800, color: selectedUser.score >= 70 ? '#10b981' : '#ef4444' }}>{selectedUser.score || 0}%</span>
-                  </div>
-                </>
-              )}
-
-              <div className="info-row">
-                <span className="info-label">Address</span>
-                <span className="info-value">{selectedUser.address || 'N/A'}</span>
+                </div>
               </div>
 
-              <div className="info-row" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px dashed #f1f5f9' }}>
-                <span className="info-label">Branch UPI ID</span>
-                <span className="info-value" style={{ fontFamily: 'monospace', color: '#6366f1' }}>
-                  {selectedUser.branch_upi || 'Not Set in Branch Settings'}
-                </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                <div className="profile-detail-group">
+                  <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'block' }}>Email Address</label>
+                  <div style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{selectedUser.email}</div>
+                </div>
+                <div className="profile-detail-group">
+                  <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'block' }}>Contact Number</label>
+                  <div style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{selectedUser.phone || selectedUser.mobile || '—'}</div>
+                </div>
+                <div className="profile-detail-group">
+                  <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'block' }}>Assigned Branch</label>
+                  <div style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{selectedUser.branch_name || selectedUser.branch || 'Global'}</div>
+                </div>
+                <div className="profile-detail-group">
+                  <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'block' }}>Current Status</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ height: '8px', width: '8px', borderRadius: '50%', background: selectedUser.status === 'approved' ? '#10b981' : '#f59e0b' }}></span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: selectedUser.status === 'approved' ? '#10b981' : '#f59e0b', textTransform: 'uppercase' }}>{selectedUser.status}</span>
+                  </div>
+                </div>
               </div>
-              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '8px', fontStyle: 'italic' }}>
-                * Bank details are managed globally in the Branch Management section.
-              </p>
 
-              <button
-                onClick={() => setSelectedUser(null)}
-                style={{ marginTop: '30px', width: '100%', background: '#f1f5f9', color: '#475569', fontWeight: 700 }}
+              <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+                <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px', display: 'block' }}>Home Address</label>
+                <div style={{ fontSize: '13px', color: '#475569', lineHeight: '1.5' }}>{selectedUser.address || 'No residential data provided.'}</div>
+              </div>
+
+              <button 
+                onClick={() => setSelectedUser(null)} 
+                style={{ marginTop: '10px', padding: '14px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s ease' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
               >
-                Close Profile
+                Close Profile Info
               </button>
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
       {/* ================= ADD MANAGER MODAL ================= */}
-      {
-        showAddManager && (
-          <div className="profile-overlay">
-            <div className="profile-modal" style={{ maxWidth: '500px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ margin: 0 }}>Add New Manager</h2>
-                <button
-                  onClick={() => setShowAddManager(false)}
-                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}
-                >
-                  &times;
-                </button>
+      {showAddManager && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div style={{ backgroundColor: '#fff', width: '100%', maxWidth: '500px', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'modalSlideUp 0.3s ease-out' }}>
+            <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: '#eef2ff', color: '#4338ca', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-user-plus"></i>
+                </div>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>New Manager Entry</h2>
               </div>
+              <button onClick={() => setShowAddManager(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#94a3b8', cursor: 'pointer' }}>&times;</button>
+            </div>
 
-              <form onSubmit={handleAddManagerSubmit} style={{ display: 'grid', gap: '15px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <div className="input-group">
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>FIRST NAME</label>
-                    <input
-                      value={newManager.firstName}
-                      onChange={(e) => setNewManager({ ...newManager, firstName: e.target.value })}
-                      required
-                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    />
+            <form onSubmit={handleAddManagerSubmit} style={{ padding: '32px' }}>
+              <div style={{ display: 'grid', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="input-field">
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', marginBottom: '8px', textTransform: 'uppercase' }}>First Name</label>
+                    <input value={newManager.firstName} onChange={(e) => setNewManager({ ...newManager, firstName: e.target.value })} required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px' }} />
                   </div>
-                  <div className="input-group">
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>LAST NAME</label>
-                    <input
-                      value={newManager.lastName}
-                      onChange={(e) => setNewManager({ ...newManager, lastName: e.target.value })}
-                      required
-                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    />
+                  <div className="input-field">
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', marginBottom: '8px', textTransform: 'uppercase' }}>Last Name</label>
+                    <input value={newManager.lastName} onChange={(e) => setNewManager({ ...newManager, lastName: e.target.value })} required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px' }} />
                   </div>
                 </div>
 
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>EMAIL ADDRESS</label>
-                  <input
-                    type="email"
-                    value={newManager.email}
-                    onChange={(e) => setNewManager({ ...newManager, email: e.target.value })}
-                    required
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  />
+                <div className="input-field">
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', marginBottom: '8px', textTransform: 'uppercase' }}>Email Address</label>
+                  <input type="email" value={newManager.email} onChange={(e) => setNewManager({ ...newManager, email: e.target.value })} required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px' }} />
                 </div>
 
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>MOBILE NUMBER</label>
-                  <input
-                    value={newManager.mobile}
-                    onChange={(e) => setNewManager({ ...newManager, mobile: e.target.value })}
-                    required
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>HOME ADDRESS</label>
-                  <textarea
-                    value={newManager.address}
-                    onChange={(e) => setNewManager({ ...newManager, address: e.target.value })}
-                    required
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', minHeight: '60px' }}
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>ASSIGN BRANCH</label>
-                  <select
-                    value={newManager.branch_id}
-                    onChange={(e) => setNewManager({ ...newManager, branch_id: e.target.value })}
-                    required
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  >
-                    <option value="">Select a Branch...</option>
-                    {branches.map(b => (
-                      <option key={b.branch_id} value={b.branch_id}>{b.name} ({b.city})</option>
-                    ))}
+                <div className="input-field">
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', marginBottom: '8px', textTransform: 'uppercase' }}>Assigned Branch</label>
+                  <select value={newManager.branch_id} onChange={(e) => setNewManager({ ...newManager, branch_id: e.target.value })} required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', backgroundColor: '#fff' }}>
+                    <option value="">Select Branch...</option>
+                    {branches.map(b => <option key={b.branch_id} value={b.branch_id}>{b.name}</option>)}
                   </select>
                 </div>
 
-                <div className="input-group">
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>INITIAL PASSWORD (OPTIONAL)</label>
-                  <input
-                    type="text"
-                    placeholder="Default: Manager@123"
-                    value={newManager.password}
-                    onChange={(e) => setNewManager({ ...newManager, password: e.target.value })}
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <button type="submit" className="primary-btn" style={{ marginTop: '10px' }}>Create Manager Account</button>
-              </form>
-            </div>
+                <button type="submit" style={{ marginTop: '10px', padding: '14px', background: 'linear-gradient(135deg, #4338ca, #6366f1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 800, fontSize: '15px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(67, 56, 202, 0.2)' }}>
+                  Initialize Account →
+                </button>
+              </div>
+            </form>
           </div>
-        )
-      }
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={showLogoutModal}
