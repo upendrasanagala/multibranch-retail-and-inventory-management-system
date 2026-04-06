@@ -105,9 +105,9 @@ export default function Home() {
 
         <div className="branch-grid">
           {[
-            { id: 'BH-01', name: 'Flagship Hub', loc: 'Downtown Metro', rev: '₹1,50,000+', stock: '12,400', status: 'online' },
-            { id: 'BH-02', name: 'Coastal Plaza', loc: 'West Bay District', rev: '₹85,000+', stock: '4,150', status: 'online' },
-            { id: 'BH-03', name: 'Tech Park Annex', loc: 'Cyber Hills', rev: '₹62,000+', stock: '6,800', status: 'online' }
+            { id: 'BH-01', name: 'Edubot Store', loc: 'Vijayawada Central', rev: '₹50,000+', stock: '8,240', status: 'online' },
+            { id: 'BH-02', name: 'Ananya Store', loc: 'Guntur West', rev: '₹48,000+', stock: '2,150', status: 'online' },
+            { id: 'BH-03', name: 'Smart Retails', loc: 'Hyderabad Metro', rev: '₹45,000+', stock: '5,400', status: 'online' }
           ].map((branch, i) => (
             <div key={branch.id} className="branch-card" style={{ animationDelay: `${i * 0.15}s` }}>
               <div className="status-indicator">
@@ -224,7 +224,7 @@ export default function Home() {
 
           <div className="bento-card">
             <div className="bento-icon">
-               <i className="fas fa-server"></i>
+              <i className="fas fa-server"></i>
             </div>
             <h3>Offline Resilience</h3>
             <p>Continue making sales during internet outages; data automatically syncs when the connection is restored.</p>
