@@ -8,6 +8,7 @@ from app.utils.decorators import roles_required
 from app.utils.validators import is_valid_indian_mobile
 from app.utils.ai_engine import get_inventory_insights, get_sales_forecast
 from app.utils.staff_ai import get_staff_performance_metrics
+from datetime import datetime
 
 manager_bp = Blueprint("manager", __name__, url_prefix="/api/manager")
 
@@ -29,7 +30,22 @@ def create_staff():
     # password = data.get("password")  <-- REMOVED
     address = data.get("address")
     phone = data.get("mobile") or data.get("phone")
-    score = data.get("score") # New field
+    score = data.get("score")
+    interview_status = data.get("interview_status", "completed")
+    
+    # Global HR Fields
+    gender = data.get("gender")
+    dob_str = data.get("dob")
+    joining_date_str = data.get("joining_date")
+    pan_number = data.get("pan_number")
+    national_id = data.get("national_id")
+    emergency_contact_name = data.get("emergency_name")
+    emergency_contact_phone = data.get("emergency_phone")
+    
+    def parse_date(date_str):
+        if not date_str: return None
+        try: return datetime.strptime(date_str, "%Y-%m-%d").date()
+        except: return None
     
     if not first_name or not last_name or not email:
         return jsonify({"message": "Missing required fields"}), 400
@@ -58,9 +74,15 @@ def create_staff():
         address=address,
         phone=phone,
         status="pending",
-        # Auto-complete interview process
-        interview_status="completed", 
-        score=int(score) if score is not None else 0
+        interview_status=interview_status, 
+        score=int(score) if score is not None else 0,
+        gender=gender,
+        dob=parse_date(dob_str),
+        joining_date=parse_date(joining_date_str),
+        pan_number=pan_number,
+        national_id=national_id,
+        emergency_contact_name=emergency_contact_name,
+        emergency_contact_phone=emergency_contact_phone
     )
 
     db.session.add(staff)
@@ -159,6 +181,13 @@ def get_staff():
             "bank_name": s.bank_name,
             "account_number": s.account_number,
             "ifsc_code": s.ifsc_code,
+            "dob": s.dob.isoformat() if s.dob else None,
+            "joining_date": s.joining_date.isoformat() if s.joining_date else None,
+            "gender": s.gender,
+            "pan_number": s.pan_number,
+            "national_id": s.national_id,
+            "emergency_name": s.emergency_contact_name,
+            "emergency_phone": s.emergency_contact_phone,
             "created_at": s.created_at.isoformat() if s.created_at else None
         })
         
@@ -232,10 +261,16 @@ def update_staff(user_id):
         
     data = request.get_json() or {}
     
+    # Check for duplicate email if it has changed
+    new_email = data.get("email", staff.email)
+    if new_email and new_email != staff.email:
+        if User.query.filter_by(email=new_email).first():
+            return jsonify({"message": "Email already registered"}), 409
+            
     # Managers can edit everything except role (for now)
     staff.first_name = data.get("firstName", staff.first_name)
     staff.last_name = data.get("lastName", staff.last_name)
-    staff.email = data.get("email", staff.email)
+    staff.email = new_email
     
     new_phone = data.get("mobile", staff.phone)
     if new_phone and not is_valid_indian_mobile(new_phone):
@@ -248,9 +283,36 @@ def update_staff(user_id):
     staff.account_number = data.get("account_number", staff.account_number)
     staff.ifsc_code = data.get("ifsc_code", staff.ifsc_code)
     
+    def parse_date(date_str):
+        if not date_str: return None
+        try: return datetime.strptime(date_str, "%Y-%m-%d").date()
+        except: return None
+        
+    if "dob" in data: staff.dob = parse_date(data["dob"])
+    if "joining_date" in data: staff.joining_date = parse_date(data["joining_date"])
+    if "gender" in data: staff.gender = data["gender"]
+    if "pan_number" in data: staff.pan_number = data["pan_number"]
+    if "national_id" in data: staff.national_id = data["national_id"]
+    if "emergency_name" in data: staff.emergency_contact_name = data["emergency_name"]
+    if "emergency_phone" in data: staff.emergency_contact_phone = data["emergency_phone"]
+    
+    if "score" in data:
+        score_val = data["score"]
+        if score_val == "":
+            staff.score = 0
+        else:
+            try: staff.score = int(score_val)
+            except: pass
+            
+    if "interview_status" in data: staff.interview_status = data["interview_status"]
+    
     if "password" in data and data["password"]:
         staff.password_hash = generate_password_hash(data["password"])
         
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Database error: {str(e)}"}), 500
     
     return jsonify({"message": "Staff details updated successfully"}), 200

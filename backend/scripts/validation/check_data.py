@@ -1,8 +1,5 @@
-import sys
-import os
-
 # Add the backend directory to sys.path
-sys.path.append(r"d:\multibranch-retail-and-inventory-management-system\backend")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from app import create_app
 from app.models.product import Product

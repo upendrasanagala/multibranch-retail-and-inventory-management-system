@@ -13,7 +13,8 @@ def get_staff_performance_metrics(branch_id=None):
     thirty_days_ago = datetime.now() - timedelta(days=30)
     
     query = db.session.query(
-        SalesTransaction.created_by,
+        SalesTransaction.staff_id,
+        SalesTransaction.transaction_id,
         SalesTransaction.total_amount,
         TransactionItem.quantity
     ).join(TransactionItem).filter(
@@ -28,14 +29,16 @@ def get_staff_performance_metrics(branch_id=None):
     if not data:
         return []
         
-    df = pd.DataFrame(data, columns=['user_id', 'amount', 'qty'])
+    df = pd.DataFrame(data, columns=['user_id', 'txn_id', 'amount', 'qty'])
     
     # 2. Aggregate metrics per user
-    stats = df.groupby('user_id').agg(
-        total_revenue=('amount', 'sum'),
-        total_items=('qty', 'sum'),
-        txn_count=('amount', 'count')
-    ).reset_index()
+    # Note: We must be careful not to double count transaction-level fields (revenue, txn_count) 
+    # since the join with TransactionItem repeats them for each item.
+    stats = df.groupby('user_id').apply(lambda x: pd.Series({
+        'total_revenue': float(x.drop_duplicates('txn_id')['amount'].sum()),
+        'total_items': int(x['qty'].sum()),
+        'txn_count': int(x['txn_id'].nunique())
+    }), include_groups=False).reset_index()
     
     # 3. Calculate Scores (Normalized 1-10)
     # Value Score: Based on Revenue
@@ -50,7 +53,8 @@ def get_staff_performance_metrics(branch_id=None):
     # 4. Map to User Details
     output = []
     for _, row in stats.iterrows():
-        user = User.query.get(row['user_id'])
+        user_id = int(row['user_id'])
+        user = User.query.get(user_id)
         if user:
             output.append({
                 "user_id": user.user_id,

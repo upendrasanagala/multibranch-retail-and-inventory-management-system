@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
-import DashboardFAQ from "../../components/DashboardFAQ";
 import InventoryInsightCard from "../../components/InventoryInsightCard";
 import StaffPerformanceInsight from "../../components/StaffPerformanceInsight";
 
@@ -81,6 +80,7 @@ export default function ManagerDashboardHome() {
         ))}
       </div>
 
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '30px' }}>
          
          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -103,25 +103,7 @@ export default function ManagerDashboardHome() {
                ))}
             </div>
 
-            {/* ARTIFICIAL INTELLIGENCE INSIGHTS */}
-            <section style={{ background: '#fff', padding: '35px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-                  <div style={{ width: '40px', height: '40px', background: 'linear-gradient(135deg, #4338ca, #6366f1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                    <i className="fas fa-brain"></i>
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: '#1e293b' }}>AI Business Insights</h3>
-                    <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>Analyzing branch-level performance data</p>
-                  </div>
-               </div>
-               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-                  {aiInsights.length > 0 ? aiInsights.slice(0, 2).map((insight, idx) => (
-                    <InventoryInsightCard key={idx} insight={insight} />
-                  )) : (
-                    <div style={{ gridColumn: 'span 2', padding: '40px', textAlign: 'center', color: '#94a3b8', fontWeight: 700, background: '#f8fafc', borderRadius: '20px' }}>Preparing data...</div>
-                  )}
-               </div>
-            </section>
+
 
             {/* CRITICAL ASSET LOGS */}
             <section style={{ background: '#fff', padding: '35px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
@@ -166,22 +148,62 @@ export default function ManagerDashboardHome() {
             </section>
 
 
-
-            <DashboardFAQ faqs={[
-              { question: "How many branches can I manage?", answer: "InventoryPro Enterprise supports unlimited branches. You can scale your retail chain from two locations to hundreds." },
-              { question: "Is the synchronization truly real-time?", answer: "Yes. Our sync engine ensures that any stock change, sale, or transfer is updated across all connected devices in under 200 milliseconds." },
-              { question: "Can I transfer stock between branches?", answer: "Yes, our 'Inter-Branch Transfer' (IBT) feature allows you to move stock between locations with one click, complete with digital transit tracking." },
-              { question: "Does it support barcode scanning?", answer: "Absolutely. The system is compatible with standard USB/Bluetooth scanners and mobile camera scanning." },
-              { question: "What kind of reports can I generate?", answer: "You can generate detailed sales analytics, profit margin reports, tax summaries, and inventory turnover data." },
-              { question: "Can I manage employee permissions?", answer: "Yes. Use our granular Role-Based Access Control (RBAC) to define what Admin, Manager, and Staff users can see and modify." },
-              { question: "Does it work offline?", answer: "Yes, our 'Offline-First' architecture allows you to continue sales during internet outages. Data automatically syncs once restored." },
-              { question: "Can I use it on mobile devices?", answer: "Absolutely. InventoryPro is a progressive web platform designed to work seamlessly on tablets, smartphones, and desktops." },
-              { question: "How secure is my business data?", answer: "We use bank-grade AES-256 encryption for all data at rest and TLS 1.3 for data in transit." },
-              { question: "Do you offer staff training?", answer: "Yes, we provide comprehensive onboarding and 24/7 dedicated support for all Enterprise customers." }
-            ]} />
          </div>
 
       </div>
+
+      {/* ARTIFICIAL INTELLIGENCE INSIGHTS (Full Width at Bottom) */}
+      <section style={{ 
+        background: 'linear-gradient(135deg, #ffffff, #f8faff)', 
+        padding: '35px', 
+        borderRadius: '35px', 
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 10px 25px -5px rgba(0,0,0,0.03)',
+        marginTop: '40px'
+      }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <div style={{ 
+                  width: '56px', 
+                  height: '56px', 
+                  background: 'linear-gradient(135deg, #4338ca, #6366f1)', 
+                  borderRadius: '16px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: '#fff',
+                  fontSize: '24px',
+                  boxShadow: '0 8px 16px rgba(67, 56, 202, 0.2)'
+                }}>
+                  <i className="fas fa-brain"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#1e293b', letterSpacing: '-0.5px' }}>AI Business Intelligence</h3>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>Predictive branch analytics & inventory strategies</p>
+                </div>
+            </div>
+            <div style={{ 
+              padding: '8px 16px', 
+              background: '#eef2ff', 
+              borderRadius: '12px', 
+              color: '#4338ca', 
+              fontSize: '11px', 
+              fontWeight: 900,
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}>
+              <i className="fas fa-sparkles" style={{ marginRight: '8px' }}></i>
+              Live Branch Engine
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
+            {aiInsights.length > 0 ? aiInsights.slice(0, 4).map((insight, idx) => (
+              <InventoryInsightCard key={idx} insight={insight} />
+            )) : (
+              <div style={{ gridColumn: 'span 2', padding: '40px', textAlign: 'center', color: '#94a3b8', fontWeight: 700, background: '#f8fafc', borderRadius: '20px' }}>Analyzing branch data...</div>
+            )}
+          </div>
+      </section>
     </div>
   );
 }

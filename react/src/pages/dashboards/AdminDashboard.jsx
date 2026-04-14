@@ -16,7 +16,6 @@ import UnreadTransfersBadge from "../../components/UnreadTransfersBadge";
 import api from "../../services/api";
 import { logout as authLogout, getCurrentUser } from "../../services/authService";
 import LiveClock from "../../components/LiveClock";
-import DashboardFAQ from "../../components/DashboardFAQ";
 import ConfirmModal from "../../components/ConfirmModal";
 import Chart from "react-apexcharts";
 import InventoryInsightCard from "../../components/InventoryInsightCard";
@@ -119,6 +118,7 @@ export default function AdminDashboard() {
           });
         } catch (err) {
           console.error("Failed to load stats:", err);
+          setError("Failed to load dashboard metrics. Reconnecting...");
         }
       }
 
@@ -414,6 +414,44 @@ export default function AdminDashboard() {
             </div>
           </header>
 
+          {/* ================= ERROR ALERT ================= */}
+          {error && (
+            <div style={{
+              background: '#fff1f2',
+              border: '1px solid #fda4af',
+              borderRadius: '16px',
+              padding: '20px',
+              marginBottom: '25px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '15px',
+              color: '#be123c',
+              animation: 'slideDown 0.4s ease-out'
+            }}>
+              <i className="fas fa-circle-exclamation" style={{ fontSize: '24px' }}></i>
+              <div>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: '15px' }}>Data Synchronization Issue</p>
+                <p style={{ margin: 0, fontSize: '13px', opacity: 0.9 }}>{error}</p>
+              </div>
+              <button 
+                onClick={() => window.location.reload()} 
+                style={{ 
+                  marginLeft: 'auto', 
+                  background: '#be123c', 
+                  color: 'white', 
+                  border: 'none', 
+                  padding: '8px 16px', 
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                Retry Now
+              </button>
+            </div>
+          )}
+
           {/* ================= ALERTS CENTER ================= */}
           {stats.criticalItems?.length > 0 && (
             <div className="alerts-center" style={{
@@ -537,37 +575,59 @@ export default function AdminDashboard() {
 
               {/* SECTION 2.5: AI SMART INSIGHTS */}
               {aiInsights.length > 0 && (
-                <div style={{ marginBottom: '32px', animation: 'slideUp 0.6s ease-out' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                    <div style={{
-                      background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-                      color: 'white',
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-                    }}>
-                      <i className="fas fa-brain"></i>
-                    </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>AI-Powered Smart Insights</h3>
-                      <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Predictive stock analysis & restock recommendations</p>
-                    </div>
-                  </div>
-
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
-                    gap: '20px'
-                  }}>
+                <section style={{ 
+                  background: 'linear-gradient(135deg, #ffffff, #f8faff)', 
+                  padding: '30px', // Standardized from 40px
+                  borderRadius: '20px', // Standardized from 40px
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)',
+                  marginBottom: '32px'
+                }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '35px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          <div style={{ 
+                             width: '52px', 
+                             height: '52px', 
+                             background: 'linear-gradient(135deg, #6366f1, #a855f7)', 
+                             borderRadius: '14px', 
+                             display: 'flex', 
+                             alignItems: 'center', 
+                             justifyContent: 'center', 
+                             color: '#fff',
+                             fontSize: '22px',
+                             boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                          }}>
+                            <i className="fas fa-brain"></i>
+                          </div>
+                          <div>
+                            <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900, color: '#1e293b', letterSpacing: '-0.3px' }}>AI Smart Predictive Intelligence</h3>
+                            <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>System-wide predictive analysis & restocking recommendations</p>
+                          </div>
+                       </div>
+                      <div style={{ 
+                        padding: '8px 16px', 
+                        background: '#f5f3ff', 
+                        borderRadius: '12px', 
+                        color: '#6366f1', 
+                        fontSize: '11px', 
+                        fontWeight: 900,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        <i className="fas fa-microchip" style={{ marginRight: '6px' }}></i>
+                        Core Engine Live
+                      </div>
+                   </div>
+                   <div style={{
+                     display: 'grid',
+                     gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                     gap: '24px'
+                   }}>
                     {aiInsights.map((insight, idx) => (
                       <InventoryInsightCard key={idx} insight={insight} />
                     ))}
                   </div>
-                </div>
+                </section>
               )}
 
               {/* SECTION 2.6: ADVANCED AI SUITE */}
@@ -779,21 +839,6 @@ export default function AdminDashboard() {
                       </div>
                     )}
                   </div>
-                </div>
-
-                <div style={{ marginTop: '40px' }}>
-                  <DashboardFAQ faqs={[
-                    { question: "How many branches can I manage?", answer: "InventoryPro Enterprise supports unlimited branches. You can scale your retail chain from two locations to hundreds." },
-                    { question: "Is the synchronization truly real-time?", answer: "Yes. Our sync engine ensures that any stock change, sale, or transfer is updated across all connected devices in under 200 milliseconds." },
-                    { question: "Can I transfer stock between branches?", answer: "Yes, our 'Inter-Branch Transfer' (IBT) feature allows you to move stock between locations with one click, complete with digital transit tracking." },
-                    { question: "Does it support barcode scanning?", answer: "Absolutely. The system is compatible with standard USB/Bluetooth scanners and mobile camera scanning." },
-                    { question: "What kind of reports can I generate?", answer: "You can generate detailed sales analytics, profit margin reports, tax summaries, and inventory turnover data." },
-                    { question: "Can I manage employee permissions?", answer: "Yes. Use our granular Role-Based Access Control (RBAC) to define what Admin, Manager, and Staff users can see and modify." },
-                    { question: "Does it work offline?", answer: "Yes, our 'Offline-First' architecture allows you to continue sales during internet outages. Data automatically syncs once restored." },
-                    { question: "Can I use it on mobile devices?", answer: "Absolutely. InventoryPro is a progressive web platform designed to work seamlessly on tablets, smartphones, and desktops." },
-                    { question: "How secure is my business data?", answer: "We use bank-grade AES-256 encryption for all data at rest and TLS 1.3 for data in transit." },
-                    { question: "Do you offer staff training?", answer: "Yes, we provide comprehensive onboarding and 24/7 dedicated support for all Enterprise customers." }
-                  ]} />
                 </div>
               </div>
             </div>

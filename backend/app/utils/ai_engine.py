@@ -209,46 +209,82 @@ def get_branch_rebalance_suggestions():
 def get_pricing_recommendations():
     """
     AI suggestions for dynamic pricing based on sales velocity and margins.
+    Incorporates trend detection to avoid repeating suggestions after price changes.
     """
-    # 1. Get products with cost and unit prices
+    # 1. Get products
     products = Product.query.all()
     if not products: return []
     
-    # 2. Get system-wide velocity (30 days)
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    sales = db.session.query(
+    # 2. Get system-wide velocity (30 days vs 7 days for trend detection)
+    now = datetime.now()
+    thirty_days_ago = now - timedelta(days=30)
+    seven_days_ago = now - timedelta(days=7)
+    
+    sales_30d_raw = db.session.query(
         TransactionItem.product_id,
         func.sum(TransactionItem.quantity).label('qty')
     ).join(SalesTransaction).filter(SalesTransaction.transaction_date >= thirty_days_ago).group_by(
         TransactionItem.product_id
     ).all()
     
-    sales_map = {s[0]: s[1] for s in sales}
+    sales_7d_raw = db.session.query(
+        TransactionItem.product_id,
+        func.sum(TransactionItem.quantity).label('qty')
+    ).join(SalesTransaction).filter(SalesTransaction.transaction_date >= seven_days_ago).group_by(
+        TransactionItem.product_id
+    ).all()
+    
+    sales_30d = {s[0]: s[1] for s in sales_30d_raw}
+    sales_7d = {s[0]: s[1] for s in sales_7d_raw}
     
     recommendations = []
     
     for p in products:
-        velocity = sales_map.get(p.product_id, 0) / 30
-        margin = ((p.unit_price - p.cost_price) / p.unit_price * 100) if p.unit_price > 0 else 0
+        # Calculate velocities
+        v30 = sales_30d.get(p.product_id, 0) / 30
+        v7 = sales_7d.get(p.product_id, 0) / 7
+        
+        # Trend: Is recent performance significantly better than 30d average?
+        # A 20% improvement indicates the current price/strategy is working
+        is_trending_up = v7 > (v30 * 1.2) if v30 > 0 else False
+        
+        # SAFE MARGIN CALCULATION
+        # Fallback to 30% markup if cost_price is missing
+        cost_basis = p.cost_price if p.cost_price is not None else (p.unit_price * 0.7)
+        margin = ((p.unit_price - cost_basis) / p.unit_price * 100) if p.unit_price > 0 else 0
         
         # Logic 1: High Velocity + Low Margin = Increase Price
-        if velocity > 1.5 and margin < 15:
+        if v30 > 1.5 and margin < 15:
             recommendations.append({
                 "product": p.name,
                 "current_price": p.unit_price,
                 "suggested_price": round(p.unit_price * 1.05, 2),
-                "reason": f"High demand (velocity {round(velocity, 2)}) with tight margin ({round(margin, 1)}%). 5% increase recommended.",
+                "reason": f"High demand (velocity {round(v30, 2)}) with tight margin ({round(margin, 1)}%). 5% increase recommended.",
                 "type": "increase"
             })
             
         # Logic 2: Low Velocity + High Margin = Discount to push stock
-        # Skip items that already have a discount applied to avoid repeated suggestions
-        elif (velocity > 0 and velocity < 0.2) and margin > 30 and (p.discount_percent or 0) == 0:
+        # PATIENT AI REFINEMENTS:
+        # - Never suggest a discount if margin is below 35% (Safe Profit Floor)
+        # - High margin (>50%): Suggest 10% discount if dead (v7=0) or very slow (v30<0.2)
+        # - Mid-High (35-50%): ONLY suggest if COMPLETELY dead (v7=0 and v30<0.1)
+        
+        can_discount = False
+        discount_rate = 0.10
+        
+        if margin > 50 and v30 < 0.2:
+            can_discount = True
+            discount_rate = 0.10
+        elif (35 < margin <= 50) and v30 < 0.1 and v7 == 0:
+            can_discount = True
+            discount_rate = 0.05
+            
+        if can_discount and (p.discount_percent or 0) == 0 and not is_trending_up:
              recommendations.append({
                 "product": p.name,
                 "current_price": p.unit_price,
-                "suggested_price": round(p.unit_price * 0.90, 2),
-                "reason": f"Slow moving item with healthy margin ({round(margin, 1)}%). Suggest 10% discount to clear stock.",
+                "suggested_price": round(p.unit_price * (1 - discount_rate), 2),
+                "reason": f"Slow moving item with {round(margin, 1)}% margin. Suggest {int(discount_rate*100)}% discount to stimulate demand.",
                 "type": "discount"
             })
              
@@ -423,7 +459,8 @@ def create_ai_announcement_drafts():
                 title=f"Performance Insight: {row['name']}",
                 message=f"Branch '{row['name']}' is currently performing {round((1 - row['total']/avg_performance)*100)}% below the network average. AI suggests reviewing current stock velocity and staff engagement levels.",
                 target_role="manager",
-                created_by_id=None # System generated
+                status="draft",
+                created_by_id=None
             )
             db.session.add(new_ann)
             drafts_created += 1

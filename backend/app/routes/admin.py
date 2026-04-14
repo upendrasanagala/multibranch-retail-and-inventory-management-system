@@ -27,8 +27,7 @@ from app.utils.ai_engine import (
     get_pricing_recommendations, 
     get_branch_rebalance_suggestions,
     get_wastage_alerts,
-    simulate_profit_scenario,
-    create_ai_announcement_drafts
+    simulate_profit_scenario
 )
 
 
@@ -52,7 +51,7 @@ def get_dashboard_stats():
         SalesTransaction.status == "completed"
     ).all()
     
-    total_revenue = sum(s.total_amount for s in recent_sales)
+    total_revenue = sum(s.total_amount or 0 for s in recent_sales)
     total_transactions = len(recent_sales)
     
     # Low stock items
@@ -76,10 +75,10 @@ def get_dashboard_stats():
         SalesTransaction.status == "completed"
     ).all()
     
-    today_revenue = sum(s.total_amount for s in today_sales)
-    today_cash = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'cash')
-    today_upi = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'upi')
-    today_qr = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'qr')
+    today_revenue = sum(s.total_amount or 0 for s in today_sales)
+    today_cash = sum(s.total_amount or 0 for s in today_sales if s.payment_method and s.payment_method.lower() == 'cash')
+    today_upi = sum(s.total_amount or 0 for s in today_sales if s.payment_method and s.payment_method.lower() == 'upi')
+    today_qr = sum(s.total_amount or 0 for s in today_sales if s.payment_method and s.payment_method.lower() == 'qr')
     
     # Critical Low Stock (Top 5)
     critical_stock = db.session.query(
@@ -107,7 +106,7 @@ def get_dashboard_stats():
     
     branch_stats = [{
         "name": name,
-        "revenue": float(revenue)
+        "revenue": float(revenue or 0)
     } for name, revenue in branch_performance]
 
     return jsonify({
@@ -194,6 +193,21 @@ def simulate_admin_profit():
     result = simulate_profit_scenario(price_change, discount_change)
     print(f"DEBUG: Simulation result: {result}")
     return jsonify(result), 200
+
+
+@admin_bp.route("/stats/trigger-announcements", methods=["POST"])
+@jwt_required()
+@roles_required("admin")
+def trigger_ai_announcements():
+    """
+    Triggers the AI engine to generate announcement drafts based on system performance.
+    """
+    from app.utils.ai_engine import create_ai_announcement_drafts
+    count = create_ai_announcement_drafts()
+    return jsonify({
+        "message": f"AI analysis complete. {count} new drafts created.",
+        "drafts_created": count
+    }), 200
 
 
 # =============================

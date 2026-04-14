@@ -309,7 +309,7 @@ export default function StaffPOS() {
   const playSuccessSound = () => { try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); [523, 659, 784].forEach((f, i) => { const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.setValueAtTime(f, ctx.currentTime + i*0.1); g.gain.setValueAtTime(0.1, ctx.currentTime + i*0.1); o.start(ctx.currentTime + i*0.1); o.stop(ctx.currentTime + i*0.1 + 0.2); }); } catch(e){} };
 
   return (
-    <div style={{ height: 'calc(100vh - 100px)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', animation: 'fadeIn 0.5s ease-out', overflowY: 'auto', padding: '10px' }}>
+    <div style={{ height: '100vh', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '15px', animation: 'fadeIn 0.5s ease-out', overflowY: 'auto', padding: '15px' }}>
       
       {showSuccess && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -325,21 +325,21 @@ export default function StaffPOS() {
 
       {/* ================= LEFT: CART ITEMS ================= */}
       <div style={{ background: '#fff', borderRadius: '28px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        <div style={{ background: '#f8fafc', padding: '16px 30px', borderBottom: '2px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-           <div style={{ fontWeight: 900, fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Items in Cart</div>
-           <div style={{ background: '#eef2ff', padding: '4px 12px', borderRadius: '100px', fontSize: '11px', fontWeight: 800, color: '#4338ca' }}>{cart.length} ITEMS</div>
+        <div style={{ background: '#f8fafc', padding: '12px 20px', borderBottom: '2px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+           <div style={{ fontWeight: 900, fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1.2px' }}>Items in Cart</div>
+           <div style={{ background: '#eef2ff', padding: '3px 10px', borderRadius: '100px', fontSize: '10px', fontWeight: 800, color: '#4338ca' }}>{cart.length} ITEMS</div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px' }}>
            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
-                   <th style={{ padding: '16px', textAlign: 'left', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Product</th>
-                   <th style={{ padding: '16px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Price</th>
-                   <th style={{ padding: '16px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Qty</th>
-                   <th style={{ padding: '16px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Disc %</th>
-                   <th style={{ padding: '16px', textAlign: 'right', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Total</th>
-                   <th style={{ width: '50px' }}></th>
+                 <tr style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
+                   <th style={{ padding: '12px', textAlign: 'left', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Product</th>
+                   <th style={{ padding: '12px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Price</th>
+                   <th style={{ padding: '12px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Qty</th>
+                   <th style={{ padding: '12px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Disc %</th>
+                   <th style={{ padding: '12px', textAlign: 'right', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Total</th>
+                   <th style={{ width: '40px' }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -352,27 +352,27 @@ export default function StaffPOS() {
                 ) : (
                   cart.map(i => (
                     <tr key={i.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                       <td style={{ padding: '16px' }}>
-                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '13px' }}>{i.name}</div>
-                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>{i.sku} | {i.size}</div>
+                       <td style={{ padding: '10px 12px' }}>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '12px' }}>{i.name}</div>
+                          <div style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 700 }}>{i.sku} | {i.size}</div>
                        </td>
-                       <td style={{ padding: '16px', textAlign: 'center', fontWeight: 800, color: '#64748b', fontSize: '13px' }}>₹{i.price.toFixed(2)}</td>
-                       <td style={{ padding: '16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                             <button onClick={() => setCart(cart.map(x => x.id === i.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 900 }}>-</button>
-                             <span style={{ fontWeight: 800, minWidth: '15px' }}>{i.qty}</span>
-                             <button onClick={() => addToCart(i)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 900 }}>+</button>
+                       <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800, color: '#64748b', fontSize: '12px' }}>₹{i.price.toFixed(2)}</td>
+                       <td style={{ padding: '10px 12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                             <button onClick={() => setCart(cart.map(x => x.id === i.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 900, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>-</button>
+                             <span style={{ fontWeight: 800, minWidth: '15px', fontSize: '12px' }}>{i.qty}</span>
+                             <button onClick={() => addToCart(i)} style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 900, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>+</button>
                           </div>
                        </td>
-                       <td style={{ padding: '16px', textAlign: 'center' }}>
-                          <input type="number" min="0" max="100" value={i.item_discount_percent} onChange={e => updateItemDiscount(i.id, e.target.value)} style={{ width: '50px', padding: '4px', borderRadius: '6px', border: '1.5px solid #e2e8f0', textAlign: 'center', fontWeight: 800, fontSize: '12px' }} />
+                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <input type="number" min="0" max="100" value={i.item_discount_percent} onChange={e => updateItemDiscount(i.id, e.target.value)} style={{ width: '45px', padding: '3px', borderRadius: '5px', border: '1.5px solid #e2e8f0', textAlign: 'center', fontWeight: 800, fontSize: '11px' }} />
                        </td>
-                       <td style={{ padding: '16px', textAlign: 'right' }}>
-                          <div style={{ fontWeight: 900, color: '#1e293b', fontSize: '14px' }}>₹{(i.price * i.qty).toFixed(2)}</div>
-                          {(i.is_b1g1 || i.item_discount_percent > 0) && <div style={{ fontSize: '9px', color: '#10b981', fontWeight: 800 }}>SAVED</div>}
+                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                          <div style={{ fontWeight: 900, color: '#1e293b', fontSize: '13px' }}>₹{(i.price * i.qty).toFixed(2)}</div>
+                          {(i.is_b1g1 || i.item_discount_percent > 0) && <div style={{ fontSize: '8px', color: '#10b981', fontWeight: 800 }}>SAVED</div>}
                        </td>
-                       <td style={{ padding: '16px' }}>
-                          <button onClick={() => setCart(cart.filter(x => x.id !== i.id))} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer', fontSize: '13px' }}><i className="fas fa-trash-alt"></i></button>
+                       <td style={{ padding: '10px 12px' }}>
+                          <button onClick={() => setCart(cart.filter(x => x.id !== i.id))} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer', fontSize: '12px' }}><i className="fas fa-trash-alt"></i></button>
                        </td>
                     </tr>
                   ))
@@ -381,29 +381,13 @@ export default function StaffPOS() {
            </table>
         </div>
 
-        <div style={{ background: '#f8fafc', padding: '20px 30px', borderTop: '2px solid #f1f5f9' }}>
-           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-              <div>
-                 <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Subtotal</div>
-                 <div style={{ fontSize: '16px', fontWeight: 900, color: '#1e293b' }}>₹{t.subtotal.toFixed(2)}</div>
-              </div>
-              <div>
-                 <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Discount</div>
-                 <div style={{ fontSize: '16px', fontWeight: 900, color: '#10b981' }}>-₹{(t.savings + t.billDisc + t.manualDisc).toFixed(2)}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                 <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Net Total</div>
-                 <div style={{ fontSize: '24px', fontWeight: 900, color: '#4338ca' }}>₹{t.total.toFixed(2)}</div>
-              </div>
-           </div>
-        </div>
       </div>
 
       {/* ================= RIGHT: TOOLS ================= */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         
         {/* SCAN & SEARCH */}
-        <div style={{ background: '#fff', padding: '20px', borderRadius: '28px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
            <div style={{ position: 'relative', marginBottom: '12px' }}>
               <i className="fas fa-barcode" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}></i>
               <input 
@@ -447,7 +431,7 @@ export default function StaffPOS() {
         </div>
 
         {/* CUSTOMER & DISCOUNTS */}
-        <div style={{ background: '#fff', padding: '20px', borderRadius: '28px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Customer Phone</label>
@@ -459,17 +443,33 @@ export default function StaffPOS() {
               </div>
            </div>
 
-           <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '12px', border: '1px solid #bae6fd' }}>
+           <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '12px', border: '1px solid #bae6fd', marginBottom: '15px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#0369a1' }}>THRESHOLD DISCOUNT</div>
                  <div style={{ fontSize: '9px', background: '#0369a1', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontWeight: 900 }}>{t.total > billThreshold ? 'QUALIFIED' : 'NOT MET'}</div>
               </div>
               <p style={{ margin: '4px 0 0', fontSize: '10px', color: '#0369a1', fontWeight: 600 }}>Get {billOfferPercent}% off on orders above ₹{billThreshold}.</p>
            </div>
+
+           {/* TOTALS SUMMARY (MOVED FROM LEFT FOOTER) */}
+           <div style={{ padding: '15px', background: '#f8fafc', borderRadius: '15px', border: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>Subtotal</span>
+                 <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>₹{t.subtotal.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>Total Discount</span>
+                 <span style={{ fontSize: '13px', fontWeight: 800, color: '#10b981' }}>-₹{(t.savings + t.billDisc + t.manualDisc).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '10px', borderTop: '2px dashed #e2e8f0' }}>
+                 <span style={{ fontSize: '13px', fontWeight: 900, color: '#1e293b' }}>Grand Total</span>
+                 <span style={{ fontSize: '22px', fontWeight: 900, color: '#4338ca' }}>₹{Math.round(t.total).toFixed(2)}</span>
+              </div>
+           </div>
         </div>
 
         {/* PAYMENT SETTINGS */}
-        <div style={{ background: '#fff', padding: '20px', borderRadius: '28px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', flex: 1 }}>
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', flex: 1, minHeight: '350px' }}>
            <h3 style={{ margin: '0 0 16px 0', fontSize: '12px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase' }}>Payment Mode</h3>
            
            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px' }}>
