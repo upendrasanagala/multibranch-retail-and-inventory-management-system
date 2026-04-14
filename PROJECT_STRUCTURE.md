@@ -98,5 +98,5 @@ Always ensure your local database is in sync with the latest code changes.
 ## 🧹 Maintenance & Cleanup
 Before pushing changes to the repository, ensure no unnecessary data is included:
 1. **Logs:** Rotated logs in `backend/logs/` are automatically ignored by `.gitignore` (*.log*).
-2. **Environment:** `.env` files and `.venv` directories must never be committed.
+2. **Environment & Cache:** `.env` files, `.venv` directories, and `.pytest_cache` folders must never be committed.
 3. **Temp Files:** Avoid committing PDF reports or one-off root level scripts.

@@ -184,3 +184,8 @@ The system includes a suite of automated tests to ensure API stability and data 
 2. Install dependencies: `npm install`
 3. Launch the app: `npm run dev`
 
+---
+
+## 🧹 Maintenance
+For a detailed guide on project organization and how to keep the repository clean (including ignoring `.pytest_cache` and logs), please refer to the [Project Structure Guide](PROJECT_STRUCTURE.md).
+
