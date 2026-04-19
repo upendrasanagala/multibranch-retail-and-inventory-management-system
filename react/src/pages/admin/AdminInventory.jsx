@@ -23,6 +23,52 @@ const tableStyles = `
 
 
 export default function AdminInventory({ setActiveSection }) {
+  const calculateUnits = (stock, stockUnit, sizeStr) => {
+    if (!sizeStr || stock === undefined) return null;
+    
+    const sUnit = (stockUnit || '').toLowerCase();
+    const countUnits = ['pcs', 'pkt', 'piece', 'pieces', 'packet', 'packets', 'unit', 'units', 'tube', 'tubes', 'box', 'boxes'];
+    
+    // If we're already counting in units/pieces, the unit count is just the stock itself
+    if (countUnits.includes(sUnit)) return stock;
+
+
+    // Extract number and unit from size string (e.g. "500g", "1kg", "250 ml")
+    const sizeMatch = sizeStr.match(/(\d+(\.\d+)?)\s*([a-zA-Z]+)?/);
+    if (!sizeMatch) return null;
+    
+    const sizeVal = parseFloat(sizeMatch[1]);
+    let sizeUnit = (sizeMatch[3] || sUnit || '').toLowerCase();
+    
+    if (sizeVal <= 0) return null;
+
+    let convertedStock = stock;
+
+    // Weight conversion (kg <-> g)
+    const weightK = ['kg', 'kgs', 'kilogram', 'kilograms'];
+    const weightG = ['g', 'gm', 'gram', 'grams'];
+    
+    if (weightK.includes(sUnit) && weightG.includes(sizeUnit)) {
+      convertedStock = stock * 1000;
+    } else if (weightG.includes(sUnit) && weightK.includes(sizeUnit)) {
+      convertedStock = stock / 1000;
+    }
+    
+    // Volume conversion (L <-> ml)
+    const volL = ['l', 'lt', 'ltr', 'liter', 'litre'];
+    const volM = ['ml', 'ml.', 'milliliter', 'millilitre'];
+    if (volL.includes(sUnit) && volM.includes(sizeUnit)) {
+      convertedStock = stock * 1000;
+    } else if (volM.includes(sUnit) && volL.includes(sizeUnit)) {
+      convertedStock = stock / 1000;
+    }
+
+    const units = convertedStock / sizeVal;
+    if (units % 1 === 0) return units;
+    return `~${units.toFixed(1)}`;
+  };
+
+
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const [products, setProducts] = useState([]);
@@ -99,14 +145,15 @@ export default function AdminInventory({ setActiveSection }) {
 
   const [importFile, setImportFile] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importOverwrite, setImportOverwrite] = useState(false);
 
   /* ========== BULK DELETE UTILITIES ========== */
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      // Select all visible (filtered) products
-      const allIds = filteredProducts.map(p => p.product_id || p.id);
+      // Select all visible (filtered) products using variant_id
+      const allIds = filteredProducts.map(p => p.variant_id || p.id);
       setSelectedIds(new Set(allIds));
     } else {
       setSelectedIds(new Set());
@@ -129,29 +176,12 @@ export default function AdminInventory({ setActiveSection }) {
 
     setLoading(true);
     try {
-      const user = JSON.parse(localStorage.getItem("loggedInUser"));
-      const token = user?.access_token;
-
-      const res = await fetch("http://127.0.0.1:5001/api/products/bulk", {
-        method: "DELETE",
-        headers: {
-          "Authorization": "Bearer " + token,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ product_ids: Array.from(selectedIds) })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setMessage(`✅ ${data.message}`);
-        setSelectedIds(new Set());
-        await loadProducts();
-      } else {
-        throw new Error(data.message || "Bulk delete failed");
-      }
+      const res = await api.products.bulkDelete(Array.from(selectedIds));
+      setMessage(`✅ ${res.message || "Bulk delete successful"}`);
+      setSelectedIds(new Set());
+      await loadProducts();
     } catch (err) {
-      setMessage("❌ " + err.message);
+      setMessage("❌ " + (err.response?.data?.message || err.message));
     }
     setLoading(false);
     setTimeout(() => setMessage(""), 2500);
@@ -215,10 +245,13 @@ export default function AdminInventory({ setActiveSection }) {
     formData.append("file", file);
 
     try {
-      const res = await api.products.import(formData);
+      const res = await api.products.import(formData, importOverwrite ? "sync" : "add");
       let msg = `✅ ${res.message}`;
-      if (res.products_updated > 0) {
-        msg += ` (New: ${res.products_created}, Updated: ${res.products_updated})`;
+      if (res.updated > 0) {
+        msg += ` (New: ${res.created}, Updated: ${res.updated})`;
+      }
+      if (res.skipped > 0) {
+        msg += ` (${res.skipped} skipped)`;
       }
       if (res.errors && res.errors.length > 0) {
         msg += ` | ⚠️ ${res.errors.length} errors`;
@@ -311,13 +344,17 @@ export default function AdminInventory({ setActiveSection }) {
   const [adjustTarget, setAdjustTarget] = useState(null);
   const [adjustForm, setAdjustForm] = useState({ type: 'add', quantity: '', reason: '' });
 
-  const loadDistribution = async (product) => {
-    setSelectedProduct(product);
+  const loadDistribution = async (variant) => {
+    setSelectedProduct(variant);
     setDistLoading(true);
     try {
-      // Load both distribution data AND branches in parallel
+      // Fetch this specific product size across all branches
       const [distRes, branchRes] = await Promise.all([
-        api.inventory.getAll({ product_id: product.product_id || product.id, per_page: 100 }),
+        api.inventory.getAll({ 
+          product_id: variant.product_id, 
+          size: variant.size, 
+          per_page: 100 
+        }),
         api.branches.getAll()
       ]);
       setDistributionData(distRes.inventory || []);
@@ -334,8 +371,8 @@ export default function AdminInventory({ setActiveSection }) {
   const [returnForm, setReturnForm] = useState({ product_id: null, branch_id: "", supplier_id: "", quantity: "", reason: "Returned to Supplier (Damaged/Expired)" });
   const [returnLoading, setReturnLoading] = useState(false);
 
-  const openReturnModal = (product) => {
-    setReturnForm({ ...returnForm, product_id: product.product_id || product.id });
+  const openReturnModal = (variant) => {
+    setReturnForm({ ...returnForm, variant_id: variant.variant_id || variant.id });
     setShowReturnModal(true);
   };
 
@@ -355,7 +392,13 @@ export default function AdminInventory({ setActiveSection }) {
           "Authorization": "Bearer " + token,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(returnForm)
+        body: JSON.stringify({
+          variant_id: returnForm.variant_id,
+          branch_id: returnForm.branch_id,
+          quantity: Number(returnForm.quantity),
+          supplier_id: returnForm.supplier_id,
+          reason: returnForm.reason
+        })
       });
       const data = await res.json();
       if (res.ok) {
@@ -398,7 +441,7 @@ export default function AdminInventory({ setActiveSection }) {
 
     try {
       await api.inventory.adjust({
-        product_id: selectedProduct.product_id || selectedProduct.id,
+        variant_id: selectedProduct.variant_id || selectedProduct.id,
         branch_id: adjustTarget.branch_id,
         adjustment_type: adjustForm.type,
         quantity: Number(adjustForm.quantity),
@@ -686,35 +729,58 @@ export default function AdminInventory({ setActiveSection }) {
             <i className="fas fa-file-invoice"></i> Sync GST Rates
           </button>
 
-          <div style={{ position: 'relative' }}>
-            <input
-              type="file"
-              accept=".xlsx, .xls, .csv"
-              onChange={handleImport}
-              style={{ display: 'none' }}
-              id="excel-upload"
-              disabled={importLoading}
-            />
-            <label
-              htmlFor="excel-upload"
-              style={{
-                cursor: importLoading ? 'wait' : 'pointer',
-                background: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 20px',
-                color: '#1e293b',
-                border: '1.5px solid #e2e8f0',
-                borderRadius: '12px',
-                fontSize: '13px',
-                fontWeight: 700,
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <i className="fas fa-file-import" style={{ color: '#10b981' }}></i>
-              {importLoading ? "Processing..." : "Import Excel"}
-            </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '8px 12px', borderRadius: '10px', border: '1.5px solid #e2e8f0' }}>
+                <input 
+                  type="checkbox" 
+                  id="overwrite-toggle"
+                  checked={importOverwrite}
+                  onChange={(e) => setImportOverwrite(e.target.checked)}
+                  style={{ cursor: 'pointer', accentColor: '#4338ca' }}
+                />
+                <label htmlFor="overwrite-toggle" style={{ fontSize: '11px', fontWeight: 700, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  Overwrite Stock
+                </label>
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={handleImport}
+                  style={{ display: 'none' }}
+                  id="excel-upload"
+                  disabled={importLoading}
+                />
+                <label
+                  htmlFor="excel-upload"
+                  style={{
+                    cursor: importLoading ? 'wait' : 'pointer',
+                    background: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 20px',
+                    color: '#1e293b',
+                    border: '1.5px solid #e2e8f0',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  <i className="fas fa-file-import" style={{ color: '#10b981' }}></i>
+                  {importLoading ? "Processing..." : "Import Excel"}
+                </label>
+              </div>
+            </div>
+            {importOverwrite && (
+               <span style={{ fontSize: '10px', color: '#e11d48', fontWeight: 600, marginRight: '4px' }}>
+                 ⚠️ Existing stocks for matching items will be replaced
+               </span>
+            )}
           </div>
         </div>
       </div>
@@ -902,6 +968,17 @@ export default function AdminInventory({ setActiveSection }) {
                     </select>
                   </div>
                 </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>MANUFACTURING DATE</label>
+                    <input type="date" value={form.mfg_date} onChange={e => setForm({ ...form, mfg_date: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', backgroundColor: '#fff' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>EXPIRY DATE</label>
+                    <input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '14px', backgroundColor: '#fff' }} />
+                  </div>
+                </div>
               </div>
 
               {/* SECTION: Financials & Distribution */}
@@ -1011,7 +1088,7 @@ export default function AdminInventory({ setActiveSection }) {
                   <th className="table-header-th" style={{ textAlign: 'left' }}>Product Details</th>
                   <th className="table-header-th" style={{ textAlign: 'left' }}>Category</th>
                   <th className="table-header-th" style={{ textAlign: 'left' }}>Expiry Info</th>
-                  <th className="table-header-th" style={{ textAlign: 'center' }}>Total Stock</th>
+                  <th className="table-header-th" style={{ textAlign: 'center' }}>Global Stock (All Branches)</th>
                   <th className="table-header-th" style={{ textAlign: 'center' }}>Offer (B1G1)</th>
                   <th className="table-header-th" style={{ textAlign: 'left' }}>Discount %</th>
                   <th className="table-header-th" style={{ textAlign: 'left' }}>Price</th>
@@ -1025,29 +1102,29 @@ export default function AdminInventory({ setActiveSection }) {
                   const isOutOfStock = (p.total_stock || 0) === 0;
                   const isLowStock = p.low_stock_branches > 0;
 
-                  return (
+                    return (
                     <tr
-                      key={p.product_id || p.id}
+                      key={p.variant_id || p.id}
                       className="inventory-row"
                       style={{
-                        backgroundColor: isExpired ? '#fff1f2' : (selectedIds.has(p.product_id || p.id) ? '#f5f7ff' : 'transparent'),
+                        backgroundColor: isExpired ? '#fff1f2' : (selectedIds.has(p.variant_id || p.id) ? '#f5f7ff' : 'transparent'),
                         borderBottom: '1px solid #f1f5f9'
                       }}
                     >
                       <td style={{ padding: '16px 24px' }}>
                         <input
                           type="checkbox"
-                          checked={selectedIds.has(p.product_id || p.id)}
-                          onChange={() => handleSelectOne(p.product_id || p.id)}
+                          checked={selectedIds.has(p.variant_id || p.id)}
+                          onChange={() => handleSelectOne(p.variant_id || p.id)}
                         />
                       </td>
                       <td style={{ padding: '16px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                           <div>
                             <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px' }}>
-                              {p.name} {p.size && <span style={{ color: '#6366f1', marginLeft: '4px' }}>({p.size} {p.unit || 'pcs'})</span>}
+                              {p.name} {p.size && <span style={{ color: '#6366f1', marginLeft: '4px' }}>({p.size})</span>}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, fontFamily: 'monospace' }}>{p.sku || p.barcode || '---'}</div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, fontFamily: 'monospace' }}>{p.sku || '---'}</div>
                           </div>
                         </div>
                       </td>
@@ -1069,18 +1146,41 @@ export default function AdminInventory({ setActiveSection }) {
                         </div>
                       </td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div 
+                          onClick={() => loadDistribution(p)}
+                          style={{ 
+                            display: 'inline-flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            padding: '8px',
+                            borderRadius: '12px',
+                            transition: 'all 0.2s ease',
+                            backgroundColor: 'transparent'
+                          }}
+                          className="stock-hover-reveal"
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
                           <div style={{ fontSize: '14px', fontWeight: 800, color: isOutOfStock ? '#e11d48' : '#1e293b' }}>
                             {p.total_stock || 0} <span style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8' }}>{p.unit || 'pcs'}</span>
                           </div>
+                          {p.size && calculateUnits(p.total_stock || 0, p.unit, p.size) && (
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', marginTop: '2px' }}>
+                              {calculateUnits(p.total_stock || 0, p.unit, p.size)} units <span style={{ fontSize: '9px', opacity: 0.7 }}>({p.size})</span>
+                            </div>
+                          )}
+                          <div style={{ fontSize: '9px', fontWeight: 800, color: '#6366f1', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            View Branches
+                          </div>
                           {isLowStock && (
-                            <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 800 }}>⚠️ LOW IN {p.low_stock_branches} BR</span>
+                            <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 800, marginTop: '4px' }}>⚠️ LOW IN {p.low_stock_branches} BR</span>
                           )}
                         </div>
                       </td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                         <button
-                          onClick={() => updateB1G1(p.product_id || p.id, !p.is_b1g1)}
+                          onClick={() => updateB1G1(p.variant_id || p.id, !p.is_b1g1)}
                           style={{ border: 'none', background: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}
                         >
                           <i className={`fas ${p.is_b1g1 ? 'fa-toggle-on text-indigo-600' : 'fa-toggle-off text-gray-300'}`} style={{ fontSize: '24px', color: p.is_b1g1 ? '#6366f1' : '#cbd5e1' }}></i>
@@ -1091,7 +1191,7 @@ export default function AdminInventory({ setActiveSection }) {
                           <input
                             type="number"
                             value={p.discount_percent || 0}
-                            onChange={e => updateDiscount(p.product_id || p.id, e.target.value)}
+                            onChange={e => updateDiscount(p.variant_id || p.id, e.target.value)}
                             style={{ width: '100%', padding: '6px 20px 6px 8px', borderRadius: '8px', border: '1.5px solid #f1f5f9', fontSize: '13px', fontWeight: 800, color: '#16a34a', textAlign: 'right' }}
                           />
                           <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: '#16a34a', fontWeight: 800 }}>%</span>
@@ -1103,7 +1203,7 @@ export default function AdminInventory({ setActiveSection }) {
                           <input
                             type="number"
                             value={p.unit_price || p.price || 0}
-                            onChange={e => updatePrice(p.product_id || p.id, e.target.value)}
+                            onChange={e => updatePrice(p.variant_id || p.id, e.target.value)}
                             style={{ width: '100%', padding: '6px 8px 6px 20px', borderRadius: '8px', border: '1.5px solid #f1f5f9', fontSize: '13px', fontWeight: 800, color: '#1e293b' }}
                           />
                         </div>
@@ -1116,7 +1216,7 @@ export default function AdminInventory({ setActiveSection }) {
                           <button onClick={() => openReturnModal(p)} style={{ background: '#fff1f2', color: '#e11d48', border: 'none', padding: '8px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }} title="Return to Supplier">
                             <i className="fas fa-undo"></i>
                           </button>
-                          <button onClick={() => deleteProduct(p.product_id || p.id)} style={{ background: '#f8fafc', color: '#94a3b8', border: 'none', padding: '8px 12px', borderRadius: '10px', fontSize: '12px', cursor: 'pointer' }} title="Remove Record">
+                          <button onClick={() => deleteProduct(p.variant_id || p.id)} style={{ background: '#f8fafc', color: '#94a3b8', border: 'none', padding: '8px 12px', borderRadius: '10px', fontSize: '12px', cursor: 'pointer' }} title="Remove Record">
                             <i className="fas fa-trash-alt"></i>
                           </button>
                         </div>
@@ -1269,8 +1369,8 @@ export default function AdminInventory({ setActiveSection }) {
           <div style={{ backgroundColor: '#fff', width: '100%', maxWidth: '900px', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'modalSlideUp 0.3s ease-out' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '24px 32px', background: 'linear-gradient(135deg, #1e293b, #334155)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800 }}>Supply Intelligence: {selectedProduct.name}</h3>
-                <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.7, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Cross-Branch Inventory Audit • {selectedProduct.sku || selectedProduct.barcode || '---'}</p>
+                <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800 }}>Supply Intelligence: {selectedProduct.name} {selectedProduct.size && `(${selectedProduct.size})`}</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.7, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Cross-Branch Inventory Audit • {selectedProduct.sku || '---'}</p>
               </div>
               <button onClick={() => setSelectedProduct(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', width: '36px', height: '36px', borderRadius: '10px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-times"></i>
@@ -1285,39 +1385,58 @@ export default function AdminInventory({ setActiveSection }) {
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: '20px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '16px' }}>
-                    {(distributionData || []).filter(item => {
-                      const branch = branches.find(b => b.branch_id === item.branch_id);
-                      return !branch || branch.status !== 'closed';
-                    }).map((item) => (
-                      <div key={item.inventory_id} style={{ padding: '20px', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '15px' }}>{item.branch_name}</div>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Last Sync: {item.last_updated ? formatDate(item.last_updated) : 'N/A'}</div>
+                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '16px' }}>
+                    {branches.filter(b => b.status !== 'closed').map((branch) => {
+                      const item = (distributionData || []).find(d => d.branch_id === branch.branch_id);
+                      const qty = item ? item.quantity : 0;
+                      const lastUpdated = item ? item.last_updated : null;
+                      const invId = item ? item.inventory_id : null;
+                      const minT = item ? item.min_threshold : 0;
+                      const maxT = item ? item.max_threshold : 0;
 
-                          <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8' }}>MIN</span>
-                              <input type="number" defaultValue={item.min_threshold} onBlur={(e) => updateThresholds(item.inventory_id, e.target.value, item.max_threshold)} style={{ width: '50px', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '11px', textAlign: 'center' }} />
+                      return (
+                        <div key={branch.branch_id} style={{ padding: '20px', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '15px' }}>{branch.name}</div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Last Sync: {lastUpdated ? formatDate(lastUpdated) : 'N/A'}</div>
+
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8' }}>MIN</span>
+                                <input 
+                                  type="number" 
+                                  disabled={!invId}
+                                  defaultValue={minT} 
+                                  onBlur={(e) => invId && updateThresholds(invId, e.target.value, maxT)} 
+                                  style={{ width: '50px', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '11px', textAlign: 'center', opacity: invId ? 1 : 0.5 }} 
+                                />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8' }}>MAX</span>
+                                <input 
+                                  type="number" 
+                                  disabled={!invId}
+                                  defaultValue={maxT} 
+                                  onBlur={(e) => invId && updateThresholds(invId, minT, e.target.value)} 
+                                  style={{ width: '50px', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '11px', textAlign: 'center', opacity: invId ? 1 : 0.5 }} 
+                                />
+                              </div>
+                              {!invId && <div style={{ fontSize: '9px', color: '#6366f1', marginTop: '14px', fontStyle: 'italic' }}>* Use 'Adjust' to initialize</div>}
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8' }}>MAX</span>
-                              <input type="number" defaultValue={item.max_threshold} onBlur={(e) => updateThresholds(item.inventory_id, item.min_threshold, e.target.value)} style={{ width: '50px', padding: '4px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '11px', textAlign: 'center' }} />
+                          </div>
+
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 900, color: qty <= minT ? '#e11d48' : '#1e293b' }}>
+                              {qty} <span style={{ fontSize: '12px', color: '#94a3b8' }}>{selectedProduct.size ? 'units' : (selectedProduct.unit || 'pcs')}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', marginTop: '8px', justifyContent: 'flex-end' }}>
+                              <button onClick={() => openAdjustment(item || { branch_id: branch.branch_id, branch_name: branch.name, product_id: selectedProduct.product_id, variant_id: selectedProduct.variant_id })} style={{ padding: '6px 12px', background: '#fff', color: '#6366f1', border: '1px solid #e0e7ff', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Adjust</button>
+                              <button onClick={() => setActiveSection('transfers')} style={{ padding: '6px 12px', background: '#eff6ff', color: '#1e40af', border: 'none', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Move</button>
                             </div>
                           </div>
                         </div>
-
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '24px', fontWeight: 900, color: item.quantity <= (item.min_threshold || 0) ? '#e11d48' : '#1e293b' }}>
-                            {item.quantity} <span style={{ fontSize: '12px', color: '#94a3b8' }}>{selectedProduct.unit || 'pcs'}</span>
-                          </div>
-                          <div style={{ display: 'flex', gap: '6px', marginTop: '8px', justifyContent: 'flex-end' }}>
-                            <button onClick={() => openAdjustment(item)} style={{ padding: '6px 12px', background: '#fff', color: '#6366f1', border: '1px solid #e0e7ff', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Adjust</button>
-                            <button onClick={() => setActiveSection('transfers')} style={{ padding: '6px 12px', background: '#eff6ff', color: '#1e40af', border: 'none', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Move</button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {adjustTarget && (

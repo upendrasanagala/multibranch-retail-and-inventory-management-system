@@ -5,8 +5,7 @@ Models Package Initializer
 from .user import User
 from .branch import Branch
 from .category import Category
-from .product import Product
-from .inventory import Inventory
+from .product import Product, ProductVariant
 from .sales import SalesTransaction, TransactionItem
 from .stock_transfer import StockTransfer
 from .adjustment import InventoryAdjustment
@@ -19,7 +18,7 @@ __all__ = [
     "Branch",
     "Category",
     "Product",
-    "Inventory",
+    "ProductVariant",
     "SalesTransaction",
     "TransactionItem",
     "StockTransfer",

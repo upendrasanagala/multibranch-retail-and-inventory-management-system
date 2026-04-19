@@ -33,7 +33,7 @@ export default function StaffPOS() {
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const pRes = await api.products.getAll({ per_page: 1000 });
+      const pRes = await api.products.getAll({ per_page: 1000, branch_id: branchId });
       const allP = pRes.products || [];
       let iMap = {};
       if (branchId) {
@@ -41,10 +41,11 @@ export default function StaffPOS() {
         (iRes.inventory || []).forEach(inv => { iMap[inv.product_id] = inv.quantity; });
       }
       setProducts(allP.map(p => ({
-        id: p.product_id || p.id,
+        id: p.variant_id, // Use variant_id as primary key for POS
+        product_id: p.product_id,
         name: p.name,
         price: p.unit_price || p.price || 0,
-        stock: iMap[p.product_id || p.id] !== undefined ? iMap[p.product_id || p.id] : 0,
+        stock: iMap[p.product_id] !== undefined ? iMap[p.product_id] : 0, // Map stock by product_id if the inventory map was created that way
         sku: p.sku || 'N/A',
         size: p.size || 'STD',
         unit: p.unit || 'PCS',
@@ -118,7 +119,7 @@ export default function StaffPOS() {
       const saleData = {
         branch_id: branchId,
         customer_mobile: mobile,
-        items: cart.map(i => ({ product_id: i.id, quantity: i.qty, unit_price: i.price })),
+        items: cart.map(i => ({ variant_id: i.id, quantity: i.qty, unit_price: i.price })),
         subtotal: t.subtotal,
         gst: t.gst,
         discount: t.savings + t.billDisc + t.manualDisc,
@@ -419,7 +420,7 @@ export default function StaffPOS() {
                    {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase())).map(p => (
                      <div key={p.id} onClick={() => {addToCart(p); setSearch(""); setShowResults(false);}} style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>{p.name}</div>
+                          <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>{p.name} {p.size && p.size !== 'STD' && `(${p.size})`}</div>
                           <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>₹{p.price} | Stock: {p.stock}</div>
                         </div>
                         <i className="fas fa-plus-circle" style={{ color: '#4338ca', opacity: 0.5 }}></i>

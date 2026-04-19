@@ -4,6 +4,48 @@ import { formatDate } from "../../utils/dateUtils";
 import { useToast } from "../../components/ToastContext";
 
 export default function ManagerInventory() {
+  const calculateUnits = (stock, stockUnit, sizeStr) => {
+    if (!sizeStr || stock === undefined) return null;
+    
+    const sUnit = (stockUnit || '').toLowerCase();
+    const countUnits = ['pcs', 'pkt', 'piece', 'pieces', 'packet', 'packets', 'unit', 'units', 'tube', 'tubes', 'box', 'boxes'];
+    
+    if (countUnits.includes(sUnit)) return stock;
+
+
+    const sizeMatch = sizeStr.match(/(\d+(\.\d+)?)\s*([a-zA-Z]+)?/);
+    if (!sizeMatch) return null;
+    
+    const sizeVal = parseFloat(sizeMatch[1]);
+    let sizeUnit = (sizeMatch[3] || sUnit || '').toLowerCase();
+    
+    if (sizeVal <= 0) return null;
+
+    let convertedStock = stock;
+    const weightK = ['kg', 'kgs', 'kilogram', 'kilograms'];
+    const weightG = ['g', 'gm', 'gram', 'grams'];
+    
+    if (weightK.includes(sUnit) && weightG.includes(sizeUnit)) {
+      convertedStock = stock * 1000;
+    } else if (weightG.includes(sUnit) && weightK.includes(sizeUnit)) {
+      convertedStock = stock / 1000;
+    }
+    
+    const volL = ['l', 'lt', 'ltr', 'liter', 'litre'];
+    const volM = ['ml', 'ml.', 'milliliter', 'millilitre'];
+    if (volL.includes(sUnit) && volM.includes(sizeUnit)) {
+      convertedStock = stock * 1000;
+    } else if (volM.includes(sUnit) && volL.includes(sizeUnit)) {
+      convertedStock = stock / 1000;
+    }
+
+    const units = convertedStock / sizeVal;
+    if (units % 1 === 0) return units;
+    return `~${units.toFixed(1)}`;
+  };
+
+
+
   const { showToast } = useToast();
   const [inventory, setInventory] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
@@ -121,14 +163,21 @@ export default function ManagerInventory() {
                           <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{p.sku || p.barcode || '---'}</div>
                        </td>
                        <td style={{ padding: '18px 25px' }}>
-                          <div style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: '#4338ca', marginBottom: '4px' }}>{p.category_name || 'GENERAL'}</div>
+                          <div style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: '#4338ca', marginBottom: '4px' }}>{p.category || 'GENERAL'}</div>
                           <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>SOURCE: {p.supplier_name || 'INTERNAL'}</div>
                        </td>
-                       <td style={{ padding: '18px 25px', textAlign: 'center' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 900, color: isLow ? '#ef4444' : '#1e293b', background: isLow ? '#fef2f2' : '#f8fafc', padding: '6px 14px', borderRadius: '12px', display: 'inline-block', border: isLow ? '1px solid #fecaca' : '1px solid #f1f5f9' }}>
-                            {p.quantity || 0}
-                          </span>
-                       </td>
+                        <td style={{ padding: '18px 25px', textAlign: 'center' }}>
+                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                             <span style={{ fontSize: '15px', fontWeight: 900, color: isLow ? '#ef4444' : '#1e293b', background: isLow ? '#fef2f2' : '#f8fafc', padding: '6px 14px', borderRadius: '12px', display: 'inline-block', border: isLow ? '1px solid #fecaca' : '1px solid #f1f5f9' }}>
+                               {p.quantity || 0} <span style={{ fontSize: '10px', color: '#94a3b8' }}>{p.unit || 'pcs'}</span>
+                             </span>
+                             {p.size && calculateUnits(p.quantity || 0, p.unit, p.size) && (
+                               <div style={{ fontSize: '11px', fontWeight: 800, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px' }}>
+                                 {calculateUnits(p.quantity || 0, p.unit, p.size)} units <span style={{ fontSize: '9px', opacity: 0.6 }}>({p.size})</span>
+                               </div>
+                             )}
+                           </div>
+                        </td>
                        <td style={{ padding: '18px 25px' }}>
                           <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>₹{(p.unit_price || 0).toFixed(2)}</div>
                           <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>TOTAL: ₹{((p.quantity || 0) * (p.unit_price || 0)).toFixed(2)}</div>

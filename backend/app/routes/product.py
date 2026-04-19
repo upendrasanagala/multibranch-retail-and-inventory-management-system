@@ -15,70 +15,125 @@ from app.utils.categorization import predict_category
 import math 
 
 
-# =============================
-# Get All Products (with filters)
-# =============================
 @product_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_products():
+    from app.models.product import ProductVariant
+    from app.models.category import Category
+    from sqlalchemy import func
+    
     # Query parameters for filtering
     category_id = request.args.get("category_id", type=int)
     search = request.args.get("search", "")
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
+    branch_id = request.args.get("branch_id", type=int)
     
-    query = Product.query
-    
-    # Apply filters
+    # Base query
+    if branch_id:
+        # Branch-specific view: no aggregation needed
+        query = db.session.query(ProductVariant, Product).join(Product, ProductVariant.product_id == Product.product_id)
+        query = query.filter(ProductVariant.branch_id == branch_id)
+    else:
+        # Global view: aggregate by product + variant size
+        query = db.session.query(
+            Product,
+            func.min(ProductVariant.variant_id).label("variant_id"),
+            func.sum(ProductVariant.stock_quantity).label("total_stock"),
+            ProductVariant.variant_size.label("size"),
+            func.min(ProductVariant.sku_code).label("sku"),
+            func.min(ProductVariant.barcode).label("barcode"),
+            func.max(ProductVariant.price).label("unit_price"),
+            func.max(ProductVariant.cost_price).label("cost_price"),
+            func.max(ProductVariant.discount_percent).label("discount_percent"),
+            func.max(ProductVariant.gst_percent).label("gst_percent"),
+            func.bool_or(ProductVariant.is_b1g1).label("is_b1g1"),
+            func.min(ProductVariant.mfg_date).label("mfg_date"),
+            func.min(ProductVariant.expiry_date).label("expiry_date"),
+            # Count branches with low stock for this specific variant
+            func.count(ProductVariant.variant_id).filter(ProductVariant.stock_quantity <= ProductVariant.min_threshold).label("low_stock_branches")
+        ).join(ProductVariant, Product.product_id == ProductVariant.product_id)
+        
+    # Apply global filters
     if category_id:
         query = query.filter(Product.category_id == category_id)
     
     if search:
-        query = query.filter(
-            (Product.name.ilike(f"%{search}%")) |
-            (Product.sku.ilike(f"%{search}%")) |
-            (Product.barcode.ilike(f"%{search}%"))
-        )
+        if branch_id:
+            query = query.filter(
+                (Product.name.ilike(f"%{search}%")) |
+                (ProductVariant.sku_code.ilike(f"%{search}%")) |
+                (ProductVariant.barcode.ilike(f"%{search}%"))
+            )
+        else:
+            query = query.filter(
+                (Product.name.ilike(f"%{search}%")) |
+                (ProductVariant.sku_code.ilike(f"%{search}%"))
+            )
     
+    if not branch_id:
+        query = query.group_by(Product.product_id, ProductVariant.variant_size)
+
     # Pagination
-    paginated = query.order_by(Product.name).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    if branch_id:
+        paginated = query.order_by(Product.name, ProductVariant.variant_size).paginate(page=page, per_page=per_page, error_out=False)
+    else:
+        paginated = query.order_by(Product.name, "size").paginate(page=page, per_page=per_page, error_out=False)
     
-    from app.models.inventory import Inventory
+    from app.models.supplier import Supplier
     products = []
-    for p in paginated.items:
-        cat = Category.query.get(p.category_id) if p.category_id else None
-        
-        # Calculate global stats
-        inv_records = Inventory.query.filter_by(product_id=p.product_id).all()
-        total_stock = sum(r.quantity for r in inv_records)
-        low_stock_count = sum(1 for r in inv_records if r.quantity <= (r.min_threshold or 0))
-        
-        products.append({
-            "product_id": p.product_id,
-            "name": p.name,
-            "sku": p.sku,
-            "barcode": p.barcode,
-            "category_id": p.category_id,
-            "category": {"category_id": cat.category_id, "name": cat.name} if cat else None,
-            "description": p.description,
-            "unit_price": p.unit_price,
-            "cost_price": p.cost_price if p.cost_price is not None and not (isinstance(p.cost_price, float) and math.isnan(p.cost_price)) else None,
-            "discount_percent": p.discount_percent if p.discount_percent is not None and not (isinstance(p.discount_percent, float) and math.isnan(p.discount_percent)) else 0.0,
-            "gst_percent": p.gst_percent if p.gst_percent is not None and not (isinstance(p.gst_percent, float) and math.isnan(p.gst_percent)) else 0.0,
-            "unit": p.unit,
-            "size": p.size,
-            "total_stock": total_stock,
-            "low_stock_branches": low_stock_count,
-            "image_path": p.image_path,
-            "is_b1g1": p.is_b1g1,
-            "mfg_date": p.mfg_date.isoformat() if p.mfg_date else None,
-            "expiry_date": p.expiry_date.isoformat() if p.expiry_date else None,
-            "supplier_id": p.supplier_id,
-            "supplier_name": p.supplier.name if p.supplier else None,
-            "created_at": p.created_at.isoformat() if p.created_at else None
-        })
+    if branch_id:
+        for pv, p in paginated.items:
+            cat = Category.query.get(p.category_id) if p.category_id else None
+            supp = Supplier.query.get(p.supplier_id) if p.supplier_id else None
+            products.append({
+                "product_id": p.product_id,
+                "variant_id": pv.variant_id,
+                "name": p.name,
+                "sku": pv.sku_code,
+                "barcode": pv.barcode,
+                "category_id": p.category_id,
+                "category": {"name": cat.name} if cat else None,
+                "supplier_name": supp.name if supp else None,
+                "unit_price": pv.price,
+                "cost_price": pv.cost_price,
+                "discount_percent": pv.discount_percent,
+                "gst_percent": pv.gst_percent,
+                "unit": p.unit,
+                "size": pv.variant_size,
+                "total_stock": pv.stock_quantity,
+                "branch_id": pv.branch_id,
+                "is_b1g1": pv.is_b1g1,
+                "mfg_date": pv.mfg_date.isoformat() if pv.mfg_date else None,
+                "expiry_date": pv.expiry_date.isoformat() if pv.expiry_date else None,
+                "low_stock_branches": 1 if pv.stock_quantity <= pv.min_threshold else 0
+            })
+    else:
+        for row in paginated.items:
+            p = row[0]
+            cat = Category.query.get(p.category_id) if p.category_id else None
+            supp = Supplier.query.get(p.supplier_id) if p.supplier_id else None
+            products.append({
+                "product_id": p.product_id,
+                "variant_id": row.variant_id,
+                "name": p.name,
+                "sku": row.sku,
+                "barcode": row.barcode,
+                "category_id": p.category_id,
+                "category": {"name": cat.name} if cat else None,
+                "supplier_name": supp.name if supp else None,
+                "unit_price": row.unit_price,
+                "cost_price": row.cost_price,
+                "discount_percent": row.discount_percent,
+                "gst_percent": row.gst_percent,
+                "unit": p.unit,
+                "size": row.size,
+                "total_stock": float(row.total_stock) if row.total_stock else 0,
+                "is_b1g1": bool(row.is_b1g1),
+                "mfg_date": row.mfg_date.isoformat() if row.mfg_date else None,
+                "expiry_date": row.expiry_date.isoformat() if row.expiry_date else None,
+                "low_stock_branches": row.low_stock_branches
+            })
     
     return jsonify({
         "products": products,
@@ -86,6 +141,7 @@ def get_products():
         "pages": paginated.pages,
         "current_page": page
     }), 200
+
 
 
 
@@ -125,30 +181,31 @@ def get_product(product_id):
 @product_bp.route("/<int:product_id>/inventory", methods=["GET"])
 @jwt_required()
 def get_product_inventory_branches(product_id):
-    from app.models.inventory import Inventory
+    from app.models.product import ProductVariant
     from app.models.branch import Branch
     
     product = Product.query.get_or_404(product_id)
-    inventory_records = db.session.query(
-        Inventory, Branch.name.label("branch_name")
+    # Get all variants for this product across all branches
+    variants = db.session.query(
+        ProductVariant, Branch.name.label("branch_name")
     ).join(
-        Branch, Inventory.branch_id == Branch.branch_id
+        Branch, ProductVariant.branch_id == Branch.branch_id
     ).filter(
-        Inventory.product_id == product_id
+        ProductVariant.product_id == product_id
     ).all()
     
     distribution = [{
-        "branch_id": inv.branch_id,
+        "variant_id": v.variant_id,
+        "branch_id": v.branch_id,
         "branch_name": branch_name,
-        "quantity": inv.quantity,
-        "min_threshold": inv.min_threshold,
-        "max_threshold": inv.max_threshold
-    } for inv, branch_name in inventory_records]
+        "quantity": v.stock_quantity,
+        "size": v.variant_size,
+        "sku": v.sku_code
+    } for v, branch_name in variants]
     
     return jsonify({
         "product_id": product.product_id,
         "product_name": product.name,
-        "sku": product.sku,
         "inventory": distribution
     }), 200
 
@@ -177,101 +234,80 @@ def get_predicted_category():
 @jwt_required()
 @roles_required("admin", "manager")
 def create_product():
+    from app.models.product import ProductVariant
+    from app.models.branch import Branch
+    import uuid
+    from datetime import datetime
     try:
         data = request.get_json() or {}
 
         name = data.get("name")
         unit_price = data.get("unit_price")
         category_id = data.get("category_id")
-        initial_quantity = data.get("initial_quantity", 0)
         supplier_id = data.get("supplier_id")
     
         if not name or unit_price is None or not category_id or not supplier_id:
             return jsonify({"message": "Name, Price, Category, and Supplier are required"}), 400
         
-        # Check if SKU already exists or generate one
-        sku = data.get("sku")
-        if sku:
-            if Product.query.filter_by(sku=sku).first():
-                return jsonify({"message": "SKU already exists"}), 409
-        else:
-            # Generate a simple SKU if not provided
-            import uuid
-            sku = f"PROD-{str(uuid.uuid4())[:8].upper()}"
+        # Check if master product already exists with same name
+        product = Product.query.filter_by(name=name).first()
+        if not product:
+            product = Product(
+                name=name,
+                category_id=category_id,
+                description=data.get("description"),
+                unit=data.get("unit"),
+                image_path=data.get("image_path"),
+                supplier_id=supplier_id
+            )
+            db.session.add(product)
+            db.session.flush() # Get product_id
         
-        # Parse dates safely
-        mfg_date = None
-        if data.get("mfg_date"):
-            try:
-                from datetime import datetime
-                mfg_date = datetime.strptime(data.get("mfg_date"), '%Y-%m-%d').date()
-            except ValueError:
-                pass
-
-        expiry_date = None
-        if data.get("expiry_date"):
-            try:
-                from datetime import datetime
-                expiry_date = datetime.strptime(data.get("expiry_date"), '%Y-%m-%d').date()
-            except ValueError:
-                pass
-
-        product = Product(
-            name=name,
-            sku=sku,
-            barcode=data.get("barcode"),
-            category_id=category_id,
-            description=data.get("description"),
-            unit_price=unit_price,
-            cost_price=data.get("cost_price") or (float(unit_price) * 0.7),
-            unit=data.get("unit"),
-            image_path=data.get("image_path"),
-            size=data.get("size"),
-            discount_percent=data.get("discount_percent", 0.0),
-            gst_percent=data.get("gst_percent", 0.0),
-            mfg_date=mfg_date,
-            expiry_date=expiry_date,
-            is_b1g1=data.get("is_b1g1", False),
-            supplier_id=data.get("supplier_id")
-        )
-        
-        db.session.add(product)
-        db.session.flush() # Get product_id
-        
-        # Initialize inventory for all branches
-        from app.models.branch import Branch
-        from app.models.inventory import Inventory
-        
-        branch_quantities = data.get("branch_quantities")
-        
+        # Create Variants for each branch
         branches = Branch.query.all()
+        branch_quantities = data.get("branch_quantities") or {}
+        
+        mfg_date_val = None
+        if data.get("mfg_date"):
+            try: mfg_date_val = datetime.strptime(data.get("mfg_date"), '%Y-%m-%d').date()
+            except: pass
+
+        expiry_date_val = None
+        if data.get("expiry_date"):
+            try: expiry_date_val = datetime.strptime(data.get("expiry_date"), '%Y-%m-%d').date()
+            except: pass
+
+        sku_val = data.get("sku")
+        base_sku = sku_val if (sku_val and sku_val.lower() != 'nan') else f"PROD-{str(uuid.uuid4())[:8].upper()}"
+        
         for branch in branches:
-            qty = 0
-            try:
-                if branch_quantities and str(branch.branch_id) in branch_quantities:
-                    val = branch_quantities.get(str(branch.branch_id), "")
-                    qty = int(val) if val else 0
-                elif not branch_quantities and initial_quantity:
-                     # Only fallback to initial_quantity if NO distribution data was sent
-                     qty = initial_quantity
-            except (ValueError, TypeError):
-                qty = 0
-    
-            inventory = Inventory(
+            qty = branch_quantities.get(str(branch.branch_id), data.get("initial_quantity", 0))
+            try: qty = float(qty)
+            except: qty = 0.0
+
+            variant = ProductVariant(
                 product_id=product.product_id,
                 branch_id=branch.branch_id,
-                quantity=qty,
-                min_threshold=10,
-                max_threshold=1000
+                variant_size=data.get("size"),
+                sku_code=f"{base_sku}-{branch.branch_id}",
+                barcode=data.get("barcode"),
+                stock_quantity=qty,
+                price=unit_price,
+                cost_price=data.get("cost_price") or (float(unit_price) * 0.7),
+                discount_percent=data.get("discount_percent", 0.0),
+                gst_percent=data.get("gst_percent", 0.0),
+                mfg_date=mfg_date_val,
+                expiry_date=expiry_date_val,
+                is_b1g1=data.get("is_b1g1", False)
             )
-            db.session.add(inventory)
+            db.session.add(variant)
         
         db.session.commit()
         
         return jsonify({
-            "message": "Product created and inventory initialized successfully",
+            "message": "Product and variants created successfully",
             "product_id": product.product_id,
-            "sku": sku
+            "sku": base_sku
         }), 201
 
     except Exception as e:
@@ -279,54 +315,47 @@ def create_product():
         return jsonify({"message": f"Server Error: {str(e)}"}), 500
 
 
+
 # =============================
 # Update Product (Admin/Manager)
 # =============================
-@product_bp.route("/<int:product_id>", methods=["PUT"])
+@product_bp.route("/<int:variant_id>", methods=["PUT"])
 @jwt_required()
 @roles_required("admin", "manager")
-def update_product(product_id):
-    product = Product.query.get_or_404(product_id)
+def update_product_variant(variant_id):
+    from app.models.product import ProductVariant
+    variant = ProductVariant.query.get_or_404(variant_id)
+    product = Product.query.get(variant.product_id)
     data = request.get_json() or {}
     
-    # Check SKU uniqueness if being changed
-    new_sku = data.get("sku")
-    if new_sku and new_sku != product.sku:
-        if Product.query.filter_by(sku=new_sku).first():
-            return jsonify({"message": "SKU already exists"}), 409
+    # Update Variant-specific info
+    variant.variant_size = data.get("size", variant.variant_size)
+    variant.price = data.get("unit_price", variant.price)
+    variant.cost_price = data.get("cost_price", variant.cost_price)
+    variant.sku_code = data.get("sku", variant.sku_code)
+    variant.barcode = data.get("barcode", variant.barcode)
+    variant.discount_percent = data.get("discount_percent", variant.discount_percent)
+    variant.gst_percent = data.get("gst_percent", variant.gst_percent)
+    variant.is_b1g1 = data.get("is_b1g1", variant.is_b1g1)
     
+    from datetime import datetime
+    if data.get("mfg_date"):
+        try: variant.mfg_date = datetime.strptime(data.get("mfg_date"), '%Y-%m-%d').date()
+        except: pass
+    if "expiry_date" in data:
+        try: variant.expiry_date = datetime.strptime(data.get("expiry_date"), '%Y-%m-%d').date() if data.get("expiry_date") else None
+        except: pass
+        
+    # Update Product-wide info
     product.name = data.get("name", product.name)
-    product.sku = data.get("sku", product.sku)
-    product.barcode = data.get("barcode", product.barcode)
     product.category_id = data.get("category_id", product.category_id)
     product.description = data.get("description", product.description)
-    product.unit_price = data.get("unit_price", product.unit_price)
-    product.cost_price = data.get("cost_price", product.cost_price)
     product.unit = data.get("unit", product.unit)
-    product.image_path = data.get("image_path", product.image_path)
     product.supplier_id = data.get("supplier_id", product.supplier_id)
     
-    product.size = data.get("size", product.size)
-    product.discount_percent = data.get("discount_percent", product.discount_percent)
-    product.gst_percent = data.get("gst_percent", product.gst_percent)
-    product.is_b1g1 = data.get("is_b1g1", product.is_b1g1)
-    
-    if data.get("mfg_date"):
-        try:
-            from datetime import datetime
-            product.mfg_date = datetime.strptime(data.get("mfg_date"), '%Y-%m-%d').date()
-        except ValueError:
-            pass
-            
-    if "expiry_date" in data:
-        try:
-             from datetime import datetime
-             product.expiry_date = datetime.strptime(data.get("expiry_date"), '%Y-%m-%d').date() if data.get("expiry_date") else None
-        except:
-             pass
-    
     db.session.commit()
-    return jsonify({"message": "Product updated successfully"}), 200
+    return jsonify({"message": "Variant updated successfully"}), 200
+
 
 # =============================
 # Return to Retailer (Admin/Manager)
@@ -335,33 +364,37 @@ def update_product(product_id):
 @jwt_required()
 @roles_required("admin", "manager")
 def return_to_retailer():
-    from app.models.inventory import Inventory
+    from app.models.product import ProductVariant
     from app.models.adjustment import InventoryAdjustment
     from flask_jwt_extended import get_jwt_identity
     
     data = request.get_json() or {}
-    product_id = data.get("product_id")
+    variant_id = data.get("variant_id") or data.get("product_id") # Back-compat
     branch_id = data.get("branch_id")
     quantity = data.get("quantity")
     reason = data.get("reason", "Returned to Retailer (Expired)")
     
-    if not all([product_id, branch_id, quantity]):
-        return jsonify({"message": "Product ID, Branch ID, and Quantity are required"}), 400
+    if not all([variant_id, branch_id, quantity]):
+        return jsonify({"message": "Variant ID, Branch ID, and Quantity are required"}), 400
         
-    inventory = Inventory.query.filter_by(product_id=product_id, branch_id=branch_id).first()
-    if not inventory or inventory.quantity < int(quantity):
-        return jsonify({"message": "Insufficient stock in branch"}), 400
+    variant = ProductVariant.query.get(variant_id)
+    if not variant:
+        # Fallback to finding variant by product_id and branch_id
+        variant = ProductVariant.query.filter_by(product_id=variant_id, branch_id=branch_id).first()
+        
+    if not variant or variant.stock_quantity < float(quantity):
+        return jsonify({"message": "Insufficient stock in branch variant"}), 400
         
     # Deduct stock
-    inventory.quantity -= int(quantity)
+    variant.stock_quantity -= float(quantity)
     
     # Record adjustment
     user_id = get_jwt_identity()
     adjustment = InventoryAdjustment(
-        product_id=product_id,
+        variant_id=variant.variant_id,
         branch_id=branch_id,
         adjustment_type="Return to Supplier",
-        quantity=int(quantity),
+        quantity=float(quantity),
         reason=reason,
         adjusted_by=user_id,
         supplier_id=data.get("supplier_id")
@@ -375,67 +408,102 @@ def return_to_retailer():
 # =============================
 # Delete Product (Admin Only)
 # =============================
-@product_bp.route("/<int:product_id>", methods=["DELETE"])
+@product_bp.route("/<int:variant_id>", methods=["DELETE"])
 @jwt_required()
 @roles_required("admin")
-def delete_product(product_id):
-    product = Product.query.get_or_404(product_id)
+def delete_product_variant(variant_id):
+    from app.models.product import ProductVariant
+    variant = ProductVariant.query.get_or_404(variant_id)
     
-    # Delete all related records first to avoid FK constraints
-    from app.models.inventory import Inventory
-    from app.models.sales import TransactionItem
-    from app.models.stock_transfer import StockTransfer
-    from app.models.adjustment import InventoryAdjustment
+    # Check if this is the last variant of the parent product
+    remaining_variants = ProductVariant.query.filter(
+        ProductVariant.product_id == variant.product_id,
+        ProductVariant.variant_id != variant_id
+    ).count()
     
-    Inventory.query.filter_by(product_id=product_id).delete()
-    TransactionItem.query.filter_by(product_id=product_id).delete()
-    StockTransfer.query.filter_by(product_id=product_id).delete()
-    InventoryAdjustment.query.filter_by(product_id=product_id).delete()
+    db.session.delete(variant)
     
-    db.session.delete(product)
+    # If no variants left, delete the parent product too
+    if remaining_variants == 0:
+        product = Product.query.get(variant.product_id)
+        if product:
+             db.session.delete(product)
+             
     db.session.commit()
-    
-    return jsonify({"message": "Product deleted successfully"}), 200
+    return jsonify({"message": "Variant deleted successfully"}), 200
+
 
 # =============================
-# Bulk Delete Products (Admin Only)
+# Bulk Delete Variants (Admin Only)
 # =============================
 @product_bp.route("/bulk", methods=["DELETE"])
 @jwt_required()
 @roles_required("admin")
-def delete_bulk_products():
+def delete_bulk_variants():
     data = request.get_json() or {}
-    product_ids = data.get("product_ids", [])
+    variant_ids = data.get("variant_ids", [])
     
-    if not product_ids or not isinstance(product_ids, list):
-        return jsonify({"message": "No product IDs provided"}), 400
+    if not variant_ids or not isinstance(variant_ids, list):
+        return jsonify({"message": "No variant IDs provided"}), 400
         
-    # Delete all related records for ALL products to avoid FK constraints
-    from app.models.inventory import Inventory
+    from app.models.product import ProductVariant, Product
     from app.models.sales import TransactionItem
     from app.models.stock_transfer import StockTransfer
     from app.models.adjustment import InventoryAdjustment
     
+    # Get product IDs before deleting variants (to check for cleanup later)
+    product_ids = [v.product_id for v in ProductVariant.query.filter(ProductVariant.variant_id.in_(variant_ids)).all()]
+    product_ids = list(set(product_ids)) # Unique list
+
     # Batch delete related records
-    Inventory.query.filter(Inventory.product_id.in_(product_ids)).delete(synchronize_session=False)
-    TransactionItem.query.filter(TransactionItem.product_id.in_(product_ids)).delete(synchronize_session=False)
-    StockTransfer.query.filter(StockTransfer.product_id.in_(product_ids)).delete(synchronize_session=False)
-    InventoryAdjustment.query.filter(InventoryAdjustment.product_id.in_(product_ids)).delete(synchronize_session=False)
+    TransactionItem.query.filter(TransactionItem.variant_id.in_(variant_ids)).delete(synchronize_session=False)
+    StockTransfer.query.filter(StockTransfer.variant_id.in_(variant_ids)).delete(synchronize_session=False)
+    InventoryAdjustment.query.filter(InventoryAdjustment.variant_id.in_(variant_ids)).delete(synchronize_session=False)
     
-    # Delete products
-    Product.query.filter(Product.product_id.in_(product_ids)).delete(synchronize_session=False)
+    # Delete variants
+    ProductVariant.query.filter(ProductVariant.variant_id.in_(variant_ids)).delete(synchronize_session=False)
+    db.session.commit()
+
+    # Cleanup parent products that have zero variants left
+    for p_id in product_ids:
+        remaining = ProductVariant.query.filter(ProductVariant.product_id == p_id).count()
+        if remaining == 0:
+            p = Product.query.get(p_id)
+            if p: db.session.delete(p)
     
     db.session.commit()
-    
-    return jsonify({"message": f"Successfully deleted {len(product_ids)} products"}), 200
+    return jsonify({"message": f"Successfully deleted {len(variant_ids)} variants"}), 200
 
 # =============================
 # Import Products from Excel
 # =============================
+def normalize_size(s):
+    if not s or not isinstance(s, str): return ""
+    return "".join(s.lower().split())
+
+def parse_date(date_val):
+    from datetime import datetime
+    import pandas as pd
+    if pd.isna(date_val) or not str(date_val).strip() or str(date_val).lower() == 'nan':
+        return None
+    # Try common formats
+    for fmt in ('%d-%m-%Y', '%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y'):
+        try:
+            return datetime.strptime(str(date_val).strip(), fmt).date()
+        except:
+            continue
+    # Ultimate fallback to pandas smart parsing
+    try:
+        dt = pd.to_datetime(date_val, dayfirst=True, errors='coerce')
+        return dt.date() if pd.notnull(dt) else None
+    except:
+        return None
+
 @product_bp.route("/import", methods=["POST"])
 @jwt_required()
 @roles_required("admin", "manager")
 def import_products():
+    mode = request.args.get("mode", "add") # 'add' or 'sync'
     if 'file' not in request.files:
         return jsonify({"message": "No file part"}), 400
     
@@ -447,254 +515,184 @@ def import_products():
         return jsonify({"message": "Invalid file type. Please upload Excel or CSV."}), 400
 
     try:
-        # Save file first
         import os
         from datetime import datetime
+        import pandas as pd
+        import uuid
         
         upload_folder = os.path.join(os.getcwd(), 'uploads', 'imports')
         os.makedirs(upload_folder, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_filename = "".join([c for c in file.filename if c.isalpha() or c.isdigit() or c in (' ', '.', '_')]).strip()
-        saved_filename = f"{timestamp}_{safe_filename}"
-        file_path = os.path.join(upload_folder, saved_filename)
-        
+        safe_filename = "".join([c for c in file.filename if c.isalnum() or c in (' ', '.', '_')]).strip()
+        file_path = os.path.join(upload_folder, f"{timestamp}_{safe_filename}")
         file.save(file_path)
         
-        # Read the SAVED file
-        import pandas as pd
-        
-        if file_path.endswith('.csv'):
-            df = pd.read_csv(file_path)
-        else:
-            df = pd.read_excel(file_path)
-        
-        # Standardize column names (lowercase, strip spaces)
+        df = pd.read_csv(file_path) if file_path.endswith('.csv') else pd.read_excel(file_path)
         df.columns = [c.lower().strip() for c in df.columns]
-        
-        # Remove empty rows
         df.dropna(how='all', inplace=True)
-        
-        # Drop duplicates by Name and SKU (if present)
-        # 1. Clean up relevant columns for deduplication
-        if 'name' in df.columns:
-            df['name'] = df['name'].astype(str).str.strip()
-        # Consider Size/Weight in deduplication
-        if 'weight' in df.columns and 'size' not in df.columns:
-            df['size'] = df['weight']
-        
-        subset_cols = ['name']
-        if 'size' in df.columns:
-            df['size'] = df['size'].astype(str).str.strip().replace('nan', '')
-            subset_cols.append('size')
-
-        if 'sku' in df.columns:
-            # If SKU exists, exact SKU duplicates should be dropped
-            df.drop_duplicates(subset=['sku'], keep='first', inplace=True)
-        
-        # Deduplicate by Name + Size combo
-        df.drop_duplicates(subset=subset_cols, keep='last', inplace=True)
-
         
         required_cols = ['name', 'price', 'category']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             return jsonify({"message": f"Missing required columns: {', '.join(missing_cols)}"}), 400
 
+        from app.models.category import Category
+        from app.models.product import Product, ProductVariant
+        from app.models.branch import Branch
+        from app.models.supplier import Supplier
+
         success_count = 0
         updated_count = 0
+        skipped_count = 0
         errors = []
         
-        from app.models.category import Category
-        from app.models.product import Product
-        from app.models.branch import Branch
-        from app.models.inventory import Inventory
-        import uuid
-
-        # Cache existing categories to minimize DB hits
-        categories = {c.name.lower(): c for c in Category.query.all()}
         branches = Branch.query.all()
+        categories = {c.name.lower(): c.category_id for c in Category.query.all()}
+        suppliers = {s.name.lower(): s.supplier_id for s in Supplier.query.all()}
         
-        # Normalize columns: lowercase and strip spaces
-        df.columns = [str(c).lower().strip() for c in df.columns]
-        
-        # Helper for flexible date parsing
-        def get_date_val(row, nicknames):
-            for nick in nicknames:
-                if nick in row and pd.notna(row[nick]):
-                    try: return pd.to_datetime(row[nick]).date()
-                    except: continue
-            return None
-        
+        # Ensure a default supplier exists
+        default_supp_name = "Generic Supplier"
+        default_supp_id = suppliers.get(default_supp_name.lower())
+        if not default_supp_id:
+            gen_supp = Supplier(name=default_supp_name)
+            db.session.add(gen_supp)
+            db.session.flush()
+            default_supp_id = gen_supp.supplier_id
+            suppliers[default_supp_name.lower()] = default_supp_id
+
         for index, row in df.iterrows():
             try:
-                # DEBUG: Log to file
-                with open("debug_import.log", "a", encoding="utf-8") as f:
-                    f.write(f"Row {index}: {row.to_dict()}\n")
-
                 name = str(row['name']).strip()
-                if not name or pd.isna(row['name']):
-                    continue
+                # Flexible column matching
+                size_str = str(row.get('size') or row.get('variant_size') or '').strip()
+                sku_val = str(row.get('sku') or row.get('variant_sku') or '').strip()
                 
-                price = pd.to_numeric(row['price'], errors='coerce')
-                if pd.isna(price) or price < 0:
-                    errors.append(f"Row {index+2}: Invalid price for '{name}'")
-                    continue
-                
-                # Identify Category
-                cat_val = row.get('category')
-                if pd.isna(cat_val):
-                     # Try alternative column names
-                     cat_val = row.get('category_name') or row.get('cat')
-                
-                cat_name = str(cat_val).strip() if pd.notna(cat_val) else "Uncategorized"
-                
-                # Find or Create Category
-                category = categories.get(cat_name.lower())
-                if not category:
-                    category = Category(name=cat_name, description="Imported via Excel")
-                    db.session.add(category)
-                    db.session.flush() # Get ID
-                    categories[cat_name.lower()] = category
-                
-                # Check if Product exists (by Name or SKU)
-                # Identify Size/Weight
-                size_val = row.get('size')
-                if pd.isna(size_val) or str(size_val).strip() == '':
-                     size_val = row.get('weight')
-                if pd.isna(size_val) or str(size_val).strip() == '':
-                     size_val = row.get('variant_size')
-                if pd.isna(size_val) or str(size_val).strip() == '':
-                     size_val = row.get('size_name')
-                
-                size_str = str(size_val).strip() if pd.notna(size_val) else ""
+                # Flexible price/cost matching
+                price_val = row.get('price') or row.get('unit_price') or row.get('sale_price') or row.get('mrp', 0)
+                price = float(price_val) if pd.notna(price_val) else 0.0
 
-                # Valid SKU?
-                sku_val = str(row.get('sku', '')).strip()
-                is_valid_sku = sku_val and sku_val.lower() != 'nan'
+                cost_val = row.get('cost_price') or row.get('purchase_price') or (price * 0.7)
+                cost_price = float(cost_val) if pd.notna(cost_val) else (price * 0.7)
                 
-                if is_valid_sku:
-                     sku = sku_val
-                     # Look up strictly by SKU
-                     existing_product = Product.query.filter(Product.sku == sku).first()
+                cat_name = str(row.get('category') or row.get('category_name') or 'General').strip()
+                cat_id = categories.get(cat_name.lower())
+                if not cat_id:
+                    new_cat = Category(name=cat_name)
+                    db.session.add(new_cat)
+                    db.session.flush()
+                    cat_id = new_cat.category_id
+                    categories[cat_name.lower()] = cat_id
+
+                supp_name = str(row.get('supplier', '')).strip()
+                if supp_name:
+                    supp_id = suppliers.get(supp_name.lower())
+                    if not supp_id:
+                        new_supp = Supplier(name=supp_name)
+                        db.session.add(new_supp)
+                        db.session.flush()
+                        supp_id = new_supp.supplier_id
+                        suppliers[supp_name.lower()] = supp_id
                 else:
-                     # Generate a SKU
-                     sku = f"PROD-{str(uuid.uuid4())[:8].upper()}"
-                     
-                     # Look up by Name AND Size
-                     if size_str:
-                          existing_product = Product.query.filter(Product.name == name, Product.size == size_str).first()
-                          
-                          # Smart Merge: If not found, check if there's a product with SAME NAME but EMPTY SIZE
-                          # This handles cases where user previously imported without size, and now adds size.
-                          if not existing_product:
-                               potential_match = Product.query.filter(Product.name == name, (Product.size == None) | (Product.size == '')).first()
-                               if potential_match:
-                                    existing_product = potential_match
-                                    # We found a match that was missing size!
-                                    # It will fall into the update block below
-                     else:
-                          existing_product = Product.query.filter(Product.name == name, (Product.size == None) | (Product.size == '')).first()
-                
-                if existing_product:
-                    existing_product.unit_price = price
-                    existing_product.category_id = category.category_id
-                    # Update other fields if present
-                    if 'barcode' in row and pd.notna(row['barcode']): existing_product.barcode = str(row['barcode'])
-                    if 'description' in row and pd.notna(row['description']): existing_product.description = str(row['description'])
-                    if 'is_b1g1' in row and pd.notna(row['is_b1g1']):
-                         existing_product.is_b1g1 = str(row['is_b1g1']).lower() in ['true', '1', 'yes', 'y']
-                    
-                    # Update new fields
-                    if any(x in row for x in ['mfg_date', 'manufacturing_date', 'mfg_date_manual', 'mfg date', 'manufacturing date', 'mfg. date']):
-                         val = get_date_val(row, ['mfg_date', 'manufacturing_date', 'mfg_date_manual', 'mfg date', 'manufacturing date', 'mfg. date'])
-                         if val: existing_product.mfg_date = val
-                         
-                    if any(x in row for x in ['expiry_date', 'exp_date', 'expiry date', 'exp date']):
-                         val = get_date_val(row, ['expiry_date', 'exp_date', 'expiry date', 'exp date'])
-                         if val: existing_product.expiry_date = val
+                    supp_id = default_supp_id
 
-                    if 'cost_price' in row and pd.notna(row['cost_price']):
-                         existing_product.cost_price = pd.to_numeric(row['cost_price'], errors='coerce')
-                    if 'discount_percent' in row and pd.notna(row['discount_percent']):
-                         existing_product.discount_percent = pd.to_numeric(row['discount_percent'], errors='coerce')
-                    if 'gst_percent' in row and pd.notna(row['gst_percent']):
-                         existing_product.gst_percent = pd.to_numeric(row['gst_percent'], errors='coerce')
-                    if 'unit' in row and pd.notna(row['unit']):
-                         existing_product.unit = str(row['unit']).strip()
-
-                    product = existing_product
-                    
-                    # Update size if provided
-                    if size_str:
-                         product.size = size_str
-                    
-                    updated_count += 1
-                else:
-                    try:
-                        mfg_date = get_date_val(row, ['mfg_date', 'manufacturing_date', 'mfg_date_manual', 'mfg date', 'manufacturing date'])
-                        expiry_date = get_date_val(row, ['expiry_date', 'exp_date', 'expiry date', 'exp date'])
-                    except:
-                        mfg_date = None
-                        expiry_date = None
-
+                # Find Master Product
+                product = Product.query.filter_by(name=name).first()
+                if not product:
                     product = Product(
                         name=name,
-                        sku=sku,
-                        category_id=category.category_id,
-                        unit_price=price,
-                        cost_price=pd.to_numeric(row.get('cost_price'), errors='coerce') or (price * 0.7),
-                        barcode=str(row.get('barcode', '')).strip() if pd.notna(row.get('barcode')) else None,
-                        unit=str(row.get('unit', 'pcs')).strip(),
-                        description=str(row.get('description', '')).strip(),
-                        image_path=None,
-                        size=size_str or None,
-                        discount_percent=pd.to_numeric(row.get('discount_percent', 0), errors='coerce'),
-                        gst_percent=pd.to_numeric(row.get('gst_percent', 0), errors='coerce'),
-                        mfg_date=mfg_date,
-                        expiry_date=expiry_date,
-                        is_b1g1=str(row.get('is_b1g1', 'false')).lower() in ['true', '1', 'yes', 'y']
+                        category_id=cat_id,
+                        supplier_id=supp_id,
+                        unit=str(row.get('unit', 'pcs')),
+                        description=str(row.get('description', ''))
                     )
                     db.session.add(product)
                     db.session.flush()
-                    success_count += 1
                 
-                # process Inventory
-                # Check for 'stock', 'qty', 'quantity' columns
-                qty_val = row.get('quantity')
-                if pd.isna(qty_val): qty_val = row.get('qty')
-                if pd.isna(qty_val): qty_val = row.get('stock')
+                # Check for existing variants of this size across branches
+                # If variant_inventory has branch-specific data, we should use it
+                branch_col = str(row.get('branch', '')).strip()
+                target_branches = branches
+                if branch_col:
+                    target_branches = [b for b in branches if b.name.lower() == branch_col.lower()]
+                    if not target_branches:
+                        skipped_count += 1
+                        errors.append(f"Row {index+2}: Branch '{branch_col}' not found. Skipping.")
+                        continue
                 
-                initial_qty = pd.to_numeric(qty_val, errors='coerce')
-                if pd.isna(initial_qty): initial_qty = 0
+                norm_size = normalize_size(size_str)
                 
-                for branch in branches:
-                    inv = Inventory.query.filter_by(product_id=product.product_id, branch_id=branch.branch_id).first()
-                    if not inv:
-                        # Only create new inventory records for NEW products
-                        inv = Inventory(
+                for branch in target_branches:
+                    variant = None
+                    
+                    # 1. Match by SKU first (most accurate)
+                    if sku_val:
+                        variant = ProductVariant.query.filter_by(sku_code=sku_val).first()
+                    
+                    # 2. Match by (Product + Size + Branch) fallback
+                    if not variant:
+                        existing_variants = ProductVariant.query.filter_by(
+                            product_id=product.product_id, 
+                            branch_id=branch.branch_id
+                        ).all()
+                        for ev in existing_variants:
+                            if normalize_size(ev.variant_size) == norm_size:
+                                variant = ev
+                                break
+                    
+                    # Use quantity from row or default to 0
+                    qty_val = row.get('quantity') or row.get('stock') or row.get('stock_quantity') or 0
+                    try:
+                        qty = float(qty_val) if pd.notna(qty_val) else 0.0
+                    except:
+                        qty = 0.0
+                    
+                    if variant:
+                        variant.price = price
+                        variant.cost_price = cost_price
+                        # Update dates if present
+                        new_mfg = parse_date(row.get('mfg_date') or row.get('manufacturing_date'))
+                        if new_mfg: variant.mfg_date = new_mfg
+                        new_exp = parse_date(row.get('expiry_date'))
+                        if new_exp: variant.expiry_date = new_exp
+                        
+                        if mode == "sync":
+                            variant.stock_quantity = qty
+                        else:
+                            variant.stock_quantity += qty
+                        updated_count += 1
+                    else:
+                        sku_to_use = sku_val
+                        if not sku_to_use:
+                            sku_to_use = f"SKU-{str(uuid.uuid4())[:8].upper()}-{branch.branch_id}"
+                        
+                        variant = ProductVariant(
                             product_id=product.product_id,
                             branch_id=branch.branch_id,
-                            quantity=int(initial_qty),
-                            min_threshold=10,
-                            max_threshold=1000
+                            variant_size=size_str,
+                            sku_code=sku_to_use,
+                            barcode=str(row.get('barcode', '')).strip(),
+                            stock_quantity=qty,
+                            price=price,
+                            cost_price=cost_price,
+                            mfg_date=parse_date(row.get('mfg_date') or row.get('manufacturing_date')),
+                            expiry_date=parse_date(row.get('expiry_date'))
                         )
-                        db.session.add(inv)
-                    # Existing inventory records are NOT updated to prevent
-                    # accidental stock overwriting/duplication on re-import
-                         
+                        db.session.add(variant)
+                        success_count += 1
+                
+                # Commit every row to handle potential database errors without crashing the whole process
+                db.session.commit()
             except Exception as e:
                 errors.append(f"Row {index+2}: {str(e)}")
         
-        db.session.commit()
-        
         return jsonify({
-            "message": f"Successfully processed {len(df)} rows.",
-            "products_created": success_count,
-            "products_updated": updated_count,
+            "message": "Import completed",
+            "created": success_count,
+            "updated": updated_count,
+            "skipped": skipped_count,
             "errors": errors
         }), 201
-
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Server Error: {str(e)}"}), 500
@@ -780,42 +778,39 @@ def download_import_file(filename):
 @jwt_required()
 @roles_required("admin")
 def bulk_update_gst():
-    """Update GST percent for all products based on their category (Indian GST 2026 Slabs)"""
+    """Update GST percent for all variants based on category (Indian GST 2026 Slabs)"""
     try:
+        from app.models.product import ProductVariant
+        from app.models.category import Category
         # Category name -> GST% mapping (Indian GST 2026)
-        category_gst_map = {
-            "Dairy (Milk, Eggs, Cheese)": 5,    # Butter, ghee, cheese, condensed milk
-            "Fruits": 0,                         # Fresh fruits are NIL rated
-            "Vegetables": 0,                     # Fresh vegetables are NIL rated
-            "Grains & Pulses": 5,               # Packaged cereals, flours, starches
-            "Beverages": 18,                     # Mineral water, packaged drinks
-            "Bakery Items": 5,                   # Pastries, cakes, biscuits, rusks
-            "Snacks": 5,                         # Namkeens, bhujia, mixtures
-            "Household Items": 18,               # Household articles, utensils
-            "Personal Care": 18,                 # Cosmetics, skincare, hair products
-            "Frozen Foods": 18,                  # Processed/preserved food items
-            "Spices & Oils": 5                   # Spices, edible oils, condiments
+        mapping = {
+            "Dairy (Milk, Eggs, Cheese)": 5,
+            "Fruits": 0,
+            "Vegetables": 0,
+            "Grains & Pulses": 5,
+            "Beverages": 18,
+            "Bakery Items": 5,
+            "Snacks": 5,
+            "Household Items": 18,
+            "Personal Care": 18,
+            "Frozen Foods": 18,
+            "Spices & Oils": 5
         }
 
-        products = Product.query.all()
+        # Join ProductVariant to Product to get category_id
+        variants = db.session.query(ProductVariant).join(Product, ProductVariant.product_id == Product.product_id).all()
         updated = 0
 
-        for product in products:
-            category = Category.query.get(product.category_id)
-            if category and category.name in category_gst_map:
-                new_gst = category_gst_map[category.name]
-                if product.gst_percent != new_gst:
-                    product.gst_percent = new_gst
+        for variant in variants:
+            cat = Category.query.get(variant.product.category_id)
+            if cat and cat.name in mapping:
+                new_gst = mapping[cat.name]
+                if variant.gst_percent != new_gst:
+                    variant.gst_percent = new_gst
                     updated += 1
 
         db.session.commit()
-
-        return jsonify({
-            "message": f"GST rates updated for {updated} products based on category",
-            "updated_count": updated,
-            "total_products": len(products)
-        }), 200
-
+        return jsonify({"message": f"GST rates updated for {updated} variants"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Failed to update GST: {str(e)}"}), 500

@@ -74,7 +74,7 @@ def create_app():
         Branch,
         Category,
         Product,
-        Inventory,
+        ProductVariant,
         SalesTransaction,
         TransactionItem,
         StockTransfer,

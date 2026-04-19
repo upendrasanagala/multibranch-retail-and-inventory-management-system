@@ -6,9 +6,9 @@ class StockTransfer(db.Model):
 
     transfer_id = db.Column(db.Integer, primary_key=True)
 
-    product_id = db.Column(
+    variant_id = db.Column(
         db.Integer,
-        db.ForeignKey("products.product_id"),
+        db.ForeignKey("product_variants.variant_id"),
         nullable=False
     )
 

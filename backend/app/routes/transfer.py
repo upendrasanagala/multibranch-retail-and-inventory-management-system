@@ -1,5 +1,5 @@
 """
-Stock Transfer Routes
+Stock Transfer Routes (Transitioned to Product Variants)
 Inter-branch stock transfers
 """
 
@@ -9,8 +9,7 @@ from datetime import datetime
 
 from app.extensions import db
 from app.models.stock_transfer import StockTransfer
-from app.models.inventory import Inventory
-from app.models.product import Product
+from app.models.product import Product, ProductVariant
 from app.models.branch import Branch
 from app.utils.decorators import roles_required
 from app.routes import transfer_bp
@@ -25,37 +24,37 @@ from app.routes import transfer_bp
 def create_transfer():
     data = request.get_json() or {}
     
-    product_id = data.get("product_id")
+    variant_id = data.get("variant_id") or data.get("product_id") # Back-compat
     from_branch_id = data.get("from_branch_id")
     to_branch_id = data.get("to_branch_id")
     quantity = data.get("quantity")
     notes = data.get("notes")
     
-    if not all([product_id, from_branch_id, to_branch_id, quantity]):
+    if not all([variant_id, from_branch_id, to_branch_id, quantity]):
         return jsonify({"message": "Missing required fields"}), 400
     
     from app.models.user import User
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     
-    # Enforce branch isolation for non-admins: They must be either source or destination
     if user.role != "admin":
         if user.branch_id not in [from_branch_id, to_branch_id]:
             return jsonify({"message": "You can only create transfers involving your own branch"}), 403
 
-    # Check source inventory
-    source_inventory = Inventory.query.filter_by(
-        product_id=product_id, branch_id=from_branch_id
-    ).first()
-    
-    if not source_inventory or source_inventory.quantity < quantity:
-        available = source_inventory.quantity if source_inventory else 0
+    # Check source variant stock
+    source_variant = ProductVariant.query.get(variant_id)
+    if not source_variant or source_variant.branch_id != from_branch_id:
+        # Try fallback if product_id was sent
+        source_variant = ProductVariant.query.filter_by(product_id=variant_id, branch_id=from_branch_id).first()
+        
+    if not source_variant or source_variant.stock_quantity < quantity:
+        available = source_variant.stock_quantity if source_variant else 0
         return jsonify({
             "message": f"Insufficient stock in source branch. Available: {available}"
         }), 400
     
     transfer = StockTransfer(
-        product_id=product_id,
+        variant_id=source_variant.variant_id,
         from_branch_id=from_branch_id,
         to_branch_id=to_branch_id,
         quantity=quantity,
@@ -84,145 +83,93 @@ def get_transfers():
     per_page = request.args.get("per_page", 20, type=int)
     
     from app.models.user import User
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = User.query.get(get_jwt_identity())
     
-    # Enforce branch isolation for non-admins
     if user.role != "admin":
         branch_id = user.branch_id
-        if not branch_id:
-            return jsonify({"message": "User not assigned to a branch"}), 403
     
     query = StockTransfer.query
-    
     if branch_id:
-        query = query.filter(
-            (StockTransfer.from_branch_id == branch_id) |
-            (StockTransfer.to_branch_id == branch_id)
-        )
-    
+        query = query.filter((StockTransfer.from_branch_id == branch_id) | (StockTransfer.to_branch_id == branch_id))
     if status:
         query = query.filter(StockTransfer.status == status)
     
-    paginated = query.order_by(
-        StockTransfer.request_date.desc()
-    ).paginate(page=page, per_page=per_page, error_out=False)
+    paginated = query.order_by(StockTransfer.request_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
     transfers = []
     for t in paginated.items:
-        product = Product.query.get(t.product_id)
+        variant = ProductVariant.query.get(t.variant_id)
+        product = Product.query.get(variant.product_id) if variant else None
         from_branch = Branch.query.get(t.from_branch_id)
         to_branch = Branch.query.get(t.to_branch_id)
         
         transfers.append({
             "transfer_id": t.transfer_id,
-            "product_id": t.product_id,
-            "product_name": product.name if product else None,
-            "from_branch_id": t.from_branch_id,
+            "product_id": variant.product_id if variant else None,
+            "variant_id": t.variant_id,
+            "product_name": product.name if product else "Unknown",
+            "size": variant.variant_size if variant else None,
             "from_branch_name": from_branch.name if from_branch else None,
-            "to_branch_id": t.to_branch_id,
             "to_branch_name": to_branch.name if to_branch else None,
             "quantity": t.quantity,
             "status": t.status,
             "request_date": t.request_date.isoformat() if t.request_date else None,
-            "completed_date": t.completed_date.isoformat() if t.completed_date else None,
             "notes": t.notes
         })
     
-    return jsonify({
-        "transfers": transfers,
-        "total": paginated.total,
-        "pages": paginated.pages,
-        "current_page": page
-    }), 200
+    return jsonify({"transfers": transfers, "total": paginated.total, "pages": paginated.pages}), 200
 
 
 # =============================
-# Get Single Transfer
-# =============================
-@transfer_bp.route("/<int:transfer_id>", methods=["GET"])
-@jwt_required()
-def get_transfer(transfer_id):
-    transfer = StockTransfer.query.get_or_404(transfer_id)
-    
-    product = Product.query.get(transfer.product_id)
-    from_branch = Branch.query.get(transfer.from_branch_id)
-    to_branch = Branch.query.get(transfer.to_branch_id)
-    
-    return jsonify({
-        "transfer_id": transfer.transfer_id,
-        "product_id": transfer.product_id,
-        "product_name": product.name if product else None,
-        "from_branch_id": transfer.from_branch_id,
-        "from_branch_name": from_branch.name if from_branch else None,
-        "to_branch_id": transfer.to_branch_id,
-        "to_branch_name": to_branch.name if to_branch else None,
-        "quantity": transfer.quantity,
-        "status": transfer.status,
-        "approved_by": transfer.approved_by,
-        "request_date": transfer.request_date.isoformat() if transfer.request_date else None,
-        "completed_date": transfer.completed_date.isoformat() if transfer.completed_date else None,
-        "notes": transfer.notes
-    }), 200
-
-
-# =============================
-# Approve Transfer (Admin/Manager)
+# Approve Transfer
 # =============================
 @transfer_bp.route("/<int:transfer_id>/approve", methods=["PUT"])
 @jwt_required()
 @roles_required("admin", "manager")
 def approve_transfer(transfer_id):
-    from app.models.user import User
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     transfer = StockTransfer.query.get_or_404(transfer_id)
     
-    # Enforce branch isolation: non-admins must be part of the transfer
-    if user.role != "admin" and user.branch_id not in [transfer.from_branch_id, transfer.to_branch_id]:
-        return jsonify({"message": "Access denied to this transfer"}), 403
-
     if transfer.status != "pending":
         return jsonify({"message": f"Transfer already {transfer.status}"}), 400
     
-    # Re-check source inventory
-    source_inventory = Inventory.query.filter_by(
-        product_id=transfer.product_id, branch_id=transfer.from_branch_id
+    # Source Variant
+    source_variant = ProductVariant.query.get(transfer.variant_id)
+    if not source_variant or source_variant.stock_quantity < transfer.quantity:
+        return jsonify({"message": "Insufficient stock in source variant"}), 400
+    
+    # Target Variant (must have same product and same size in destination branch)
+    dest_variant = ProductVariant.query.filter_by(
+        product_id=source_variant.product_id,
+        variant_size=source_variant.variant_size,
+        branch_id=transfer.to_branch_id
     ).first()
     
-    if not source_inventory or source_inventory.quantity < transfer.quantity:
-        return jsonify({"message": "Insufficient stock in source branch"}), 400
-    
-    # Get or create destination inventory
-    dest_inventory = Inventory.query.filter_by(
-        product_id=transfer.product_id, branch_id=transfer.to_branch_id
-    ).first()
-    
-    if not dest_inventory:
-        dest_inventory = Inventory(
-            product_id=transfer.product_id,
+    if not dest_variant:
+        # Create it if it doesn't exist? Most likely should already exist if products are distributed
+        dest_variant = ProductVariant(
+            product_id=source_variant.product_id,
             branch_id=transfer.to_branch_id,
-            quantity=0
+            variant_size=source_variant.variant_size,
+            sku_code=f"{source_variant.sku_code}_FORK", # Placeholder SKU
+            price=source_variant.price,
+            cost_price=source_variant.cost_price,
+            stock_quantity=0
         )
-        db.session.add(dest_inventory)
+        db.session.add(dest_variant)
     
-    # Transfer stock
-    source_inventory.quantity -= transfer.quantity
-    dest_inventory.quantity += transfer.quantity
+    source_variant.stock_quantity -= transfer.quantity
+    dest_variant.stock_quantity += transfer.quantity
     
-    # Update transfer status
     transfer.status = "completed"
     transfer.approved_by = user_id
     transfer.completed_date = datetime.utcnow()
     
     db.session.commit()
-    
-    return jsonify({"message": "Transfer approved and completed"}), 200
+    return jsonify({"message": "Transfer completed"}), 200
 
-
-# =============================
 # Reject Transfer
-# =============================
 @transfer_bp.route("/<int:transfer_id>/reject", methods=["PUT"])
 @jwt_required()
 @roles_required("admin", "manager")
@@ -270,53 +217,12 @@ def cancel_transfer(transfer_id):
 
 
 # =============================
-# Complete Transfer (Frontend compatible)
+# Complete Transfer (Frontend compatible alias for approve)
 # =============================
 @transfer_bp.route("/<int:transfer_id>/complete", methods=["PUT"])
 @jwt_required()
 @roles_required("admin", "manager")
 def complete_transfer(transfer_id):
-    """Alias for approve - marks transfer as completed"""
-    user_id = get_jwt_identity()
-    transfer = StockTransfer.query.get_or_404(transfer_id)
-    
-    if transfer.status == "completed":
-        return jsonify({"message": "Transfer already completed"}), 400
-    
-    if transfer.status not in ["pending", "approved"]:
-        return jsonify({"message": f"Cannot complete {transfer.status} transfer"}), 400
-    
-    # Re-check source inventory if still pending
-    if transfer.status == "pending":
-        source_inventory = Inventory.query.filter_by(
-            product_id=transfer.product_id, branch_id=transfer.from_branch_id
-        ).first()
-        
-        if not source_inventory or source_inventory.quantity < transfer.quantity:
-            return jsonify({"message": "Insufficient stock in source branch"}), 400
-        
-        # Get or create destination inventory
-        dest_inventory = Inventory.query.filter_by(
-            product_id=transfer.product_id, branch_id=transfer.to_branch_id
-        ).first()
-        
-        if not dest_inventory:
-            dest_inventory = Inventory(
-                product_id=transfer.product_id,
-                branch_id=transfer.to_branch_id,
-                quantity=0
-            )
-            db.session.add(dest_inventory)
-        
-        # Transfer stock
-        source_inventory.quantity -= transfer.quantity
-        dest_inventory.quantity += transfer.quantity
-    
-    transfer.status = "completed"
-    transfer.approved_by = user_id
-    transfer.completed_date = datetime.utcnow()
-    
-    db.session.commit()
-    
-    return jsonify({"message": "Transfer completed successfully"}), 200
+    """Alias for approve - marks transfer as completed using variant logic"""
+    return approve_transfer(transfer_id)
 

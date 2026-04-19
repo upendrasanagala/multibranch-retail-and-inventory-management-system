@@ -379,36 +379,40 @@ export default function ManagerStaffActivity() {
                  <input name="national_id" value={formData.national_id} onChange={handleChange} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} />
                </div>
 
-               <div style={{ gridColumn: 'span 2', background: '#f8fafc', padding: '15px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>Bank Name</label>
-                      <select name="bank_name" value={formData.bank_name} onChange={handleChange} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px', background: '#fff' }}>
-                        <option value="">Select a Bank...</option>
-                        <option value="State Bank of India (SBI)">State Bank of India (SBI)</option>
-                        <option value="HDFC Bank">HDFC Bank</option>
-                        <option value="ICICI Bank">ICICI Bank</option>
-                        <option value="Axis Bank">Axis Bank</option>
-                        <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
-                        <option value="Punjab National Bank (PNB)">Punjab National Bank (PNB)</option>
-                        <option value="Bank of Baroda (BOB)">Bank of Baroda (BOB)</option>
-                        <option value="Canara Bank">Canara Bank</option>
-                        <option value="Union Bank of India">Union Bank of India</option>
-                        <option value="IndusInd Bank">IndusInd Bank</option>
-                        <option value="Yes Bank">Yes Bank</option>
-                        <option value="Other">Other Bank</option>
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>Account Number</label>
-                      <input name="account_number" type="text" pattern="\d{9,18}" maxLength="18" minLength="9" title="Must be 9 to 18 digits" value={formData.account_number} onChange={handleChange} autoComplete="off" className={fieldErrors.account_number ? "error-field" : ""} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>IFSC Code</label>
-                      <input name="ifsc_code" type="text" maxLength="11" minLength="8" pattern="[A-Za-z0-9]{8,11}" title="Must be 8 to 11 characters" value={formData.ifsc_code} onChange={handleChange} className={fieldErrors.ifsc_code ? "error-field" : ""} style={{ textTransform: 'uppercase', padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px' }} />
-                    </div>
-                  </div>
-               </div>
+                <div style={{ gridColumn: 'span 2', background: '#f8fafc', padding: '15px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1.2fr', gap: '12px' }}>
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                       <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>Bank Name</label>
+                       <select name="bank_name" value={formData.bank_name} onChange={handleChange} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px', background: '#fff' }}>
+                         <option value="">Select a Bank...</option>
+                         <option value="State Bank of India (SBI)">State Bank of India (SBI)</option>
+                         <option value="HDFC Bank">HDFC Bank</option>
+                         <option value="ICICI Bank">ICICI Bank</option>
+                         <option value="Axis Bank">Axis Bank</option>
+                         <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                         <option value="Punjab National Bank (PNB)">Punjab National Bank (PNB)</option>
+                         <option value="Bank of Baroda (BOB)">Bank of Baroda (BOB)</option>
+                         <option value="Canara Bank">Canara Bank</option>
+                         <option value="Union Bank of India">Union Bank of India</option>
+                         <option value="IndusInd Bank">IndusInd Bank</option>
+                         <option value="Yes Bank">Yes Bank</option>
+                         <option value="Other">Other Bank</option>
+                       </select>
+                     </div>
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                       <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>Account Number</label>
+                       <input name="account_number" type="text" pattern="\d{9,18}" maxLength="18" minLength="9" title="Must be 9 to 18 digits" value={formData.account_number} onChange={handleChange} autoComplete="off" className={fieldErrors.account_number ? "error-field" : ""} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px' }} />
+                     </div>
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                       <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>IFSC Code</label>
+                       <input name="ifsc_code" type="text" maxLength="11" minLength="8" pattern="[A-Za-z0-9]{8,11}" title="Must be 8 to 11 characters" value={formData.ifsc_code} onChange={handleChange} className={fieldErrors.ifsc_code ? "error-field" : ""} style={{ textTransform: 'uppercase', padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px' }} />
+                     </div>
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                       <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>UPI ID (Optional)</label>
+                       <input name="upi_id" value={formData.upi_id} onChange={handleChange} placeholder="username@bank" style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '13px' }} />
+                     </div>
+                   </div>
+                </div>
 
                {/* 5. EMERGENCY CONTACT */}
                <div style={{ gridColumn: 'span 2', background: '#fff1f2', padding: '15px', borderRadius: '16px', border: '1px solid #fecdd3', marginTop: '10px' }}>

@@ -1,14 +1,13 @@
 """
-Inventory Routes
-Stock management with adjustments
+Inventory Routes (Transitioned to Product Variants)
+Stock management using variants
 """
 
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
-from app.models.inventory import Inventory
-from app.models.product import Product
+from app.models.product import Product, ProductVariant
 from app.models.adjustment import InventoryAdjustment
 from app.models.user import User
 from app.models.supplier import Supplier
@@ -27,6 +26,7 @@ def get_inventory():
     low_stock = request.args.get("low_stock", "false").lower() == "true"
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
+    search = request.args.get("search", "")
     
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
@@ -39,11 +39,11 @@ def get_inventory():
 
     from app.models.branch import Branch
     query = db.session.query(
-        Inventory, Product, Branch, Supplier.name, Category.name
+        ProductVariant, Product, Branch, Supplier.name, Category.name
     ).join(
-        Product, Inventory.product_id == Product.product_id
+        Product, ProductVariant.product_id == Product.product_id
     ).join(
-        Branch, Inventory.branch_id == Branch.branch_id
+        Branch, ProductVariant.branch_id == Branch.branch_id
     ).join(
         Category, Product.category_id == Category.category_id
     ).outerjoin(
@@ -51,36 +51,50 @@ def get_inventory():
     )
     
     if branch_id:
-        query = query.filter(Inventory.branch_id == branch_id)
+        query = query.filter(ProductVariant.branch_id == branch_id)
     
+    if search:
+        query = query.filter(
+            (Product.name.ilike(f"%{search}%")) |
+            (ProductVariant.sku_code.ilike(f"%{search}%"))
+        )
+
     product_id = request.args.get("product_id", type=int)
     if product_id:
-        query = query.filter(Inventory.product_id == product_id)
+        query = query.filter(ProductVariant.product_id == product_id)
     
+    variant_id = request.args.get("variant_id", type=int)
+    if variant_id:
+        query = query.filter(ProductVariant.variant_id == variant_id)
+
+    size = request.args.get("size")
+    if size:
+        query = query.filter(ProductVariant.variant_size == size)
+    
+    # Simple low stock filter using a fixed thresh for now
     if low_stock:
-        query = query.filter(Inventory.quantity <= Inventory.min_threshold)
+        query = query.filter(ProductVariant.stock_quantity <= 10)
     
     paginated = query.paginate(page=page, per_page=per_page, error_out=False)
     
     items = []
-    for inv, prod, branch, supplier_name, category_name in paginated.items:
+    for pv, prod, branch, supplier_name, category_name in paginated.items:
         items.append({
-            "inventory_id": inv.inventory_id,
-            "product_id": inv.product_id,
+            "inventory_id": pv.variant_id,
+            "variant_id": pv.variant_id,
+            "product_id": pv.product_id,
             "product_name": prod.name,
             "category": category_name,
-            "sku": prod.sku,
-            "branch_id": inv.branch_id,
+            "sku": pv.sku_code,
+            "branch_id": pv.branch_id,
             "branch_name": branch.name,
-            "quantity": inv.quantity,
-            "min_threshold": inv.min_threshold,
-            "max_threshold": inv.max_threshold,
-            "unit_price": prod.unit_price,
-            "size": getattr(prod, 'size', None),
+            "quantity": pv.stock_quantity,
+            "unit_price": pv.price,
+            "size": pv.variant_size,
             "supplier_name": supplier_name,
-            "mfg_date": prod.mfg_date.isoformat() if getattr(prod, 'mfg_date', None) else None,
-            "expiry_date": prod.expiry_date.isoformat() if getattr(prod, 'expiry_date', None) else None,
-            "last_updated": inv.last_updated.isoformat() if inv.last_updated else None
+            "mfg_date": pv.mfg_date.isoformat() if pv.mfg_date else None,
+            "expiry_date": pv.expiry_date.isoformat() if pv.expiry_date else None,
+            "last_updated": pv.last_updated.isoformat() if pv.last_updated else None
         })
     
     return jsonify({
@@ -105,36 +119,35 @@ def get_inventory_by_branch(branch_id):
         return jsonify({"message": "Access denied to other branch data"}), 403
 
     query = db.session.query(
-        Inventory, Product, Supplier.name, Category.name
+        ProductVariant, Product, Supplier.name, Category.name
     ).join(
-        Product, Inventory.product_id == Product.product_id
+        Product, ProductVariant.product_id == Product.product_id
     ).join(
         Category, Product.category_id == Category.category_id
     ).outerjoin(
         Supplier, Product.supplier_id == Supplier.supplier_id
-    ).filter(Inventory.branch_id == branch_id)
+    ).filter(ProductVariant.branch_id == branch_id)
     
     results = query.all()
     
     items = []
-    for inv, prod, supplier_name, category_name in results:
+    for pv, prod, supplier_name, category_name in results:
         items.append({
-            "inventory_id": inv.inventory_id,
-            "product_id": inv.product_id,
+            "inventory_id": pv.variant_id,
+            "variant_id": pv.variant_id,
+            "product_id": pv.product_id,
             "product_name": prod.name,
             "category": category_name,
-            "sku": prod.sku,
-            "barcode": prod.barcode,
-            "branch_id": inv.branch_id,
-            "quantity": inv.quantity,
-            "min_threshold": inv.min_threshold,
-            "max_threshold": inv.max_threshold,
-            "unit_price": prod.unit_price,
-            "size": getattr(prod, 'size', None),
+            "sku": pv.sku_code,
+            "barcode": pv.barcode,
+            "branch_id": pv.branch_id,
+            "quantity": pv.stock_quantity,
+            "unit_price": pv.price,
+            "size": pv.variant_size,
             "supplier_name": supplier_name,
-            "mfg_date": prod.mfg_date.isoformat() if getattr(prod, 'mfg_date', None) else None,
-            "expiry_date": prod.expiry_date.isoformat() if getattr(prod, 'expiry_date', None) else None,
-            "last_updated": inv.last_updated.isoformat() if inv.last_updated else None
+            "mfg_date": pv.mfg_date.isoformat() if pv.mfg_date else None,
+            "expiry_date": pv.expiry_date.isoformat() if pv.expiry_date else None,
+            "last_updated": pv.last_updated.isoformat() if pv.last_updated else None
         })
     
     return jsonify({"inventory": items}), 200
@@ -158,118 +171,75 @@ def get_low_stock():
             return jsonify({"message": "User not assigned to a branch"}), 403
 
     query = db.session.query(
-        Inventory, Product, Supplier.name, Category.name
+        ProductVariant, Product, Supplier.name, Category.name
     ).join(
-        Product, Inventory.product_id == Product.product_id
+        Product, ProductVariant.product_id == Product.product_id
     ).join(
         Category, Product.category_id == Category.category_id
     ).outerjoin(
         Supplier, Product.supplier_id == Supplier.supplier_id
-    ).filter(Inventory.quantity <= Inventory.min_threshold)
+    ).filter(ProductVariant.stock_quantity <= ProductVariant.min_threshold)
     
     if branch_id:
-        query = query.filter(Inventory.branch_id == branch_id)
+        query = query.filter(ProductVariant.branch_id == branch_id)
     
     results = query.all()
     
     items = []
-    for inv, prod, supplier_name, category_name in results:
+    for pv, prod, supplier_name, category_name in results:
         items.append({
-            "inventory_id": inv.inventory_id,
+            "inventory_id": pv.variant_id,
             "product_name": prod.name,
             "category": category_name,
-            "sku": prod.sku,
-            "branch_id": inv.branch_id,
-            "quantity": inv.quantity,
-            "min_threshold": inv.min_threshold,
-            "unit_price": prod.unit_price,
+            "sku": pv.sku_code,
+            "branch_id": pv.branch_id,
+            "quantity": pv.stock_quantity,
+            "unit_price": pv.price,
             "supplier_name": supplier_name,
-            "mfg_date": prod.mfg_date.isoformat() if getattr(prod, 'mfg_date', None) else None,
-            "expiry_date": prod.expiry_date.isoformat() if getattr(prod, 'expiry_date', None) else None
+            "min_threshold": pv.min_threshold,
+            "mfg_date": pv.mfg_date.isoformat() if pv.mfg_date else None,
+            "expiry_date": pv.expiry_date.isoformat() if pv.expiry_date else None
         })
     
     return jsonify({"low_stock_items": items, "count": len(items)}), 200
 
 
 # =============================
-# Get Single Inventory Item
+# Get Single Inventory (Variant)
 # =============================
-@inventory_bp.route("/<int:inventory_id>", methods=["GET"])
+@inventory_bp.route("/<int:variant_id>", methods=["GET"])
 @jwt_required()
-def get_inventory_item(inventory_id):
-    inv = Inventory.query.get_or_404(inventory_id)
-    prod = Product.query.get(inv.product_id)
+def get_inventory_item(variant_id):
+    pv = ProductVariant.query.get_or_404(variant_id)
+    prod = Product.query.get(pv.product_id)
     
     return jsonify({
-        "inventory_id": inv.inventory_id,
-        "product_id": inv.product_id,
+        "inventory_id": pv.variant_id,
+        "variant_id": pv.variant_id,
+        "product_id": pv.product_id,
         "product_name": prod.name if prod else None,
-        "branch_id": inv.branch_id,
-        "quantity": inv.quantity,
-        "min_threshold": inv.min_threshold,
-        "max_threshold": inv.max_threshold,
-        "last_updated": inv.last_updated.isoformat() if inv.last_updated else None
+        "branch_id": pv.branch_id,
+        "quantity": pv.stock_quantity,
+        "last_updated": pv.last_updated.isoformat() if pv.last_updated else None
     }), 200
-
-
-# =============================
-# Add Product to Branch Inventory
-# =============================
-@inventory_bp.route("/", methods=["POST"])
-@jwt_required()
-@roles_required("admin", "manager")
-def add_inventory():
-    data = request.get_json() or {}
-    
-    product_id = data.get("product_id")
-    branch_id = data.get("branch_id")
-    quantity = data.get("quantity", 0)
-    
-    if not product_id or not branch_id:
-        return jsonify({"message": "product_id and branch_id are required"}), 400
-    
-    # Check if already exists
-    existing = Inventory.query.filter_by(
-        product_id=product_id, branch_id=branch_id
-    ).first()
-    
-    if existing:
-        return jsonify({"message": "Product already exists in this branch inventory"}), 409
-    
-    inventory = Inventory(
-        product_id=product_id,
-        branch_id=branch_id,
-        quantity=quantity,
-        min_threshold=data.get("min_threshold", 10),
-        max_threshold=data.get("max_threshold")
-    )
-    
-    db.session.add(inventory)
-    db.session.commit()
-    
-    return jsonify({
-        "message": "Inventory added successfully",
-        "inventory_id": inventory.inventory_id
-    }), 201
 
 
 # =============================
 # Update Inventory Quantity
 # =============================
-@inventory_bp.route("/<int:inventory_id>", methods=["PUT"])
+@inventory_bp.route("/<int:variant_id>", methods=["PUT"])
 @jwt_required()
 @roles_required("admin", "manager", "staff")
-def update_inventory(inventory_id):
-    inventory = Inventory.query.get_or_404(inventory_id)
+def update_inventory(variant_id):
+    pv = ProductVariant.query.get_or_404(variant_id)
     data = request.get_json() or {}
     
-    inventory.quantity = data.get("quantity", inventory.quantity)
-    inventory.min_threshold = data.get("min_threshold", inventory.min_threshold)
-    inventory.max_threshold = data.get("max_threshold", inventory.max_threshold)
-    
+    if "quantity" in data:
+        pv.stock_quantity = data.get("quantity")
+        
     db.session.commit()
     
-    return jsonify({"message": "Inventory updated successfully"}), 200
+    return jsonify({"message": "Stock updated successfully"}), 200
 
 
 # =============================
@@ -282,40 +252,38 @@ def adjust_inventory():
     user_id = get_jwt_identity()
     data = request.get_json() or {}
     
-    product_id = data.get("product_id")
+    variant_id = data.get("variant_id") or data.get("product_id") # Back-compat
     branch_id = data.get("branch_id")
     adjustment_type = data.get("adjustment_type")  # 'add', 'subtract', 'set'
     quantity = data.get("quantity")
     reason = data.get("reason")
     
-    if not all([product_id, branch_id, adjustment_type, quantity is not None]):
+    if not all([variant_id, branch_id, adjustment_type, quantity is not None]):
         return jsonify({"message": "Missing required fields"}), 400
     
-    # Find inventory record
-    inventory = Inventory.query.filter_by(
-        product_id=product_id, branch_id=branch_id
-    ).first()
-    
-    if not inventory:
-        return jsonify({"message": "Inventory record not found"}), 404
-    
+    # Find variant record
+    pv = ProductVariant.query.get(variant_id)
+    if not pv:
+        return jsonify({"message": "Product variant not found"}), 404
+        
     # Apply adjustment
-    old_quantity = inventory.quantity
+    old_quantity = pv.stock_quantity
     
     if adjustment_type == "add":
-        inventory.quantity += quantity
+        pv.stock_quantity += quantity
     elif adjustment_type == "subtract":
-        if inventory.quantity < quantity:
+        if pv.stock_quantity < quantity:
             return jsonify({"message": "Insufficient stock"}), 400
-        inventory.quantity -= quantity
+        pv.stock_quantity -= quantity
     elif adjustment_type == "set":
-        inventory.quantity = quantity
+        pv.stock_quantity = quantity
     else:
         return jsonify({"message": "Invalid adjustment type"}), 400
     
     # Record the adjustment
     adjustment = InventoryAdjustment(
-        product_id=product_id,
+        variant_id=pv.variant_id,
+        product_id=pv.product_id,
         branch_id=branch_id,
         adjustment_type=adjustment_type,
         quantity=quantity,
@@ -329,44 +297,53 @@ def adjust_inventory():
     return jsonify({
         "message": "Adjustment recorded successfully",
         "old_quantity": old_quantity,
-        "new_quantity": inventory.quantity
+        "new_quantity": pv.stock_quantity
     }), 200
+
+# Adjustment history route left for future update (requires variant link join)
 
 
 # =============================
-# Get Adjustment History
+# Get Adjustment History (Updated for Variants)
 # =============================
 @inventory_bp.route("/adjustments", methods=["GET"])
 @jwt_required()
 def get_adjustments():
     branch_id = request.args.get("branch_id", type=int)
+    variant_id = request.args.get("variant_id", type=int)
     product_id = request.args.get("product_id", type=int)
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     
     query = db.session.query(
-        InventoryAdjustment, Product, User
+        InventoryAdjustment, Product, User, ProductVariant
     ).join(
-        Product, InventoryAdjustment.product_id == Product.product_id
+        ProductVariant, InventoryAdjustment.variant_id == ProductVariant.variant_id
+    ).join(
+        Product, ProductVariant.product_id == Product.product_id
     ).join(
         User, InventoryAdjustment.adjusted_by == User.user_id
     )
     
     if branch_id:
         query = query.filter(InventoryAdjustment.branch_id == branch_id)
+    if variant_id:
+        query = query.filter(InventoryAdjustment.variant_id == variant_id)
     if product_id:
-        query = query.filter(InventoryAdjustment.product_id == product_id)
+        query = query.filter(ProductVariant.product_id == product_id)
     
     paginated = query.order_by(
         InventoryAdjustment.adjustment_date.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)
     
     adjustments = []
-    for adj, prod, user in paginated.items:
+    for adj, prod, user, pv in paginated.items:
         adjustments.append({
             "adjustment_id": adj.adjustment_id,
-            "product_id": adj.product_id,
+            "product_id": pv.product_id,
+            "variant_id": pv.variant_id,
             "product_name": prod.name,
+            "variant_size": pv.variant_size,
             "branch_id": adj.branch_id,
             "adjustment_type": adj.adjustment_type,
             "quantity": adj.quantity,

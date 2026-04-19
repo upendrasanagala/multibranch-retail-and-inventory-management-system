@@ -91,7 +91,15 @@ const AIWastageAlerts = () => {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'row', 
+          gap: '16px', 
+          overflowX: 'auto', 
+          paddingBottom: '12px',
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#cbd5e1 transparent'
+        }}>
           {alerts.map((alert, index) => (
             <div key={index} style={{ 
               display: 'flex', 
@@ -101,36 +109,44 @@ const AIWastageAlerts = () => {
               borderRadius: '12px', 
               border: '1px solid #e2e8f0', 
               transition: 'border-color 0.2s ease',
-              gap: '12px'
+              gap: '12px',
+              minWidth: '300px',
+              maxWidth: '300px',
+              flexShrink: 0
             }}>
               <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h4 style={{ margin: 0, color: '#1e293b', fontWeight: 600 }}>{alert.product_name}</h4>
-                  <span style={{ fontSize: '10px', color: '#64748b', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px' }}>{alert.category}</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <h4 style={{ margin: 0, color: '#1e293b', fontWeight: 700, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{alert.product_name}</h4>
+                  <span style={{ fontSize: '9px', color: '#6366f1', backgroundColor: '#eef2ff', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>{alert.category}</span>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: '8px' }}>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Branch: <span style={{ color: '#334155', fontWeight: 500 }}>{alert.branch_name}</span></p>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Stock: <span style={{ color: '#334155', fontWeight: 500 }}>{alert.quantity}</span></p>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Expires: <span style={{ color: '#b45309', fontWeight: 600 }}>{alert.expiry_date}</span></p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '12px' }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase' }}>Branch</p>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#334155', fontWeight: 600 }}>{alert.branch_name}</p>
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase' }}>Expires</p>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#b45309', fontWeight: 700 }}>{alert.expiry_date}</p>
+                  </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: 'auto' }}>
                 <div style={{ textAlign: 'left' }}>
-                  <p style={{ margin: 0, fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>Rec. Discount</p>
-                  <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#16a34a' }}>{alert.recommended_discount}%</p>
+                  <p style={{ margin: 0, fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase' }}>Rec. Disc.</p>
+                  <p style={{ margin: 0, fontSize: '16px', fontWeight: '900', color: '#16a34a' }}>{alert.recommended_discount}%</p>
                 </div>
                 <button
                   onClick={() => handleFlashSale(alert)}
                   style={{ 
-                    padding: '8px 16px', 
-                    background: 'linear-gradient(to right, #dc2626, #ea580c)', 
+                    padding: '6px 12px', 
+                    background: 'linear-gradient(135deg, #ef4444, #f97316)', 
                     color: '#fff', 
                     border: 'none', 
                     borderRadius: '8px', 
-                    fontWeight: 'bold', 
-                    fontSize: '13px', 
+                    fontWeight: '800', 
+                    fontSize: '11px', 
                     cursor: 'pointer',
-                    boxShadow: '0 4px 6px -1px rgb(220 38 38 / 0.2)'
+                    boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.2)'
                   }}
                 >
                   Flash Sale

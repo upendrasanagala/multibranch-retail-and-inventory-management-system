@@ -12,10 +12,11 @@ from app.extensions import db
 from app.models.user import User
 from app.models.branch import Branch
 from app.models.product import Product
-from app.models.inventory import Inventory
 from app.models.category import Category
 from app.models.sales import SalesTransaction, TransactionItem
 from app.models.stock_transfer import StockTransfer
+from app.models.announcement import Announcement
+from app.models.adjustment import InventoryAdjustment
 from app.utils.decorators import roles_required
 from app.routes import admin_bp
 from app.utils.validators import is_valid_indian_mobile
@@ -54,9 +55,10 @@ def get_dashboard_stats():
     total_revenue = sum(s.total_amount or 0 for s in recent_sales)
     total_transactions = len(recent_sales)
     
-    # Low stock items
-    low_stock_count = Inventory.query.filter(
-        Inventory.quantity <= Inventory.min_threshold
+    from app.models.product import ProductVariant
+    # Low stock items (count variations below threshold)
+    low_stock_count = ProductVariant.query.filter(
+        ProductVariant.stock_quantity <= ProductVariant.min_threshold
     ).count()
     
     # Pending transfers
@@ -80,19 +82,23 @@ def get_dashboard_stats():
     today_upi = sum(s.total_amount or 0 for s in today_sales if s.payment_method and s.payment_method.lower() == 'upi')
     today_qr = sum(s.total_amount or 0 for s in today_sales if s.payment_method and s.payment_method.lower() == 'qr')
     
-    # Critical Low Stock (Top 5)
+    # Critical Low Stock (Top 5 Variants)
     critical_stock = db.session.query(
-        Inventory, Product.name, Branch.name
-    ).join(Product).join(Branch).filter(
-        Inventory.quantity <= Inventory.min_threshold
-    ).order_by(Inventory.quantity.asc()).limit(5).all()
+        ProductVariant, Product.name, Branch.name
+    ).join(
+        Product, ProductVariant.product_id == Product.product_id
+    ).join(
+        Branch, ProductVariant.branch_id == Branch.branch_id
+    ).filter(
+        ProductVariant.stock_quantity <= ProductVariant.min_threshold
+    ).order_by(ProductVariant.stock_quantity.asc()).limit(5).all()
     
     critical_items = [{
-        "product": p_name,
+        "product": f"{p_name} ({pv.variant_size})" if pv.variant_size else p_name,
         "branch": b_name,
-        "qty": inv.quantity,
-        "min": inv.min_threshold
-    } for inv, p_name, b_name in critical_stock]
+        "qty": pv.stock_quantity,
+        "min": pv.min_threshold
+    } for pv, p_name, b_name in critical_stock]
     
     # Branch Sales Performance (Last 30 days)
     branch_performance = db.session.query(
@@ -249,6 +255,16 @@ def get_users():
             "branch_name": branch.name if branch else None,
             "branch_upi": branch.upi_id if branch else None,
             "upi_id": u.upi_id,
+            "bank_name": u.bank_name,
+            "account_number": u.account_number,
+            "ifsc_code": u.ifsc_code,
+            "dob": u.dob.isoformat() if u.dob else None,
+            "joining_date": u.joining_date.isoformat() if u.joining_date else None,
+            "gender": u.gender,
+            "pan_number": u.pan_number,
+            "national_id": u.national_id,
+            "emergency_name": u.emergency_contact_name,
+            "emergency_phone": u.emergency_contact_phone,
             "address": u.address,
             "interview_status": u.interview_status,
             "interviewer_name": (
@@ -294,6 +310,24 @@ def update_user(user_id):
     
     user.address = data.get("address", user.address)
     user.upi_id = data.get("upi_id", user.upi_id)
+    user.bank_name = data.get("bank_name", user.bank_name)
+    user.account_number = data.get("account_number", user.account_number)
+    user.ifsc_code = data.get("ifsc_code", user.ifsc_code)
+    
+    # HR Fields
+    from datetime import datetime
+    if "dob" in data:
+        try: user.dob = datetime.strptime(data["dob"], "%Y-%m-%d").date() if data["dob"] else None
+        except: pass
+    if "joiningDate" in data:
+        try: user.joining_date = datetime.strptime(data["joiningDate"], "%Y-%m-%d").date() if data["joiningDate"] else None
+        except: pass
+    
+    user.gender = data.get("gender", user.gender)
+    user.pan_number = data.get("panNumber", user.pan_number)
+    user.national_id = data.get("nationalId", user.national_id)
+    user.emergency_contact_name = data.get("emergencyName", user.emergency_contact_name)
+    user.emergency_contact_phone = data.get("emergencyPhone", user.emergency_contact_phone)
     user.status = data.get("status", user.status)
     
     db.session.commit()
@@ -324,6 +358,44 @@ def delete_user(user_id):
         return jsonify({"message": f"Failed to delete user: {str(e)}"}), 500
     
     return jsonify({"message": "User deactivated successfully"}), 200
+
+
+# =============================
+# Permanent Delete (Hard Delete)
+# =============================
+@admin_bp.route("/users/<int:user_id>/permanent", methods=["DELETE"])
+@jwt_required()
+@roles_required("admin")
+def delete_user_permanent(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # 🚨 SECURITY CHECK: Protect the primary admin
+    if user.email == 'admin@retail.com':
+        return jsonify({"message": "The primary administrator account cannot be deleted."}), 403
+
+    try:
+        # Check for historical records to prevent database inconsistency
+        has_sales = SalesTransaction.query.filter_by(staff_id=user_id).first()
+        has_transfers_approved = StockTransfer.query.filter_by(approved_by=user_id).first()
+        has_adjustments = InventoryAdjustment.query.filter_by(adjusted_by=user_id).first()
+        has_announcements = Announcement.query.filter_by(created_by_id=user_id).first()
+
+        if any([has_sales, has_transfers_approved, has_adjustments, has_announcements]):
+            return jsonify({
+                "message": (
+                    "User cannot be permanently deleted because they have historical activity records "
+                    "(Sales, Transfers, Adjustments, or Announcements). "
+                    "Please use 'Suspend' to deactivate this user instead."
+                )
+            }), 400
+
+        db.session.delete(user)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Critical Error during permanent deletion: {str(e)}"}), 500
+    
+    return jsonify({"message": f"User {user.first_name} has been permanently deleted from the system."}), 200
 
 
 # =============================
@@ -412,18 +484,41 @@ def create_user():
         next_num = 10001
     employee_id = f"EMP-{next_num}"
     
+    # Parse Dates for HR
+    dob = None
+    if data.get("dob"):
+        try: dob = datetime.strptime(data["dob"], "%Y-%m-%d").date()
+        except: pass
+    
+    joining_date = None
+    if data.get("joiningDate"):
+        try: joining_date = datetime.strptime(data["joiningDate"], "%Y-%m-%d").date()
+        except: pass
+
     new_user = User(
         first_name=data["firstName"],
         last_name=data["lastName"],
         email=data["email"],
         phone=data["mobile"],
         address=data.get("address", ""),
-        role="manager",  # Hardcoded for this specific Admin action usually
+        role="manager",  # Hardcoded for this specific Admin action
         branch_id=data["branch_id"],
         employee_id=employee_id,
-        status="approved", # Auto-approve admin created users
+        status="approved", 
         must_reset_password=True,
-        password_hash=generate_password_hash(raw_password)
+        password_hash=generate_password_hash(raw_password),
+        # New HR Fields
+        dob=dob,
+        joining_date=joining_date,
+        gender=data.get("gender"),
+        pan_number=data.get("panNumber"),
+        national_id=data.get("nationalId"),
+        emergency_contact_name=data.get("emergencyName"),
+        emergency_contact_phone=data.get("emergencyPhone"),
+        upi_id=data.get("upiId"),
+        bank_name=data.get("bankName"),
+        account_number=data.get("accountNumber"),
+        ifsc_code=data.get("ifscCode")
     )
     
     try:
@@ -654,38 +749,41 @@ def sales_report():
     
     sorted_payment = sorted(payment_breakdown.values(), key=lambda x: x["total"], reverse=True)
     
-    # Top selling products (inline, no separate API call needed)
+    # Top selling products (Variant-aware)
     transaction_ids = [t[0].transaction_id for t in results]
     top_products = []
     if transaction_ids:
-        product_sales = db.session.query(
-            TransactionItem.product_id,
+        variant_sales = db.session.query(
+            TransactionItem.variant_id,
             func.sum(TransactionItem.quantity).label("total_quantity"),
             func.sum(TransactionItem.subtotal).label("total_revenue")
         ).filter(
             TransactionItem.transaction_id.in_(transaction_ids)
         ).group_by(
-            TransactionItem.product_id
+            TransactionItem.variant_id
         ).order_by(
             func.sum(TransactionItem.subtotal).desc()
         ).limit(10).all()
         
-        for pid, total_qty, total_rev in product_sales:
-            product = Product.query.get(pid)
-            top_products.append({
-                "product_name": product.name if product else "Unknown",
-                "total_quantity": total_qty,
-                "total_revenue": float(total_rev or 0),
-                "gst_percent": product.gst_percent if product else 0
-            })
+        from app.models.product import ProductVariant
+        for vid, total_qty, total_rev in variant_sales:
+            variant = ProductVariant.query.get(vid)
+            if variant:
+                product = Product.query.get(variant.product_id)
+                top_products.append({
+                    "product_name": f"{product.name} ({variant.variant_size})" if variant.variant_size else product.name,
+                    "total_quantity": total_qty,
+                    "total_revenue": float(total_rev or 0),
+                    "gst_percent": variant.gst_percent
+                })
     
     # GST summary (breakup by slab)
     gst_summary = {}
     for t_id in transaction_ids:
         items = TransactionItem.query.filter_by(transaction_id=t_id).all()
         for item in items:
-            product = Product.query.get(item.product_id)
-            rate = product.gst_percent if product else 0
+            variant = ProductVariant.query.get(item.variant_id)
+            rate = variant.gst_percent if variant else 0
             if rate not in gst_summary:
                 gst_summary[rate] = {"slab": f"{rate}%", "taxable": 0, "cgst": 0, "sgst": 0, "total_tax": 0}
             item_total = float(item.subtotal or 0)

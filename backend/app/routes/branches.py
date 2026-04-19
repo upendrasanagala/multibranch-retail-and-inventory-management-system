@@ -3,7 +3,6 @@ from flask_jwt_extended import jwt_required
 
 from app.extensions import db
 from app.models.branch import Branch
-from app.models.inventory import Inventory
 from app.utils.decorators import roles_required
 from app.routes import branch_bp
 from app.utils.validators import is_valid_indian_mobile
@@ -117,22 +116,23 @@ def update_branch(id):
 
 
 # =============================
-# GET BRANCH INVENTORY
+# GET BRANCH INVENTORY (Updated for Variants)
 # =============================
 @branch_bp.route("/<int:id>/inventory", methods=["GET"])
 @jwt_required()
 def get_branch_inventory(id):
-
-    inventory = Inventory.query.filter_by(branch_id=id).all()
+    from app.models.product import ProductVariant
+    variants = ProductVariant.query.filter_by(branch_id=id).all()
 
     return jsonify({
         "inventory": [
             {
-                "inventory_id": item.inventory_id,
-                "product_id": item.product_id,
-                "quantity": item.quantity
+                "inventory_id": v.variant_id,
+                "variant_id": v.variant_id,
+                "product_id": v.product_id,
+                "quantity": v.stock_quantity
             }
-            for item in inventory
+            for v in variants
         ]
     })
 
@@ -147,8 +147,9 @@ def delete_branch(id):
     try:
         branch = Branch.query.get_or_404(id)
         
-        # 1. Delete Inventory
-        Inventory.query.filter_by(branch_id=id).delete()
+        # 1. Delete Product Variants
+        from app.models.product import ProductVariant
+        ProductVariant.query.filter_by(branch_id=id).delete()
         
         # 2. Delete Stock Transfers (From/To)
         from app.models.stock_transfer import StockTransfer
@@ -167,18 +168,15 @@ def delete_branch(id):
             SalesTransaction.query.filter(SalesTransaction.transaction_id.in_(txn_ids)).delete(synchronize_session=False)
 
         # 4. Delete Associated Staff (Managers & Staff)
-        # Safety: Do NOT delete admins even if linked (though they shouldn't be)
         from app.models.user import User
         User.query.filter(User.branch_id == id, User.role != 'admin').delete()
-        
-        # Just in case an admin was linked, unlink them
         User.query.filter(User.branch_id == id, User.role == 'admin').update({User.branch_id: None})
 
         # 5. Delete Branch
         db.session.delete(branch)
         db.session.commit()
 
-        return jsonify({"message": f"Branch '{branch.name}' and all associated data (including staff) permanently deleted"}), 200
+        return jsonify({"message": f"Branch '{branch.name}' and all associated data permanently deleted"}), 200
 
     except Exception as e:
         db.session.rollback()

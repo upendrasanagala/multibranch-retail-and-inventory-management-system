@@ -42,6 +42,12 @@ def create_staff():
     emergency_contact_name = data.get("emergency_name")
     emergency_contact_phone = data.get("emergency_phone")
     
+    # Banking Fields
+    bank_name = data.get("bank_name")
+    account_number = data.get("account_number")
+    ifsc_code = data.get("ifsc_code")
+    upi_id = data.get("upi_id")
+    
     def parse_date(date_str):
         if not date_str: return None
         try: return datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -82,7 +88,11 @@ def create_staff():
         pan_number=pan_number,
         national_id=national_id,
         emergency_contact_name=emergency_contact_name,
-        emergency_contact_phone=emergency_contact_phone
+        emergency_contact_phone=emergency_contact_phone,
+        bank_name=bank_name,
+        account_number=account_number,
+        ifsc_code=ifsc_code,
+        upi_id=upi_id
     )
 
     db.session.add(staff)

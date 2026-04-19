@@ -43,10 +43,16 @@ class TransactionItem(db.Model):
         nullable=False
     )
 
+    variant_id = db.Column(
+        db.Integer,
+        db.ForeignKey("product_variants.variant_id"),
+        nullable=False
+    )
+    
     product_id = db.Column(
         db.Integer,
         db.ForeignKey("products.product_id"),
-        nullable=False
+        nullable=True
     )
 
     quantity = db.Column(db.Integer, nullable=False)

@@ -2,8 +2,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from app.extensions import db
 from app.models.sales import SalesTransaction, TransactionItem
-from app.models.inventory import Inventory
-from app.models.product import Product
+from app.models.product import Product, ProductVariant
 from app.models.branch import Branch
 from app.models.adjustment import InventoryAdjustment
 from app.models.announcement import Announcement
@@ -18,12 +17,14 @@ def get_inventory_insights(branch_id=None):
     thirty_days_ago = datetime.now() - timedelta(days=30)
     
     query = db.session.query(
-        TransactionItem.product_id,
+        ProductVariant.product_id,
         SalesTransaction.branch_id,
         TransactionItem.quantity,
         SalesTransaction.transaction_date
     ).join(
         SalesTransaction, TransactionItem.transaction_id == SalesTransaction.transaction_id
+    ).join(
+        ProductVariant, TransactionItem.variant_id == ProductVariant.variant_id
     ).filter(
         SalesTransaction.transaction_date >= thirty_days_ago,
         SalesTransaction.status == "completed"
@@ -58,26 +59,28 @@ def get_inventory_insights(branch_id=None):
         ((velocity_stats['total_sales'] - velocity_stats['recent_sales']) / 23 * 0.3)
     )
     
-    # 4. Fetch current inventory levels
+    # 4. Fetch current inventory levels (Variations)
     inv_query = db.session.query(
-        Inventory.product_id,
-        Inventory.branch_id,
-        Inventory.quantity,
-        Inventory.min_threshold,
+        ProductVariant.product_id,
+        ProductVariant.branch_id,
+        ProductVariant.stock_quantity,
+        ProductVariant.variant_size,
         Product.name.label('product_name'),
         Branch.name.label('branch_name'),
-        Product.unit_price
-    ).join(Product, Inventory.product_id == Product.product_id)\
-     .join(Branch, Inventory.branch_id == Branch.branch_id)
+        ProductVariant.price
+    ).join(Product, ProductVariant.product_id == Product.product_id)\
+     .join(Branch, ProductVariant.branch_id == Branch.branch_id)
      
     if branch_id:
         inv_query = inv_query.filter(Inventory.branch_id == branch_id)
         
     inventory_data = inv_query.all()
     inv_df = pd.DataFrame(inventory_data, columns=[
-        'product_id', 'branch_id', 'current_qty', 'min_threshold', 
-        'product_name', 'branch_name', 'unit_price'
+        'product_id', 'branch_id', 'current_qty', 'size', 
+        'product_base_name', 'branch_name', 'unit_price'
     ])
+    inv_df['product_name'] = inv_df.apply(lambda r: f"{r['product_base_name']} ({r['size']})" if r['size'] else r['product_base_name'], axis=1)
+    inv_df['min_threshold'] = 10 # Default
     
     # 5. Merge and Calculate Insights
     results = pd.merge(inv_df, velocity_stats, on=['product_id', 'branch_id'], how='left')
@@ -141,10 +144,10 @@ def get_branch_rebalance_suggestions():
     # 1. Calculate Velocity & Days Stock for ALL products across ALL branches
     # This is a global system optimization
     inv_data = db.session.query(
-        Inventory.product_id,
-        Inventory.branch_id,
-        Inventory.quantity,
-        Inventory.min_threshold,
+        ProductVariant.product_id,
+        ProductVariant.branch_id,
+        ProductVariant.stock_quantity,
+        ProductVariant.variant_size,
         Product.name.label('product_name'),
         Branch.name.label('branch_name')
     ).join(Product).join(Branch).all()
@@ -152,16 +155,20 @@ def get_branch_rebalance_suggestions():
     if not inv_data:
         return []
         
-    inv_df = pd.DataFrame(inv_data, columns=['product_id', 'branch_id', 'qty', 'min_t', 'product', 'branch'])
+    inv_df = pd.DataFrame(inv_data, columns=['product_id', 'branch_id', 'qty', 'size', 'product_base', 'branch'])
+    inv_df['product'] = inv_df.apply(lambda r: f"{r['product_base']} ({r['size']})" if r['size'] else r['product_base'], axis=1)
+    inv_df['min_t'] = 10
     
     # Simple Sales velocity for last 30 days
     thirty_days_ago = datetime.now() - timedelta(days=30)
     sales = db.session.query(
-        TransactionItem.product_id,
+        ProductVariant.product_id,
         SalesTransaction.branch_id,
         func.sum(TransactionItem.quantity).label('total_sales')
-    ).join(SalesTransaction).filter(SalesTransaction.transaction_date >= thirty_days_ago).group_by(
-        TransactionItem.product_id, SalesTransaction.branch_id
+    ).join(SalesTransaction, TransactionItem.transaction_id == SalesTransaction.transaction_id)\
+     .join(ProductVariant, TransactionItem.variant_id == ProductVariant.variant_id)\
+     .filter(SalesTransaction.transaction_date >= thirty_days_ago).group_by(
+        ProductVariant.product_id, SalesTransaction.branch_id
     ).all()
     
     sales_df = pd.DataFrame(sales, columns=['product_id', 'branch_id', 'total_sales'])
@@ -211,9 +218,17 @@ def get_pricing_recommendations():
     AI suggestions for dynamic pricing based on sales velocity and margins.
     Incorporates trend detection to avoid repeating suggestions after price changes.
     """
-    # 1. Get products
-    products = Product.query.all()
-    if not products: return []
+    # 1. Get variants (grouped by size to avoid branch duplication in global alerts)
+    from app.models.product import ProductVariant
+    # Use distinct on product and size to avoid duplicate alerts for different branches
+    # Postgres requires these to be in order_by as well
+    variants = db.session.query(
+        ProductVariant, Product
+    ).join(Product).distinct(Product.product_id, ProductVariant.variant_size).order_by(
+        Product.product_id, ProductVariant.variant_size
+    ).all()
+    
+    if not variants: return []
     
     # 2. Get system-wide velocity (30 days vs 7 days for trend detection)
     now = datetime.now()
@@ -221,17 +236,17 @@ def get_pricing_recommendations():
     seven_days_ago = now - timedelta(days=7)
     
     sales_30d_raw = db.session.query(
-        TransactionItem.product_id,
+        TransactionItem.variant_id,
         func.sum(TransactionItem.quantity).label('qty')
     ).join(SalesTransaction).filter(SalesTransaction.transaction_date >= thirty_days_ago).group_by(
-        TransactionItem.product_id
+        TransactionItem.variant_id
     ).all()
     
     sales_7d_raw = db.session.query(
-        TransactionItem.product_id,
+        TransactionItem.variant_id,
         func.sum(TransactionItem.quantity).label('qty')
     ).join(SalesTransaction).filter(SalesTransaction.transaction_date >= seven_days_ago).group_by(
-        TransactionItem.product_id
+        TransactionItem.variant_id
     ).all()
     
     sales_30d = {s[0]: s[1] for s in sales_30d_raw}
@@ -239,27 +254,31 @@ def get_pricing_recommendations():
     
     recommendations = []
     
-    for p in products:
+    for pv, p in variants:
         # Calculate velocities
-        v30 = sales_30d.get(p.product_id, 0) / 30
-        v7 = sales_7d.get(p.product_id, 0) / 7
+        v30 = sales_30d.get(pv.variant_id, 0) / 30
+        v7 = sales_7d.get(pv.variant_id, 0) / 7
         
-        # Trend: Is recent performance significantly better than 30d average?
-        # A 20% improvement indicates the current price/strategy is working
+        # Trend detection logic
         is_trending_up = v7 > (v30 * 1.2) if v30 > 0 else False
         
-        # SAFE MARGIN CALCULATION
-        # Fallback to 30% markup if cost_price is missing
-        cost_basis = p.cost_price if p.cost_price is not None else (p.unit_price * 0.7)
-        margin = ((p.unit_price - cost_basis) / p.unit_price * 100) if p.unit_price > 0 else 0
+        # SAFE MARGIN CALCULATION using variant prices
+        # variant_price is 'price' in model, but we often refer to it as unit_price in logic
+        u_price = pv.price
+        c_price = pv.cost_price if pv.cost_price is not None else (u_price * 0.7)
+        
+        margin = ((u_price - c_price) / u_price * 100) if u_price > 0 else 0
         
         # Logic 1: High Velocity + Low Margin = Increase Price
         if v30 > 1.5 and margin < 15:
             recommendations.append({
-                "product": p.name,
-                "current_price": p.unit_price,
-                "suggested_price": round(p.unit_price * 1.05, 2),
-                "reason": f"High demand (velocity {round(v30, 2)}) with tight margin ({round(margin, 1)}%). 5% increase recommended.",
+                "product": f"{p.name} ({pv.variant_size})",
+                "product_id": p.product_id,
+                "variant_id": pv.variant_id,
+                "current_price": u_price,
+                "suggested_price": round(u_price * 1.05, 2),
+                "suggested_change": 5,
+                "reason": f"High demand for {pv.variant_size} (velocity {round(v30, 2)}) with tight margin ({round(margin, 1)}%). 5% increase recommended.",
                 "type": "increase"
             })
             
@@ -279,12 +298,15 @@ def get_pricing_recommendations():
             can_discount = True
             discount_rate = 0.05
             
-        if can_discount and (p.discount_percent or 0) == 0 and not is_trending_up:
+        if can_discount and (pv.discount_percent or 0) == 0 and not is_trending_up:
              recommendations.append({
-                "product": p.name,
-                "current_price": p.unit_price,
-                "suggested_price": round(p.unit_price * (1 - discount_rate), 2),
-                "reason": f"Slow moving item with {round(margin, 1)}% margin. Suggest {int(discount_rate*100)}% discount to stimulate demand.",
+                "product": f"{p.name} ({pv.variant_size})",
+                "product_id": p.product_id,
+                "variant_id": pv.variant_id,
+                "current_price": u_price,
+                "suggested_price": round(u_price * (1 - discount_rate), 2),
+                "suggested_change": int(discount_rate * 100),
+                "reason": f"Slow moving {pv.variant_size} with {round(margin, 1)}% margin. Suggest {int(discount_rate*100)}% discount to stimulate demand.",
                 "type": "discount"
             })
              
@@ -299,29 +321,31 @@ def get_wastage_alerts(branch_id=None):
     from app.models.category import Category
     try:
         query = db.session.query(
-            Inventory.product_id,
-            Inventory.branch_id,
-            Inventory.quantity,
+            ProductVariant.product_id,
+            ProductVariant.branch_id,
+            ProductVariant.stock_quantity,
             Product.name.label('product_name'),
             Branch.name.label('branch_name'),
-            Product.expiry_date,
-            Product.unit_price,
-            Category.name.label('category_name')
+            ProductVariant.expiry_date,
+            ProductVariant.price,
+            Category.name.label('category_name'),
+            ProductVariant.variant_size
         ).join(
-            Product, Inventory.product_id == Product.product_id
+            Product, ProductVariant.product_id == Product.product_id
         ).join(
-            Branch, Inventory.branch_id == Branch.branch_id
+            Branch, ProductVariant.branch_id == Branch.branch_id
         ).outerjoin(
             Category, Product.category_id == Category.category_id
-        ).filter(Product.expiry_date != None)
+        ).filter(ProductVariant.expiry_date != None)
 
         if branch_id:
-            query = query.filter(Inventory.branch_id == branch_id)
+            query = query.filter(ProductVariant.branch_id == branch_id)
             
         data = query.all()
         if not data: return []
 
-        inv_df = pd.DataFrame(data, columns=['product_id', 'branch_id', 'qty', 'product_name', 'branch_name', 'expiry_date', 'price', 'category_name'])
+        inv_df = pd.DataFrame(data, columns=['product_id', 'branch_id', 'qty', 'product_base_name', 'branch_name', 'expiry_date', 'price', 'category_name', 'size'])
+        inv_df['product_name'] = inv_df.apply(lambda r: f"{r['product_base_name']} ({r['size']})" if r['size'] else r['product_base_name'], axis=1)
         inv_df['category_name'] = inv_df['category_name'].fillna('Uncategorized')
         inv_df['expiry'] = pd.to_datetime(inv_df['expiry_date'])
         inv_df['days_to_expiry'] = (inv_df['expiry'] - datetime.now()).dt.days
@@ -333,16 +357,21 @@ def get_wastage_alerts(branch_id=None):
         # 2. Get 180-day velocity (increased from 30)
         analysis_start = datetime.now() - timedelta(days=180)
         sales = db.session.query(
-            TransactionItem.product_id,
+            TransactionItem.variant_id,
             SalesTransaction.branch_id,
             func.sum(TransactionItem.quantity).label('total_sales')
         ).join(SalesTransaction).filter(SalesTransaction.transaction_date >= analysis_start).group_by(
-            TransactionItem.product_id, SalesTransaction.branch_id
+            TransactionItem.variant_id, SalesTransaction.branch_id
         ).all()
         
-        sales_df = pd.DataFrame(sales, columns=['product_id', 'branch_id', 'total_sales'])
+        # We need to map product_id in inv_df to variant_id for the merge to be accurate
+        # Actually, df column is product_id but it contains pv.variant_id from line 317
+        sales_df = pd.DataFrame(sales, columns=['variant_id', 'branch_id', 'total_sales'])
         
-        df = pd.merge(inv_df, sales_df, on=['product_id', 'branch_id'], how='left').fillna(0)
+        # update inv_df column name for merge
+        inv_df.rename(columns={'product_id': 'variant_id'}, inplace=True)
+        
+        df = pd.merge(inv_df, sales_df, on=['variant_id', 'branch_id'], how='left').fillna(0)
         df['velocity'] = df['total_sales'] / 180
         df['velocity'] = df['velocity'].apply(lambda x: max(x, 0.05))
         

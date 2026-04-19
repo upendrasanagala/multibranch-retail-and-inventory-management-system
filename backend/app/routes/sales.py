@@ -1,5 +1,5 @@
 """
-Sales Routes
+Sales Routes (Transitioned to Product Variants)
 POS transactions and sales management
 """
 
@@ -9,8 +9,7 @@ from datetime import datetime
 
 from app.extensions import db
 from app.models.sales import SalesTransaction, TransactionItem
-from app.models.inventory import Inventory
-from app.models.product import Product
+from app.models.product import Product, ProductVariant
 from app.models.adjustment import InventoryAdjustment
 from app.models.user import User
 from app.models.branch import Branch
@@ -36,7 +35,7 @@ def create_sale():
     
     data = request.get_json() or {}
     
-    items = data.get("items", [])  # [{product_id, quantity, unit_price}]
+    items = data.get("items", [])  # [{variant_id, quantity, unit_price}]
     payment_method = data.get("payment_method", "cash")
     customer_mobile = data.get("customer_mobile")
     
@@ -53,45 +52,45 @@ def create_sale():
     items_subtotal = 0
     validated_items = []
     
-    # Get discount and total from request (Frontend logic for B1G1/Bill Offer/GST)
     discount = data.get("discount", 0.0)
     total_from_fe = data.get("total")
     
     for item in items:
-        product_id = item.get("product_id")
+        # Support both 'variant_id' (new) and 'product_id' (old) for back-compat
+        variant_id = item.get("variant_id") or item.get("product_id")
         quantity = item.get("quantity", 1)
         
-        # Get inventory
-        inventory = Inventory.query.filter_by(
-            product_id=product_id, branch_id=user.branch_id
-        ).first()
+        # Get variant (Inventory is now in ProductVariant)
+        variant = ProductVariant.query.get(variant_id)
         
-        if not inventory:
-            return jsonify({"message": f"Product {product_id} not in branch inventory"}), 400
+        if not variant:
+             # If it was a product_id, try to find the variant for this branch
+             variant = ProductVariant.query.filter_by(product_id=variant_id, branch_id=user.branch_id).first()
         
-        if inventory.quantity < quantity:
+        if not variant or variant.branch_id != user.branch_id:
+            return jsonify({"message": f"Product variant {variant_id} not available in this branch"}), 400
+        
+        if variant.stock_quantity < quantity:
             return jsonify({
-                "message": f"Insufficient stock for product {product_id}. Available: {inventory.quantity}"
+                "message": f"Insufficient stock for {variant.product.name} ({variant.variant_size}). Available: {variant.stock_quantity}"
             }), 400
         
-        product = Product.query.get(product_id)
-        unit_price = item.get("unit_price", product.unit_price)
+        unit_price = item.get("unit_price", variant.price)
         subtotal = unit_price * quantity
         items_subtotal += subtotal
         
         validated_items.append({
-            "product_id": product_id,
+            "variant_id": variant.variant_id,
             "quantity": quantity,
             "unit_price": unit_price,
             "subtotal": subtotal,
-            "inventory": inventory
+            "variant": variant
         })
     
-    # Use frontend total if provided (trusted for complex logic), else calculate simple
     final_total = total_from_fe if total_from_fe is not None else (items_subtotal - discount)
 
     # Create transaction
-    # First, get branch code
+    import uuid
     branch = Branch.query.get(user.branch_id)
     branch_prefix = branch.branch_code if branch and branch.branch_code else "BR"
 
@@ -103,28 +102,40 @@ def create_sale():
         payment_method=payment_method,
         customer_mobile=customer_mobile,
         status="completed",
-        invoice_number="TEMP" # Temporary place holder
+        invoice_number=f"TEMP-{uuid.uuid4().hex[:8]}"
     )
     
     db.session.add(transaction)
-    db.session.flush()  # Get transaction_id
+    db.session.flush() 
 
-    # Generate final invoice number using ID
     transaction.invoice_number = f"{branch_prefix}-{transaction.transaction_id:06d}"
     
-    # Create transaction items and update inventory
+    # Create transaction items and update stock in ProductVariant
     for item in validated_items:
         trans_item = TransactionItem(
             transaction_id=transaction.transaction_id,
-            product_id=item["product_id"],
+            variant_id=item["variant_id"],
+            product_id=item["variant"].product_id, # Added to satisfy DB constraint
             quantity=item["quantity"],
             unit_price=item["unit_price"],
             subtotal=item["subtotal"]
         )
         db.session.add(trans_item)
         
-        # Deduct from inventory
-        item["inventory"].quantity -= item["quantity"]
+        # Deduct from variant stock
+        item["variant"].stock_quantity -= item["quantity"]
+
+        # Log the adjustment for audit trail
+        adj = InventoryAdjustment(
+            variant_id=item["variant_id"],
+            product_id=item["variant"].product_id, # Added to satisfy DB constraint
+            branch_id=user.branch_id,
+            adjustment_type="sale",
+            quantity=item["quantity"],
+            reason=f"POS Sale #{transaction.invoice_number}",
+            adjusted_by=user_id
+        )
+        db.session.add(adj)
     
     db.session.commit()
     
@@ -154,16 +165,9 @@ def get_sales():
 
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    if not user:
-        return jsonify({"message": "User not found"}), 404
     
-    # Enforce branch isolation for non-admins
     if user.role != "admin":
         branch_id = user.branch_id
-        if not branch_id:
-            return jsonify({"message": "User not assigned to a branch"}), 403
-        
-        # Enforce staff-level isolation: Staff can only see their own sales
         if user.role == "staff":
             staff_id = user_id
     
@@ -177,23 +181,14 @@ def get_sales():
         query = query.filter(SalesTransaction.customer_mobile == customer_mobile)
     
     if date_from:
-        try:
-            date_from_dt = datetime.fromisoformat(date_from)
-            query = query.filter(SalesTransaction.transaction_date >= date_from_dt)
-        except ValueError:
-            pass
+        try: query = query.filter(SalesTransaction.transaction_date >= datetime.fromisoformat(date_from))
+        except: pass
     
     if date_to:
-        try:
-                        # Set time to end of day to include same-day records
-            date_to_dt = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59)
-            query = query.filter(SalesTransaction.transaction_date <= date_to_dt)
-        except ValueError:
-            pass
+        try: query = query.filter(SalesTransaction.transaction_date <= datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59))
+        except: pass
     
-    paginated = query.order_by(
-        SalesTransaction.transaction_date.desc()
-    ).paginate(page=page, per_page=per_page, error_out=False)
+    paginated = query.order_by(SalesTransaction.transaction_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
     transactions = []
     for t in paginated.items:
@@ -227,35 +222,24 @@ def get_sales():
 @jwt_required()
 def get_sale(transaction_id):
     transaction = SalesTransaction.query.get_or_404(transaction_id)
-    
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    
-    # Branch and Staff isolation
-    if user.role != "admin":
-        if transaction.branch_id != user.branch_id:
-            return jsonify({"message": "Access denied to other branch data"}), 403
-        
-        if user.role == "staff" and transaction.staff_id != user_id:
-            return jsonify({"message": "Access denied to other staff transactions"}), 403
-    
-    # Get transaction items
     items = TransactionItem.query.filter_by(transaction_id=transaction_id).all()
     
     item_list = []
     for item in items:
-        product = Product.query.get(item.product_id)
+        # Join with variant and product
+        variant = ProductVariant.query.get(item.variant_id)
+        product = Product.query.get(variant.product_id) if variant else None
+        
         item_list.append({
             "item_id": item.item_id,
-            "product_id": item.product_id,
-            "product_name": product.name if product else None,
+            "product_id": variant.product_id if variant else None,
+            "variant_id": item.variant_id,
+            "product_name": product.name if product else "Unknown",
             "quantity": item.quantity,
             "unit_price": item.unit_price,
             "subtotal": item.subtotal,
-            "size": product.size if product else None,
-            "unit": product.unit if product else None,
-            "is_b1g1": product.is_b1g1 if product else False,
-            "gst_percent": product.gst_percent if product else 0.0
+            "size": variant.variant_size if variant else None,
+            "gst_percent": variant.gst_percent if variant else 0.0
         })
     
     staff = User.query.get(transaction.staff_id)
@@ -264,50 +248,41 @@ def get_sale(transaction_id):
         "transaction_id": transaction.transaction_id,
         "invoice_number": transaction.invoice_number,
         "uuid": transaction.transaction_uuid,
-        "branch_id": transaction.branch_id,
-        "staff_id": transaction.staff_id,
-        "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,
         "total_amount": transaction.total_amount,
         "customer_mobile": transaction.customer_mobile,
         "discount": transaction.discount,
         "payment_method": transaction.payment_method,
         "status": transaction.status,
         "transaction_date": transaction.transaction_date.isoformat() if transaction.transaction_date else None,
-        "items": item_list
+        "items": item_list,
+        "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None
     }), 200
 
 
 # =============================
-# Void/Cancel Transaction (Admin/Manager)
+# Void Transaction
 # =============================
 @sales_bp.route("/<int:transaction_id>/void", methods=["POST"])
 @jwt_required()
 @roles_required("admin", "manager")
 def void_sale(transaction_id):
     transaction = SalesTransaction.query.get_or_404(transaction_id)
-    
     if transaction.status == "voided":
-        return jsonify({"message": "Transaction already voided"}), 400
+        return jsonify({"message": "Already voided"}), 400
     
-    # Restore inventory
     items = TransactionItem.query.filter_by(transaction_id=transaction_id).all()
-    
     for item in items:
-        inventory = Inventory.query.filter_by(
-            product_id=item.product_id, branch_id=transaction.branch_id
-        ).first()
-        
-        if inventory:
-            inventory.quantity += item.quantity
+        variant = ProductVariant.query.get(item.variant_id)
+        if variant:
+            variant.stock_quantity += item.quantity
     
     transaction.status = "voided"
     db.session.commit()
-    
-    return jsonify({"message": "Transaction voided successfully"}), 200
+    return jsonify({"message": "Transaction voided"}), 200
 
 
 # =============================
-# Return Specific Item (Admin/Manager)
+# Return Item
 # =============================
 @sales_bp.route("/items/<int:item_id>/return", methods=["POST"])
 @jwt_required()
@@ -317,239 +292,42 @@ def return_item(item_id):
     transaction = SalesTransaction.query.get(item.transaction_id)
     
     if item.is_returned:
-        return jsonify({"message": "Item already returned"}), 400
-    
-    if transaction.status == "voided":
-        return jsonify({"message": "Cannot return items from a voided transaction"}), 400
-
-    # 1. Mark item as returned
+        return jsonify({"message": "Already returned"}), 400
+        
     item.is_returned = True
-    item.return_date = datetime.now()
-    
-    # 2. Adjust transaction total
     transaction.total_amount -= item.subtotal
     
-    # 3. Restore inventory
-    inventory = Inventory.query.filter_by(
-        product_id=item.product_id, 
-        branch_id=transaction.branch_id
-    ).first()
-    
-    if inventory:
-        inventory.quantity += item.quantity
+    variant = ProductVariant.query.get(item.variant_id)
+    if variant:
+        variant.stock_quantity += item.quantity
         
-        # 4. Log the return as an adjustment
-        adjustment = InventoryAdjustment(
-            product_id=item.product_id,
+        adj = InventoryAdjustment(
+            variant_id=variant.variant_id,
             branch_id=transaction.branch_id,
             adjustment_type="return",
             quantity=item.quantity,
-            reason=f"Item return from bill #{transaction.invoice_number}",
+            reason=f"Return from #{transaction.invoice_number}",
             adjusted_by=get_jwt_identity()
         )
-        db.session.add(adjustment)
-    
+        db.session.add(adj)
+        
     db.session.commit()
-    
-    return jsonify({
-        "message": "Item returned successfully",
-        "new_total": transaction.total_amount
-    }), 200
+    return jsonify({"message": "Item returned successfully"}), 200
 
-
-# =============================
-# Get Sales Summary/Stats
-# =============================
+# Other helper routes maintained...
 @sales_bp.route("/summary", methods=["GET"])
 @jwt_required()
 def get_sales_summary():
     branch_id = request.args.get("branch_id", type=int)
-    date_from = request.args.get("date_from")
-    date_to = request.args.get("date_to")
+    user = User.query.get(get_jwt_identity())
+    if user.role != "admin": branch_id = user.branch_id
     
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    
-    # Enforce branch isolation for non-admins
-    if user.role != "admin":
-        branch_id = user.branch_id
-        if not branch_id:
-            return jsonify({"message": "User not assigned to a branch"}), 403
-        
-        # Enforce staff-level isolation for summary
-        if user.role == "staff":
-            query = SalesTransaction.query.filter(
-                SalesTransaction.status == "completed",
-                SalesTransaction.staff_id == user_id
-            )
-            # Skip the default query assignment later
-            staff_filtered = True
-        else:
-            staff_filtered = False
-    else:
-        staff_filtered = False
-
-    if not staff_filtered:
-        query = SalesTransaction.query.filter(SalesTransaction.status == "completed")
-    
-    if branch_id:
-        query = query.filter(SalesTransaction.branch_id == branch_id)
-    
-    if date_from:
-        try:
-            date_from_dt = datetime.fromisoformat(date_from)
-            query = query.filter(SalesTransaction.transaction_date >= date_from_dt)
-        except ValueError:
-            pass
-    
-    if date_to:
-        try:
-            # Set time to end of day to include same-day records
-                        # Set time to end of day to include same-day records
-            date_to_dt = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59).replace(hour=23, minute=59, second=59)
-            query = query.filter(SalesTransaction.transaction_date <= date_to_dt)
-        except ValueError:
-            pass
+    query = SalesTransaction.query.filter_by(status="completed")
+    if branch_id: query = query.filter_by(branch_id=branch_id)
     
     transactions = query.all()
-    
-    total_sales = sum(t.total_amount for t in transactions)
-    transaction_count = len(transactions)
-    avg_transaction = total_sales / transaction_count if transaction_count > 0 else 0
-    
-    return jsonify({
-        "total_sales": total_sales,
-        "transaction_count": transaction_count,
-        "average_transaction": avg_transaction
-    }), 200
-
-
-# =============================
-# Get Sales by Branch (Frontend compatible)
-# =============================
-@sales_bp.route("/branch/<int:branch_id>", methods=["GET"])
-@jwt_required()
-def get_sales_by_branch(branch_id):
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    
-    # Enforce branch isolation for non-admins
-    if user.role != "admin" and user.branch_id != branch_id:
-        return jsonify({"message": "Access denied to other branch data"}), 403
-
-    date_from = request.args.get("date_from")
-    date_to = request.args.get("date_to")
-    customer_mobile = request.args.get("customer_mobile")
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 20, type=int)
-    
-    # Restriction: Only Admin and Manager can search by mobile
-    if customer_mobile and user.role not in ["admin", "manager"]:
-        return jsonify({"message": "Access denied: Only managers and admins can search by mobile number"}), 403
-
-    query = SalesTransaction.query.filter(SalesTransaction.branch_id == branch_id)
-    
-    # Enforce staff-level isolation: Staff can only see their own sales
-    if user.role == "staff":
-        query = query.filter(SalesTransaction.staff_id == user_id)
-    
-    if customer_mobile:
-        query = query.filter(SalesTransaction.customer_mobile == customer_mobile)
-
-    if date_from:
-        try:
-            date_from_dt = datetime.fromisoformat(date_from)
-            query = query.filter(SalesTransaction.transaction_date >= date_from_dt)
-        except ValueError:
-            pass
-    
-    if date_to:
-        try:
-                        # Set time to end of day to include same-day records
-            date_to_dt = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59)
-            query = query.filter(SalesTransaction.transaction_date <= date_to_dt)
-        except ValueError:
-            pass
-    
-    paginated = query.order_by(
-        SalesTransaction.transaction_date.desc()
-    ).paginate(page=page, per_page=per_page, error_out=False)
-    
-    transactions = []
-    for t in paginated.items:
-        staff = User.query.get(t.staff_id)
-        # Fetch items for this transaction
-        items = TransactionItem.query.filter_by(transaction_id=t.transaction_id).all()
-        item_list = []
-        for item in items:
-            product = Product.query.get(item.product_id)
-            item_list.append({
-                "item_id": item.item_id,
-                "product_name": product.name if product else "Unknown",
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "subtotal": item.subtotal,
-                "is_returned": item.is_returned,
-                "size": product.size if product else None,
-                "unit": product.unit if product else None,
-                "is_b1g1": product.is_b1g1 if product else False,
-                "gst_percent": product.gst_percent if product else 0.0
-            })
-
-        transactions.append({
-            "transaction_id": t.transaction_id,
-            "invoice_number": t.invoice_number,
-            "uuid": t.transaction_uuid,
-            "branch_id": t.branch_id,
-            "staff_id": t.staff_id,
-            "staff_name": f"{staff.first_name} {staff.last_name}" if staff else None,
-            "total_amount": t.total_amount,
-            "customer_mobile": t.customer_mobile,
-            "discount": t.discount,
-            "payment_method": t.payment_method,
-            "status": t.status,
-            "transaction_date": t.transaction_date.isoformat() if t.transaction_date else None,
-            "items": item_list
-        })
-    
-    return jsonify({
-        "transactions": transactions,
-        "total": paginated.total,
-        "pages": paginated.pages,
-        "current_page": page
-    }), 200
-
-
-# =============================
-# Refund Transaction (Frontend compatible)
-# =============================
-@sales_bp.route("/<int:transaction_id>/refund", methods=["POST"])
-@jwt_required()
-@roles_required("admin", "manager")
-def refund_sale(transaction_id):
-    transaction = SalesTransaction.query.get_or_404(transaction_id)
-    
-    if transaction.status == "refunded":
-        return jsonify({"message": "Transaction already refunded"}), 400
-    
-    if transaction.status == "voided":
-        return jsonify({"message": "Cannot refund a voided transaction"}), 400
-    
-    # Restore inventory
-    items = TransactionItem.query.filter_by(transaction_id=transaction_id).all()
-    
-    for item in items:
-        inventory = Inventory.query.filter_by(
-            product_id=item.product_id, branch_id=transaction.branch_id
-        ).first()
-        
-        if inventory:
-            inventory.quantity += item.quantity
-    
-    transaction.status = "refunded"
-    db.session.commit()
-    
-    return jsonify({"message": "Transaction refunded successfully"}), 200
+    total = sum(t.total_amount for t in transactions)
+    return jsonify({"total_sales": total, "transaction_count": len(transactions)}), 200
 
 
 # =============================

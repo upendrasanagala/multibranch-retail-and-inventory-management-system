@@ -6,10 +6,16 @@ class InventoryAdjustment(db.Model):
 
     adjustment_id = db.Column(db.Integer, primary_key=True)
 
+    variant_id = db.Column(
+        db.Integer,
+        db.ForeignKey("product_variants.variant_id"),
+        nullable=False
+    )
+    
     product_id = db.Column(
         db.Integer,
         db.ForeignKey("products.product_id"),
-        nullable=False
+        nullable=True
     )
 
     branch_id = db.Column(

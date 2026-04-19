@@ -185,8 +185,14 @@ const api = {
     delete: (id) =>
       apiRequest(`/products/${id}`, { method: "DELETE" }),
 
-    import: (formData) =>
-      apiRequest("/products/import", {
+    bulkDelete: (variantIds) =>
+      apiRequest("/products/bulk", {
+        method: "DELETE",
+        body: JSON.stringify({ variant_ids: variantIds })
+      }),
+
+    import: (formData, mode = "add") =>
+      apiRequest(`/products/import?mode=${mode}`, {
         method: "POST",
         body: formData,
         // Let browser set Content-Type for FormData
@@ -344,6 +350,9 @@ const api = {
 
     deleteUser: (id) =>
       apiRequest(`/admin/users/${id}`, { method: "DELETE" }),
+
+    deleteUserPermanent: (id) =>
+      apiRequest(`/admin/users/${id}/permanent`, { method: "DELETE" }),
 
     reactivateUser: (id) =>
       apiRequest(`/admin/users/${id}/reactivate`, { method: "PUT" }),
