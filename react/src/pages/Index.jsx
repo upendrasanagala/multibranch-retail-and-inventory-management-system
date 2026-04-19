@@ -11,6 +11,11 @@ export default function Home() {
       setScrolled(window.scrollY > 50);
     };
     window.addEventListener("scroll", handleScroll);
+
+    // SECURITY: If the user reaches the home screen, clear the session
+    localStorage.removeItem("loggedInUser");
+    localStorage.removeItem("token");
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -24,8 +29,16 @@ export default function Home() {
       answer: "Yes. Our proprietary sync engine ensures that any stock change, sale, or transfer is updated across all connected devices in under 200 milliseconds."
     },
     {
+      question: "How does the AI Demand Forecasting work?",
+      answer: "Our AI engine analyzes your historical sales velocity, seasonal trends, and local events to predict stockouts 7 days in advance, suggesting optimal reorder quantities."
+    },
+    {
       question: "Can I transfer stock between branches?",
       answer: "Yes, our 'Inter-Branch Transfer' (IBT) feature allows you to move stock between locations with one click, complete with digital transit tracking."
+    },
+    {
+      question: "What is Sales Velocity AI?",
+      answer: "It's a real-time monitor that tracks terminal speed and transaction volume to help managers optimize staff shifts and detect peak shopping hours before they become bottlenecks."
     },
     {
       question: "Does it support barcode scanning?",
@@ -40,20 +53,12 @@ export default function Home() {
       answer: "Yes. Use our granular Role-Based Access Control (RBAC) to define what Admin, Manager, and Staff users can see and modify in the system."
     },
     {
-      question: "Does it work offline?",
-      answer: "Yes, our 'Offline-First' architecture allows you to continue sales during internet outages. Data automatically syncs once the connection is restored."
+      question: "Is there built-in fraud detection?",
+      answer: "Yes, our AI 'Smart Reconciliation' engine audits payment logs and terminal history to flag discrepancies and unusual transaction patterns instantly."
     },
     {
       question: "Can I use it on mobile devices?",
       answer: "Absolutely. InventoryPro is a progressive web platform designed to work seamlessly on tablets, smartphones, and desktop computers."
-    },
-    {
-      question: "How secure is my business data?",
-      answer: "We use bank-grade AES-256 encryption for all data at rest and TLS 1.3 for data in transit. Your data is backed up hourly across multiple secure locations."
-    },
-    {
-      question: "Do you offer staff training?",
-      answer: "Yes, we provide comprehensive onboarding and 24/7 dedicated support for all Enterprise customers to ensure your team is proficient."
     }
   ];
 
@@ -85,25 +90,24 @@ export default function Home() {
       {/* ================= UNIFIED HERO ================= */}
       <section className="unified-hero">
         <div style={{ animation: 'fadeInUp 0.8s ease-out forwards' }}>
-          <div className="badge-new">
+          <div className="badge-new" style={{ display: 'inline-block', padding: '4px 12px', background: '#f1f5f9', borderRadius: '100px', fontSize: '11px', fontWeight: 800, color: '#4f46e5', marginBottom: '20px' }}>
             <span>LIVE</span> Enterprise Network Status
           </div>
-          <h1>Management at Scale.</h1>
+          <h1>AI-Powered <span className="grad-text">Multi-Branch Retail Inventory and Sales Management System</span></h1>
           <p className="subheadline">
-            One platform for every branch, every item, and every sale.
-            Real-time synchronization across your entire retail empire.
+            Harness the power of autonomous AI to synchronize every branch, predict every sale, and lead every market. Innovation built for the next generation of retail.
           </p>
 
           <div className="btn-group">
-            <a href="/login" className="btn-primary">Launch Console</a>
+            <a href="/login" style={{ background: '#4f46e5', color: 'white', padding: '16px 40px', borderRadius: '8px', fontWeight: 700, textDecoration: 'none', display: 'inline-block' }}>Launch Console</a>
           </div>
         </div>
 
         <div className="branch-grid">
           {[
-            { id: 'BH-01', name: 'Smart Store', loc: 'vijayawada Central', rev: '$12,450', stock: '8,240', status: 'online' },
-            { id: 'BH-02', name: 'City Outlet', loc: 'Guntur West', rev: '$4,280', stock: '2,150', status: 'online' },
-            { id: 'BH-03', name: 'Asia Hub', loc: 'Hyderabad Metro', rev: '$9,120', stock: '5,400', status: 'online' }
+            { id: 'BH-01', name: 'Edubot Store', loc: 'Vijayawada Central', rev: '₹50,000+', stock: '8,240', status: 'online' },
+            { id: 'BH-02', name: 'Ananya Store', loc: 'Guntur West', rev: '₹48,000+', stock: '2,150', status: 'online' },
+            { id: 'BH-03', name: 'Smart Retails', loc: 'Hyderabad Metro', rev: '₹45,000+', stock: '5,400', status: 'online' }
           ].map((branch, i) => (
             <div key={branch.id} className="branch-card" style={{ animationDelay: `${i * 0.15}s` }}>
               <div className="status-indicator">
@@ -111,17 +115,17 @@ export default function Home() {
                 {branch.status}
               </div>
               <div className="branch-info">
-                <h3>{branch.name}</h3>
-                <p><i className="fas fa-map-marker-alt" style={{ marginRight: '6px' }}></i>{branch.loc}</p>
+                <h3 style={{ fontSize: '22px', fontWeight: 700, margin: '0 0 4px 0' }}>{branch.name}</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}><i className="fas fa-map-marker-alt" style={{ marginRight: '6px' }}></i>{branch.loc}</p>
               </div>
-              <div className="branch-stats">
+              <div className="branch-stats" style={{ display: 'flex', gap: '16px', marginTop: '10px' }}>
                 <div className="b-stat">
-                  <span className="label">Daily Rev</span>
-                  <span className="value">{branch.rev}</span>
+                  <span className="label" style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Daily Rev</span>
+                  <span className="value" style={{ display: 'block', fontSize: '18px', fontWeight: 700 }}>{branch.rev}</span>
                 </div>
                 <div className="b-stat">
-                  <span className="label">Total Stock</span>
-                  <span className="value">{branch.stock}</span>
+                  <span className="label" style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Total Stock</span>
+                  <span className="value" style={{ display: 'block', fontSize: '18px', fontWeight: 700 }}>{branch.stock}</span>
                 </div>
               </div>
             </div>
@@ -161,14 +165,41 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ================= AI INTELLIGENCE CORE ================= */}
+      <section className="ai-core-section">
+        <div className="section-head">
+          <div className="ai-badge">NEURAL CORE v2.0</div>
+          <h2>Autonomous Intelligence.</h2>
+          <p>
+            Experience the next generation of retail management. Our proprietary AI engine
+            analyzes your data in real-time to optimize every branch autonomously.
+          </p>
+        </div>
+
+        <div className="ai-core-grid">
+          <div className="ai-core-card">
+            <div className="ai-icon-box"><i className="fas fa-brain"></i></div>
+            <h3>Predictive Demand</h3>
+            <p>Our neural networks analyze 50+ variables—from seasonal trends to local velocity—to predict stockouts 7 days in advance.</p>
+          </div>
+          <div className="ai-core-card">
+            <div className="ai-icon-box"><i className="fas fa-bolt"></i></div>
+            <h3>Sales Velocity AI</h3>
+            <p>Real-time terminal monitoring identifies checkout bottlenecks and optimizes staff scheduling to maximize transaction volume.</p>
+          </div>
+          <div className="ai-core-card">
+            <div className="ai-icon-box"><i className="fas fa-shield-virus"></i></div>
+            <h3>Smart Reconciliation</h3>
+            <p>Autonomous auditing of payment logs and terminal history detects transaction anomalies and flags potential fraud instantly.</p>
+          </div>
+        </div>
+      </section>
+
       {/* ================= FEATURES SECTION ================= */}
       <section className="features-section" id="features">
         <div className="section-head">
-          <h2>Everything you need to run your empire.</h2>
-          <p>
-            Powerful tools designed for scale. From the warehouse to the register,
-            we've got you covered.
-          </p>
+          <h2>Standard Enterprise Features.</h2>
+          <p>The foundation of your retail empire, built for speed and infinite scale.</p>
         </div>
 
         <div className="bento-grid">
@@ -179,34 +210,7 @@ export default function Home() {
             <h3>Real-Time Synchronization</h3>
             <p>
               Changes made in one branch reflect instantly across your entire network.
-              Never oversell or lose track of stock again.
-            </p>
-          </div>
-
-          <div className="bento-card">
-            <div className="bento-icon">
-              <i className="fas fa-shield-alt"></i>
-            </div>
-            <h3>Role-Based Security</h3>
-            <p>Granular access controls for Admins, Managers, and Staff.</p>
-          </div>
-
-          <div className="bento-card">
-            <div className="bento-icon">
-              <i className="fas fa-chart-line"></i>
-            </div>
-            <h3>Advanced Analytics</h3>
-            <p>Deep insights into sales, top products, and branch performance.</p>
-          </div>
-
-          <div className="bento-card large">
-            <div className="bento-icon">
-              <i className="fas fa-box-open"></i>
-            </div>
-            <h3>Smart Inventory</h3>
-            <p>
-              Automated low-stock alerts, expiry tracking, and one-click transfers
-              between branches.
+              Never oversell or lose track of stock again with zero-latency global sync.
             </p>
           </div>
 
@@ -214,16 +218,26 @@ export default function Home() {
             <div className="bento-icon">
               <i className="fas fa-qrcode"></i>
             </div>
-            <h3>Dynamic UPI Integration</h3>
-            <p>Generate branch-specific QR codes for instant, error-free digital payments at every POS.</p>
+            <h3>Branch-Specific QR</h3>
+            <p>Generate unique UPI codes for instant, error-free digital payments at every terminal.</p>
           </div>
 
           <div className="bento-card">
             <div className="bento-icon">
-              <i className="fas fa-robot"></i>
+              <i className="fas fa-server"></i>
             </div>
-            <h3>Auto-Procurement</h3>
-            <p>Intelligent restocking suggestions based on sales velocity and minimum stock thresholds.</p>
+            <h3>Offline Resilience</h3>
+            <p>Continue making sales during internet outages; data automatically syncs when the connection is restored.</p>
+          </div>
+
+          <div className="bento-card large">
+            <div className="bento-icon">
+              <i className="fas fa-users-cog"></i>
+            </div>
+            <h3>Role-Based Permissions</h3>
+            <p>
+              Define granular access for Admins, Managers, and Staff. Every action is logged and auditable in the global console.
+            </p>
           </div>
         </div>
       </section>
@@ -232,7 +246,7 @@ export default function Home() {
       <section className="comparison-section">
         <div className="section-head">
           <h2>Why industry leaders choose InventoryPro.</h2>
-          <p>See how we stack up against the old way of doing things.</p>
+          <p>See how we stack up against legacy ERP systems.</p>
         </div>
 
         <div className="comparison-container">
@@ -249,9 +263,9 @@ export default function Home() {
           </div>
 
           <div className="compare-row highlight-row">
-            <div className="col-feature">Setup Time</div>
-            <div className="col-competitor">3-6 Months</div>
-            <div className="col-us"><span className="check">Instant</span></div>
+            <div className="col-feature">AI Forecasting</div>
+            <div className="col-competitor">Manual</div>
+            <div className="col-us"><span className="check">Autonomous</span></div>
           </div>
 
           <div className="compare-row">
@@ -261,15 +275,15 @@ export default function Home() {
           </div>
 
           <div className="compare-row highlight-row">
-            <div className="col-feature">Mobile Access</div>
-            <div className="col-competitor"><i className="fas fa-times cross"></i></div>
-            <div className="col-us"><i className="fas fa-check check"></i></div>
+            <div className="col-feature">Setup Time</div>
+            <div className="col-competitor">3-6 Months</div>
+            <div className="col-us"><span className="check">Instant</span></div>
           </div>
 
           <div className="compare-row">
-            <div className="col-feature">Cost</div>
-            <div className="col-competitor">High CapEx</div>
-            <div className="col-us"><span className="check">Simple SaaS</span></div>
+            <div className="col-feature">Mobile Support</div>
+            <div className="col-competitor"><i className="fas fa-times cross"></i></div>
+            <div className="col-us"><i className="fas fa-check check"></i></div>
           </div>
         </div>
       </section >
@@ -277,8 +291,8 @@ export default function Home() {
       {/* ================= FAQ SECTION ================= */}
       <section className="faq-section" id="faq">
         <div className="section-head">
-          <h2>Got Questions? We have answers.</h2>
-          <p>Everything you need to know about scaling your retail operations.</p>
+          <h2>Frequently Asked Questions</h2>
+          <p>Everything you need to know about your new intelligent retail empire.</p>
         </div>
 
         <div className="faq-container">
@@ -286,9 +300,8 @@ export default function Home() {
             <div
               key={index}
               className={`faq-item ${activeIndex === index ? 'active' : ''}`}
-              onClick={() => toggleFAQ(index)}
             >
-              <div className="faq-question">
+              <div className="faq-question" onClick={() => toggleFAQ(index)}>
                 <span>{item.question}</span>
                 <i className={`fas fa-chevron-${activeIndex === index ? 'up' : 'down'}`}></i>
               </div>
@@ -301,7 +314,7 @@ export default function Home() {
       </section>
 
       {/* ================= FOOTER ================= */}
-      < footer className="footer" >
+      <footer className="footer">
         <div className="footer-inner">
           <div className="footer-brand">
             <h4>InventoryPro</h4>
@@ -333,7 +346,7 @@ export default function Home() {
               <li><a href="#features">Our Mission</a></li>
               <li><a href="#">Team</a></li>
               <li><a href="#">Customers</a></li>
-              <li><a href="#">Contact Us</a></li>
+              <li><a href="/contact">Contact Us</a></li>
             </ul>
           </div>
 
@@ -361,7 +374,7 @@ export default function Home() {
         <div className="footer-bottom">
           &copy; 2025 InventoryPro Inc. All rights reserved.
         </div>
-      </footer >
+      </footer>
     </>
   );
 }

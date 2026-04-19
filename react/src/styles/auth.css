@@ -67,12 +67,13 @@
 }
 
 .login-left h1 {
-  font-size: 52px;
+  font-size: 36px;
   font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: -2px;
+  line-height: 1.15;
+  letter-spacing: -1px;
   margin-bottom: 24px;
   color: #0f172a;
+  text-wrap: balance;
 }
 
 .login-left p {

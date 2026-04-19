@@ -21,6 +21,16 @@ class User(db.Model):
     bank_name = db.Column(db.String(100))
     account_number = db.Column(db.String(50))
     ifsc_code = db.Column(db.String(20))
+    
+    # Global HR Fields
+    dob = db.Column(db.Date)
+    joining_date = db.Column(db.Date)
+    gender = db.Column(db.String(15))
+    pan_number = db.Column(db.String(20))
+    national_id = db.Column(db.String(50))
+    emergency_contact_name = db.Column(db.String(100))
+    emergency_contact_phone = db.Column(db.String(20))
+
     interviewer_id = db.Column(db.Integer, db.ForeignKey("users.user_id"))
     branch_id = db.Column(db.Integer, db.ForeignKey("branches.branch_id"))
     reset_token = db.Column(db.String(10))  # OTP for password reset

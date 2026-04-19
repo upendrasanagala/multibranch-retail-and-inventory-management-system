@@ -73,7 +73,7 @@ export default function Login() {
             <span className="v-tag">v2.0</span>
           </div>
 
-          <h1>Unified Retail<br />Intelligence.</h1>
+          <h1>AI-Powered Multi-Branch Retail Inventory and Sales Management System</h1>
           <p>
             The master control for your multi-branch empire.
             Experience zero-latency management from any device.

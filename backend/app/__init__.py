@@ -30,7 +30,7 @@ def create_app():
     # -----------------------------
     cors.init_app(
         app,
-        resources={r"/api/*": {"origins": "*"}},
+        resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}},
         supports_credentials=True
     )
 
@@ -46,7 +46,8 @@ def create_app():
         sales_bp,
         transfer_bp,
         admin_bp,
-        supplier_bp
+        supplier_bp,
+        contact_bp
     )
 
     app.register_blueprint(auth_bp)
@@ -60,6 +61,10 @@ def create_app():
     from app.routes.manager import manager_bp
     app.register_blueprint(manager_bp)
     app.register_blueprint(supplier_bp)
+    app.register_blueprint(contact_bp)
+    
+    from app.routes.announcements import announcements_bp
+    app.register_blueprint(announcements_bp)
 
     # -----------------------------
     # Import Models (For Migrations)
@@ -74,7 +79,9 @@ def create_app():
         TransactionItem,
         StockTransfer,
         InventoryAdjustment,
-        Supplier
+        Supplier,
+        ContactMessage,
+        Announcement
     )
 
     # -----------------------------

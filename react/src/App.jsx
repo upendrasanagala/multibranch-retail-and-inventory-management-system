@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ToastProvider } from "./components/ToastContext";
 import { ConfirmProvider } from "./components/ConfirmContext";
+import NetworkAlert from "./components/NetworkAlert";
 
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -13,6 +14,7 @@ import ManagerDashboard from "./pages/manager/ManagerDashboard";
 
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import Contact from "./pages/Contact";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -20,6 +22,7 @@ function App() {
   return (
     <ToastProvider>
       <ConfirmProvider>
+        <NetworkAlert />
         <BrowserRouter>
           <Routes>
 
@@ -30,6 +33,7 @@ function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/contact" element={<Contact />} />
 
             {/* STAFF */}
             <Route

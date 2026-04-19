@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from "react";
-import "../../styles/dashboard.css";
 import { formatDate, formatDateTime } from "../../utils/dateUtils";
 import api from "../../services/api";
 import { getCurrentUser } from "../../services/authService";
@@ -8,1013 +7,518 @@ import { useToast } from "../../components/ToastContext";
 export default function StaffPOS() {
   const { showToast } = useToast();
   const user = getCurrentUser();
+  const branchId = user?.branch_id || user?.branch?.branch_id || user?.user_branch_id;
+  const branchName = user?.branch_name || "Main Terminal";
 
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(false);
-
   const [barcode, setBarcode] = useState("");
   const [search, setSearch] = useState("");
   const [mobile, setMobile] = useState("");
   const [showResults, setShowResults] = useState(false);
-
-  const [discount, setDiscount] = useState(0);
+  
+  // Terminal Logic
+  const [manualDiscountPercent, setManualDiscountPercent] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
-
-  // Real Payment Details
   const [utr, setUtr] = useState("");
-  const [cardData, setCardData] = useState({ name: "", number: "", cvv: "" });
-  const [cashReceived, setCashReceived] = useState(""); // New state for Cash Tendered
+  const [cardName, setCardName] = useState("");
+  const [cashReceived, setCashReceived] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [lastSale, setLastSale] = useState(null);
-  const receiptRef = useRef();
+  // Configuration (Auto)
+  const [billThreshold, setBillThreshold] = useState(2000);
+  const [billOfferPercent, setBillOfferPercent] = useState(5);
 
-  const GST_PERCENT = 5;
-
-  /* ================= LOAD INVENTORY FROM BACKEND ================= */
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const branchId = user?.branch_id || user?.branch?.branch_id || user?.user_branch_id;
-
-      // Fetch ALL products first to ensure we have a complete catalog
-      // pagination limit increased to 1000 to get all products
-      const productsResponse = await api.products.getAll({ per_page: 1000 });
-      const allProducts = productsResponse.products || [];
-
-      let inventoryMap = {};
-
+      const pRes = await api.products.getAll({ per_page: 1000 });
+      const allP = pRes.products || [];
+      let iMap = {};
       if (branchId) {
-        // Fetch branch inventory to get stock levels
-        const inventoryResponse = await api.inventory.getByBranch(branchId);
-        const inventory = inventoryResponse.inventory || [];
-
-        // Create a map for quick lookup: productId -> quantity
-        inventory.forEach(inv => {
-          inventoryMap[inv.product_id] = inv.quantity;
-        });
+        const iRes = await api.inventory.getByBranch(branchId);
+        (iRes.inventory || []).forEach(inv => { iMap[inv.product_id] = inv.quantity; });
       }
-
-      // Merge products with inventory data
-      const productsWithStock = allProducts.map(p => ({
-        productId: p.product_id || p.id,
+      setProducts(allP.map(p => ({
         id: p.product_id || p.id,
         name: p.name,
         price: p.unit_price || p.price || 0,
-        // Use inventory quantity if available, else 0
-        stock: inventoryMap[p.product_id || p.id] !== undefined ? inventoryMap[p.product_id || p.id] : 0,
-        sku: p.sku,
-        size: p.size,
-        unit: p.unit,
-        is_b1g1: p.is_b1g1, // Map B1G1 flag
-        gst_percent: p.gst_percent || 0 // Per-product GST rate
-      }));
-
-      setProducts(productsWithStock);
-    } catch (err) {
-      console.error("Failed to load inventory:", err);
-    }
+        stock: iMap[p.product_id || p.id] !== undefined ? iMap[p.product_id || p.id] : 0,
+        sku: p.sku || 'N/A',
+        size: p.size || 'STD',
+        unit: p.unit || 'PCS',
+        is_b1g1: !!p.is_b1g1,
+        gst_percent: p.gst_percent || 0,
+        discount_percent: p.discount_percent || 0
+      })));
+    } catch (err) { console.error("POS Load Err:", err); }
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadInventory();
-  }, []);
+  useEffect(() => { loadInventory(); }, []);
 
-  /* ================= BARCODE ================= */
-  const handleBarcodeKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const code = barcode.trim();
-      if (!code) return;
+  const addToCart = (p) => {
+    const existing = cart.find(i => i.id === p.id);
+    if (existing && existing.qty + 1 > p.stock) { showToast("Insufficient stock available", "warning"); return; }
+    if (!existing && p.stock <= 0) { showToast("Product out of stock", "warning"); return; }
 
-      const product = products.find(
-        p => String(p.productId) === code || String(p.id) === code || p.sku === code
-      );
-
-      if (product) {
-        const inCart = cart.find(c => c.productId === product.productId);
-        const availableStock = product.stock - (inCart ? inCart.qty : 0);
-        if (availableStock > 0) {
-          addToCart(product);
-          setBarcode("");
-        } else {
-          showToast("Out of stock!", "warning");
-        }
-      } else {
-        showToast("Product not found!", "error");
-      }
-    }
-  };
-
-  /* ================= SOUND UTILS ================= */
-  const playBeep = () => {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(1200, ctx.currentTime);
-      gain.gain.setValueAtTime(0.05, ctx.currentTime);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.08);
-    } catch (e) { console.warn("Audio play failed", e); }
-  };
-
-  const playSuccessSound = () => {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-
-      const playTone = (freq, type, startTime, duration) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime + startTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + startTime + duration);
-        osc.start(ctx.currentTime + startTime);
-        osc.stop(ctx.currentTime + startTime + duration);
-      };
-
-      // "Coin Collect" / "Level Up" style sound
-      playTone(523.25, "sine", 0, 0.1);       // C5
-      playTone(659.25, "sine", 0.1, 0.1);     // E5
-      playTone(783.99, "square", 0.2, 0.3);   // G5 (Square wave for "8-bit" feel)
-      playTone(1046.50, "sine", 0.3, 0.4);    // C6
-    } catch (e) {
-      console.warn("Success audio failed", e);
-    }
-  };
-
-  /* ================= CART LOGIC ================= */
-  const addToCart = (product) => {
-    // Pre-check stock before updating state
-    const existing = cart.find(i => i.productId === (product.product_id || product.id));
-    if (existing) {
-      const productInInventory = products.find(p => p.productId === (product.product_id || product.id));
-      if (existing.qty + 1 > productInInventory.stock) {
-        showToast("Cannot exceed available stock!", "warning");
-        return;
-      }
-    } else if (product.stock <= 0) {
-      showToast("Product is out of stock!", "warning");
-      return;
-    }
     setCart(prev => {
-      const ex = prev.find(i => i.productId === (product.product_id || product.id));
-      if (ex) {
-        return prev.map(i => i.productId === (product.product_id || product.id)
-          ? { ...i, qty: i.qty + 1 }
-          : i
-        );
-      }
-      return [...prev, {
-        productId: product.product_id || product.id,
-        name: product.name,
-        price: product.unit_price || product.price,
-        qty: 1,
-        stock: product.stock,
-        current_stock: product.stock,
-        is_b1g1: product.is_b1g1,
-        sku: product.sku, // Added SKU
-        unit: product.unit, // Added Unit
-        size: product.size, // Added Size
-        gst_percent: product.gst_percent || 0, // Added GST for receipt grouping
-      }];
+      if (existing) return prev.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i);
+      return [...prev, { ...p, qty: 1, item_discount_percent: p.discount_percent || 0 }];
     });
-    playBeep(); // Play sound
-    setSearch(""); // Clear search
+    playBeep();
   };
 
-  const updateQty = (id, delta) => {
-    const product = products.find(p => p.productId === id);
-    const item = cart.find(i => i.productId === id);
-    if (delta > 0 && item.qty >= product.stock) {
-      showToast("Cannot exceed available stock!", "warning");
-      return;
-    }
-    setCart(cart.map(i => i.productId === id ? { ...i, qty: i.qty + delta } : i).filter(i => i.qty > 0));
+  const updateItemDiscount = (id, pct) => {
+    setCart(cart.map(i => i.id === id ? { ...i, item_discount_percent: Math.min(100, Math.max(0, pct)) } : i));
   };
 
-  /* ================= TOTAL & DISCOUNT LOGIC ================= */
-  // 1. Calculate Item-Level Discounts (B1G1)
-  const itemDiscounts = cart.reduce((acc, item) => {
-    let disc = 0;
-    // B1G1 Logic: Buy 1 Get 1 Free = Every 2nd item is free
-    if (item.is_b1g1) {
-      const freeQty = Math.floor(item.qty / 2);
-      disc = freeQty * item.price;
-    }
-    return acc + disc;
-  }, 0);
+  const calculateTotals = () => {
+    let subtotal = 0;
+    let savings = 0;
+    let gst = 0;
 
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const gst = (subtotal * GST_PERCENT) / 100;
+    cart.forEach(i => {
+      const lineGross = i.price * i.qty;
+      subtotal += lineGross;
+      
+      let lineSavings = 0;
+      if (i.is_b1g1) {
+        lineSavings += Math.floor(i.qty / 2) * i.price;
+      }
+      const billableQtyAfterB1G1 = i.is_b1g1 ? (i.qty - Math.floor(i.qty / 2)) : i.qty;
+      lineSavings += (billableQtyAfterB1G1 * i.price * i.item_discount_percent) / 100;
+      
+      savings += lineSavings;
+      
+      // TAX INCLUSIVE: Extract GST from the total
+      const lineNet = lineGross - lineSavings;
+      const lineGst = lineNet - (lineNet / (1 + (i.gst_percent / 100)));
+      gst += lineGst;
+    });
 
-  // 2. Bill-Level Discount (Configurable)
-  const [billThreshold, setBillThreshold] = useState(400);
-  const [billOfferPercent, setBillOfferPercent] = useState(10);
+    const currentTotal = subtotal - savings;
+    const billDisc = currentTotal > billThreshold ? (currentTotal * billOfferPercent) / 100 : 0;
+    const finalBeforeManual = currentTotal - billDisc;
+    const manualDisc = (finalBeforeManual * manualDiscountPercent) / 100;
 
-  const currentTotalBeforeBillDisc = subtotal + gst - itemDiscounts;
+    return { subtotal, savings, gst, billDisc, manualDisc, total: finalBeforeManual - manualDisc };
+  };
 
-  // Calculate Bill Offer
-  const billDiscount = currentTotalBeforeBillDisc > billThreshold
-    ? (currentTotalBeforeBillDisc * billOfferPercent) / 100
-    : 0;
+  const t = calculateTotals();
 
-  // 3. Manual Discount (Now Percentage)
-  // Applied on what remains? Usually manual disc is on the final payable.
-  // Let's apply it on (Total - other discounts).
-  const taxableAmount = currentTotalBeforeBillDisc - billDiscount;
-  const manualDiscountAmount = (taxableAmount * discount) / 100;
+  const handleCheckout = async () => {
+    if (!cart.length) return showToast("Cart is empty", "warning");
+    if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) return showToast("Enter a valid mobile number", "warning");
+    if (paymentMethod === 'cash' && Number(cashReceived) < t.total) return showToast("Insufficient cash provided", "error");
 
-  const total = taxableAmount - manualDiscountAmount;
-
-  // Total Auto Discount (Item + Bill)
-  const autoDiscount = itemDiscounts + billDiscount;
-
-  const [showSuccess, setShowSuccess] = useState(false);
-
-  /* ================= COMPLETE PAYMENT ================= */
-  const completePayment = async () => {
-    if (cart.length === 0) { showToast("Cart is empty", "warning"); return; }
-    if (!mobile || mobile.length < 10) { showToast("Customer mobile number is mandatory (10 digits)", "warning"); return; }
-    if (!/^[6-9]/.test(mobile)) { showToast("Mobile number must start with 6, 7, 8, or 9", "warning"); return; }
-    if (!paymentMethod) { showToast("Select payment method", "warning"); return; }
-    if (paymentMethod === 'upi' && !utr) { showToast("Enter UTR for UPI", "warning"); return; }
-    if (paymentMethod === 'card' && !cardData.name) { showToast("Enter Card Details", "warning"); return; }
-    if (paymentMethod === 'cash' && Number(cashReceived) < total) { showToast(`Insufficient Cash! Need ₹${(total - Number(cashReceived)).toFixed(2)} more.`, "error"); return; }
-
-    setLoading(true); // Assuming setLoading is used for processing state
+    setLoading(true);
     try {
       const saleData = {
-        branch_id: user?.branch_id,
+        branch_id: branchId,
         customer_mobile: mobile,
-        items: cart.map(item => ({
-          product_id: item.productId,
-          quantity: item.qty,
-          unit_price: item.price
-        })),
-        subtotal: subtotal,
-        gst: gst,
-        // Send total discount value (Auto + Manual Amount) to backend
-        discount: autoDiscount + manualDiscountAmount,
-        total: total,
+        items: cart.map(i => ({ product_id: i.id, quantity: i.qty, unit_price: i.price })),
+        subtotal: t.subtotal,
+        gst: t.gst,
+        discount: t.savings + t.billDisc + t.manualDisc,
+        total: t.total,
         payment_method: paymentMethod,
-        payment_meta: paymentMethod === 'upi' ? { utr } : (paymentMethod === 'card' ? { card_holder: cardData.name } : null)
+        payment_meta: { utr, card_holder: cardName }
       };
-
       const res = await api.sales.create(saleData);
-
-      // SUCCESS ACTIONS
-      playSuccessSound();
+      
       setShowSuccess(true);
+      playSuccessSound();
 
-      // Capture data for printing IMMEDIATELY (to avoid any state/closure issues)
-      const printSaleData = {
-        items: cart,
-        subtotal,
-        gst,
-        discount: autoDiscount + manualDiscountAmount,
-        discountBreakdown: {
-          b1g1: itemDiscounts,
-          bill: billDiscount,
-          manual: manualDiscountAmount
-        },
-        billOfferPercent: billOfferPercent,
-        total,
-        transaction_id: res.transaction_id,
-        invoice_number: res.invoice_number,
-        transaction_date: formatDateTime(new Date()),
-        mobile: mobile || '',
-        paymentMethod: paymentMethod,
-        utr: utr || '',
-        cardHolder: cardData.name || '',
-        cashReceived: Number(cashReceived) || 0,
-        change: paymentMethod === 'cash' ? Math.max(0, Number(cashReceived) - total) : 0
+      const printData = {
+        ...saleData,
+        invoice_number: res.invoice_number || res.transaction_id,
+        items_detail: cart,
+        change: paymentMethod === 'cash' ? Math.max(0, Number(cashReceived) - t.total) : 0,
+        savings: t.savings + t.billDisc + t.manualDisc
       };
 
-      // Delay before reset & print (show animation)
       setTimeout(() => {
         setShowSuccess(false);
         setCart([]);
-        setDiscount(0);
-        setPaymentMethod("");
-        setUtr("");
-        setCardData({ name: "", number: "" });
+        setMobile("");
+        setManualDiscountPercent(0);
         setCashReceived("");
-
-        printReceipt(printSaleData);
-        loadInventory(); // Auto-refresh stock
+        setUtr("");
+        setCardName("");
+        printReceipt(printData);
+        loadInventory();
       }, 2000);
 
     } catch (err) {
-      showToast("Current Sale Failed: " + err.message, "error");
+      showToast("Sale failed: " + err.message, "error");
     }
     setLoading(false);
   };
 
-
-  /* ================= PRINT RECEIPT ================= */
-  const printReceipt = (saleData) => {
-    const printWindow = window.open("", "", "width=350,height=600");
-
-    if (!printWindow) {
-      showToast("Receipt printing was blocked. Please allow popups for this site.", "warning");
-      return;
-    }
-
-    const sale = saleData || {
-      items: [], subtotal: 0, gst: 0, discount: 0,
-      discountBreakdown: { b1g1: 0, bill: 0, manual: 0 },
-      transaction_id: "ERR", transaction_date: new Date().toLocaleString(),
-      mobile: '', paymentMethod: 'cash', utr: '', cardHolder: '',
-      cashReceived: 0, change: 0
-    };
-
-    // GST breakup
-    const gstBreakup = {};
-    sale.items.forEach(item => {
-      const rate = item.gst_percent || 0;
-      if (!gstBreakup[rate]) gstBreakup[rate] = { taxable: 0, cgst: 0, sgst: 0 };
-      const itemTotal = Number(item.price) * Number(item.qty);
-      const taxable = itemTotal / (1 + rate / 100);
-      const taxAmt = itemTotal - taxable;
-      gstBreakup[rate].taxable += taxable;
-      gstBreakup[rate].cgst += taxAmt / 2;
-      gstBreakup[rate].sgst += taxAmt / 2;
-    });
-
-    const breakdown = sale.discountBreakdown || { b1g1: 0, bill: 0, manual: 0 };
-    const totalSavings = (breakdown.b1g1 || 0) + (breakdown.bill || 0) + (breakdown.manual || 0);
-    const roundedTotal = Math.round(sale.total);
-    const roundOff = roundedTotal - sale.total;
-    const grossAmt = sale.items.reduce((s, i) => s + (i.price * i.qty), 0);
-    const totalQty = sale.items.reduce((s, i) => s + i.qty, 0);
-    const invoiceNo = sale.invoice_number || sale.transaction_id;
-    const payMethod = (sale.paymentMethod || paymentMethod || 'cash').toUpperCase();
-
-    // Amount in words (Indian)
-    const numberToWords = (num) => {
-      const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-        'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-      const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-      if (num === 0) return 'Zero';
-      const n = Math.abs(Math.round(num));
-      if (n < 20) return ones[n];
-      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
-      if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + numberToWords(n % 100) : '');
-      if (n < 100000) return numberToWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + numberToWords(n % 1000) : '');
-      if (n < 10000000) return numberToWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + numberToWords(n % 100000) : '');
-      return numberToWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + numberToWords(n % 10000000) : '');
-    };
-
-    // Helper: pad/align text for monospace
-    const L = 42; // line width in characters
+  const printReceipt = (sale) => {
+    const w = window.open("", "_blank", "width=400,height=600");
+    if (!w) return;
+    
+    // Original Monospace Helpers
+    const L = 42;
     const dash = '-'.repeat(L);
-    const dblLine = '='.repeat(L);
-    const center = (txt) => { const pad = Math.max(0, Math.floor((L - txt.length) / 2)); return ' '.repeat(pad) + txt; };
-    const leftRight = (l, r) => l + ' '.repeat(Math.max(1, L - l.length - r.length)) + r;
+    const dbl = '='.repeat(L);
+    const center = (txt) => { const p = Math.max(0, Math.floor((L - txt.length) / 2)); return ' '.repeat(p) + txt; };
+    const lr = (l, r) => {
+      const space = Math.max(1, L - l.toString().length - r.toString().length);
+      return l.toString() + ' '.repeat(space) + r.toString();
+    };
 
-    // Build items
-    let itemLines = '';
-    let sno = 0;
-    sale.items.forEach(i => {
-      sno++;
-      const name = i.name.length > 24 ? i.name.substring(0, 22) + '..' : i.name;
-      const amt = (Number(i.price) * Number(i.qty)).toFixed(2);
-      const gstTag = (i.gst_percent || 0) + '%';
-      // Line 1: SNo. Name
-      itemLines += sno + '. ' + name;
-      if (i.is_b1g1) itemLines += ' (B1G1)';
-      itemLines += '\n';
-      // Line 2:   Qty x Rate = Amount  [GST%]
-      const detail = '   ' + i.qty + ' x ' + Number(i.price).toFixed(2) + ' = ' + amt + '  [' + gstTag + ']';
-      itemLines += detail + '\n';
+    const numToWords = (n) => {
+      const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+      const b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+      const transform = (num) => {
+        if (num < 20) return a[num];
+        if (num < 100) return b[Math.floor(num/10)] + (num%10 !== 0 ? ' ' + a[num%10] : '');
+        if (num < 1000) return a[Math.floor(num/100)] + ' Hundred' + (num%100 !== 0 ? ' ' + transform(num%100) : '');
+        if (num < 100000) return transform(Math.floor(num/1000)) + ' Thousand' + (num%1000 !== 0 ? ' ' + transform(num%1000) : '');
+        return transform(Math.floor(num/100000)) + ' Lakh' + (num%100000 !== 0 ? ' ' + transform(num%100000) : '');
+      };
+      return 'Rs. ' + (n === 0 ? 'Zero' : transform(Math.floor(n))) + ' Only';
+    };
+
+    // GST Slabs Logic
+    const gstGroups = {};
+    sale.items_detail.forEach(item => {
+      const rate = item.gst_percent || 0;
+      if (!gstGroups[rate]) gstGroups[rate] = { taxable: 0, gst: 0 };
+      
+      const lineGross = item.price * item.qty;
+      let lineSavings = 0;
+      if (item.is_b1g1) lineSavings += Math.floor(item.qty / 2) * item.price;
+      const billableQtyAfterB1G1 = item.is_b1g1 ? (item.qty - Math.floor(item.qty / 2)) : item.qty;
+      lineSavings += (billableQtyAfterB1G1 * item.price * (item.item_discount_percent || 0)) / 100;
+      
+      const lineNet = lineGross - lineSavings;
+      const lineTaxable = lineNet / (1 + (rate / 100));
+      const lineGst = lineNet - lineTaxable;
+
+      gstGroups[rate].taxable += lineTaxable;
+      gstGroups[rate].gst += lineGst;
     });
 
-    // GST breakup lines
-    let gstLines = '';
-    gstLines += leftRight('GST%   Taxable    CGST     SGST', '') + '\n';
-    gstLines += dash + '\n';
-    let totTaxable = 0, totCGST = 0, totSGST = 0;
-    Object.keys(gstBreakup).sort((a, b) => Number(a) - Number(b)).forEach(rate => {
-      const g = gstBreakup[rate];
-      totTaxable += g.taxable; totCGST += g.cgst; totSGST += g.sgst;
-      const rateStr = (rate + '%').padEnd(7);
-      const taxableStr = g.taxable.toFixed(2).padStart(9);
-      const cgstStr = g.cgst.toFixed(2).padStart(9);
-      const sgstStr = g.sgst.toFixed(2).padStart(9);
-      gstLines += rateStr + taxableStr + cgstStr + sgstStr + '\n';
+    let taxTable = 'GST%      Taxable   CGST   SGST   Total\n' + dash + '\n';
+    Object.keys(gstGroups).sort((a,b)=>a-b).forEach(rate => {
+      const gp = gstGroups[rate];
+      const r_p = (rate + '%').padEnd(6);
+      const t_p = gp.taxable.toFixed(1).padStart(11);
+      const c_p = (gp.gst / 2).toFixed(1).padStart(7);
+      const s_p = (gp.gst / 2).toFixed(1).padStart(7);
+      const tot_p = gp.gst.toFixed(1).padStart(8);
+      taxTable += r_p + t_p + c_p + s_p + tot_p + '\n';
     });
-    gstLines += dash + '\n';
-    gstLines += 'Total'.padEnd(7) + totTaxable.toFixed(2).padStart(9) + totCGST.toFixed(2).padStart(9) + totSGST.toFixed(2).padStart(9) + '\n';
 
-    // Payment info
-    let payInfo = 'Mode: ' + payMethod;
-    if (payMethod === 'UPI' && sale.utr) payInfo += '  UTR: ' + sale.utr;
-    if (payMethod === 'CARD' && sale.cardHolder) payInfo += '  ' + sale.cardHolder;
+    const now = new Date();
+    const totalQty = sale.items_detail.reduce((sum, item) => sum + item.qty, 0);
+    const totalItems = sale.items_detail.length;
 
-    let cashInfo = '';
-    if (payMethod === 'CASH' && sale.cashReceived > 0) {
-      cashInfo = leftRight('Cash Tendered:', 'Rs.' + sale.cashReceived.toFixed(2)) + '\n';
-      cashInfo += leftRight('Change:', 'Rs.' + sale.change.toFixed(2)) + '\n';
-    }
+    let itemsLines = '';
+    sale.items_detail.forEach((item, index) => {
+      itemsLines += `${index + 1}. ${item.name.substring(0, 38)}\n`;
+      const detail = `${item.qty} x ${item.price.toFixed(2)} = ${(item.qty * item.price).toFixed(2)} [${item.gst_percent || 0}%]`;
+      itemsLines += `   ${detail}\n`;
+    });
 
-    // Discount lines
-    let discLines = '';
-    if (breakdown.b1g1 > 0) discLines += leftRight('Less: B1G1 Savings', '-Rs.' + breakdown.b1g1.toFixed(2)) + '\n';
-    if (breakdown.bill > 0) discLines += leftRight('Less: Bill Offer(' + (sale.billOfferPercent || 10) + '%)', '-Rs.' + breakdown.bill.toFixed(2)) + '\n';
-    if (breakdown.manual > 0) discLines += leftRight('Less: Manual Discount', '-Rs.' + breakdown.manual.toFixed(2)) + '\n';
+    const barcodeVal = sale.invoice_number || sale.transaction_id || "ERR";
 
-    // Round off
-    let roundLine = '';
-    if (Math.abs(roundOff) >= 0.01) {
-      roundLine = leftRight('Round Off', (roundOff >= 0 ? '+' : '') + roundOff.toFixed(2)) + '\n';
-    }
-
-    // Savings
-    let savingsLine = '';
-    if (totalSavings > 0) {
-      savingsLine = '\n' + center('** You Saved Rs.' + totalSavings.toFixed(2) + ' **') + '\n';
-    }
-
-    // Full receipt text
-    const receipt =
+    const header = 
       center('RETAIL STORE') + '\n' +
-      center('Branch: ' + branchName) + '\n' +
-      center('4-143, Srinagar Colony, Vijayawada - 520001') + '\n' +
-      center('GSTIN: 37XXXXX0000X1ZX') + '\n' +
-      dblLine + '\n' +
+      center(`Branch: ${branchName}`) + '\n' +
+      center(user?.branch_address || 'Srinagar Colony, Vijayawada - 520001') + '\n' +
+      center('GSTIN: ' + (user?.branch_gstin || '37XXXXX0000X1ZX')) + '\n' +
+      dash + '\n' +
       center('TAX INVOICE') + '\n' +
-      dblLine + '\n' +
-      leftRight('Bill No: ' + invoiceNo, 'Date: ' + formatDate(new Date())) + '\n' +
-      leftRight('Cashier: ' + (user?.name || 'Staff'), 'Time: ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })) + '\n' +
-      'Customer: ' + (sale.mobile || 'Walk-in') + '\n' +
+      dash + '\n';
+
+    const body = 
+      lr(`Bill No: ${sale.invoice_number}`, `Date: ${formatDate(now)}`) + '\n' +
+      lr(`Cashier: ${user?.name || 'Staff'}`, `Time: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`) + '\n' +
+      `Customer: ${mobile || sale.customer_mobile || '7989702030'}\n\n` +
+      `ITEM                  QTY x RATE = AMT [GST]\n` +
       dash + '\n' +
-      leftRight('ITEM', 'QTY x RATE = AMT [GST]') + '\n' +
+      itemsLines + 
       dash + '\n' +
-      itemLines +
+      lr(`Total Items: ${totalItems}`, `Total Qty: ${totalQty}`) + '\n' +
       dash + '\n' +
-      leftRight('Total Items: ' + sale.items.length, 'Total Qty: ' + totalQty) + '\n' +
+      lr('Gross Amount:', 'Rs.' + sale.subtotal.toFixed(2)) + '\n' +
+      dbl + '\n' +
+      lr('NET PAYABLE:', 'Rs.' + Math.round(sale.total).toFixed(2)) + '\n' +
+      dbl + '\n' +
+      numToWords(sale.total) + '\n' +
       dash + '\n' +
-      leftRight('Gross Amount:', 'Rs.' + grossAmt.toFixed(2)) + '\n' +
-      discLines +
-      leftRight('GST (Tax):', 'Rs.' + sale.gst.toFixed(2)) + '\n' +
-      roundLine +
-      dblLine + '\n' +
-      leftRight('NET PAYABLE:', 'Rs.' + roundedTotal.toFixed(2)) + '\n' +
-      dblLine + '\n' +
-      'Rs. ' + numberToWords(roundedTotal) + ' Only' + '\n' +
+      taxTable +
       dash + '\n' +
-      '\n' +
-      center('--- GST BREAKUP ---') + '\n' +
-      gstLines +
-      dash + '\n' +
-      '\n' +
-      leftRight('Payment:', payMethod) + '\n' +
-      payInfo + '\n' +
-      cashInfo +
-      dash + '\n' +
-      savingsLine +
-      '\n' +
+      lr('Payment:', (sale.payment_method || 'CASH').toUpperCase()) + '\n' +
+      lr('Mode:', (sale.payment_method || 'CASH').toUpperCase()) + '\n' +
+      lr('Cash Tendered:', 'Rs.' + (cashReceived || Math.round(sale.total)).toString()) + '\n' +
+      lr('Change:', 'Rs.' + (sale.change || 0).toFixed(2)) + '\n' +
+      dash + '\n\n' +
       center('Thank you! Visit Again') + '\n' +
       center('Goods once sold will not be taken back') + '\n' +
-      center('E. & O.E.') + '\n' +
-      '\n' +
-      center('--- Authorized Signatory ---') + '\n' +
-      '\n' +
+      center('E. & O.E.') + '\n\n' +
+      center('--- Authorized Signatory ---') + '\n\n' +
       center('Computer Generated Invoice') + '\n';
 
-    // Build HTML with monospace pre-formatted text (thermal POS style)
-    const html = '<!DOCTYPE html><html><head>' +
-      '<title>Invoice #' + invoiceNo + '</title>' +
-      '<style>' +
-      '* { margin:0; padding:0; }' +
-      'body { font-family: "Courier New", "Lucida Console", monospace; font-size: 12px; padding: 5px; width: 302px; color: #000; line-height: 1.4; }' +
-      'pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: inherit; margin: 0; }' +
-      '@media print { body { width: 100%; padding: 2px; } }' +
-      '</style>' +
-      '</head><body>' +
-      '<pre>' + receipt + '</pre>' +
-      '</body></html>';
-
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  };
-
-  const filtered = products.filter(p => {
-    const term = search.toLowerCase().trim();
-    if (!term) return false;
-    const name = (p.name || '').toLowerCase();
-    const sku = (p.sku || '').toLowerCase();
-    const id = String(p.id || '').toLowerCase();
-    return name.includes(term) || sku.includes(term) || id.includes(term);
-  }).map(p => {
-    const inCart = cart.find(c => c.productId === p.productId);
-    const availableStock = p.stock - (inCart ? inCart.qty : 0);
-    return { ...p, availableStock, inCart: !!inCart };
-  });
-
-  const handleSelectProduct = (p) => {
-    if (p.availableStock > 0) {
-      addToCart(p);
-      setSearch("");
-      setShowResults(false);
-    } else {
-      showToast("Product out of stock!", "warning");
-    }
-  };
-
-  const branchName = user?.branch_name || "Main Branch";
-
-  /* ================= RENDER ================= */
-  return (
-    <div style={{ padding: "20px", height: "100%", overflowY: "auto" }}>
-      <style>{`
-          @keyframes check-scale {
-            0% { transform: scale(0); opacity: 0; }
-            50% { transform: scale(1.2); opacity: 1; }
-            100% { transform: scale(1); opacity: 1; }
-          }
-          @keyframes check-stroke {
-            0% { stroke-dashoffset: 100; }
-            100% { stroke-dashoffset: 0; }
-          }
-          @keyframes confetti-pop {
-            0% { transform: scale(0); opacity: 1; }
-            100% { transform: scale(1.5); opacity: 0; }
-          }
-          .success-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(4px);
-            display: flex; justify-content: center; alignItems: center;
-            z-index: 10000;
-          }
-          .success-card {
-            background: white; padding: 50px; border-radius: 30px;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-            animation: check-scale 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-            position: relative;
-            overflow: hidden;
-          }
-          .checkmark-wrapper {
-            width: 100px; height: 100px; margin: 0 auto 20px;
-            position: relative;
-          }
-          .checkmark-circle {
-            width: 100%; height: 100%;
-            background: #22c55e; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.4);
-            position: relative;
-            z-index: 2;
-          }
-          /* Confetti Particles */
-          .particles {
-            position: absolute; top: 50%; left: 50%; width: 100%; height: 100%;
-            pointer-events: none; z-index: 1;
-            transform: translate(-50%, -50%);
-          }
-          .particle {
-            position: absolute; width: 10px; height: 10px;
-            background: #fcd34d; border-radius: 50%;
-            opacity: 0;
-          }
-          .particle:nth-child(1) { top: 0; left: 50%; animation: confetti-pop 0.6s ease-out 0.3s forwards; }
-          .particle:nth-child(2) { top: 20%; left: 80%; background: #ef4444; animation: confetti-pop 0.6s ease-out 0.4s forwards; }
-          .particle:nth-child(3) { top: 80%; left: 80%; background: #3b82f6; animation: confetti-pop 0.6s ease-out 0.3s forwards; }
-          .particle:nth-child(4) { top: 100%; left: 50%; animation: confetti-pop 0.6s ease-out 0.5s forwards; }
-          .particle:nth-child(5) { top: 80%; left: 20%; background: #ec4899; animation: confetti-pop 0.6s ease-out 0.3s forwards; }
-          .particle:nth-child(6) { top: 20%; left: 20%; background: #8b5cf6; animation: confetti-pop 0.6s ease-out 0.4s forwards; }
-
-          .checkmark-svg {
-            width: 60px; height: 60px;
-            stroke: white; stroke-width: 6; fill: none;
-            stroke-linecap: round; stroke-linejoin: round;
-            stroke-dasharray: 100; stroke-dashoffset: 100;
-            animation: check-stroke 0.4s cubic-bezier(0.65, 0, 0.45, 1) 0.3s forwards;
-          }
-        `}</style>
-
-      {showSuccess && (
-        <div className="success-overlay">
-          <div className="success-card">
-            <div className="checkmark-wrapper">
-              <div className="particles">
-                <div className="particle"></div><div className="particle"></div>
-                <div className="particle"></div><div className="particle"></div>
-                <div className="particle"></div><div className="particle"></div>
-              </div>
-              <div className="checkmark-circle">
-                <svg className="checkmark-svg" viewBox="0 0 52 52">
-                  <path d="M14 27l10 10 L40 16" />
-                </svg>
-              </div>
-            </div>
-            <h2 style={{
-              color: '#15803d', margin: '0 0 10px 0',
-              fontSize: '28px', fontWeight: '800',
-              letterSpacing: '-0.5px'
-            }}>Payment Successful!</h2>
-            <p style={{ color: '#666', margin: 0, fontSize: '14px' }}>Printing Receipt...</p>
+    w.document.write(`
+      <html>
+        <head>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+          <style>
+            pre { font-family:"Courier New",monospace; font-size:12px; width:302px; margin:0; padding:10px 20px; }
+            .barcode-container { text-align: center; width: 342px; margin: 10px 0; }
+            #barcode { max-width: 100%; height: 60px; }
+          </style>
+        </head>
+        <body>
+          <pre>${header}</pre>
+          <div class="barcode-container">
+            <svg id="barcode"></svg>
           </div>
+          <pre>${body}</pre>
+          <script>
+            try {
+              JsBarcode("#barcode", "${barcodeVal}", {
+                format: "CODE128",
+                width: 2,
+                height: 50,
+                displayValue: true,
+                fontSize: 14,
+                margin: 0
+              });
+            } catch(e) { console.error("Barcode Error:", e); }
+            setTimeout(() => { window.print(); window.close(); }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+    w.document.close();
+  };
+
+
+
+
+
+  const playBeep = () => { try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.setValueAtTime(1000, ctx.currentTime); g.gain.setValueAtTime(0.05, ctx.currentTime); o.start(); o.stop(ctx.currentTime + 0.1); } catch(e){} };
+  const playSuccessSound = () => { try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); [523, 659, 784].forEach((f, i) => { const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.setValueAtTime(f, ctx.currentTime + i*0.1); g.gain.setValueAtTime(0.1, ctx.currentTime + i*0.1); o.start(ctx.currentTime + i*0.1); o.stop(ctx.currentTime + i*0.1 + 0.2); }); } catch(e){} };
+
+  return (
+    <div style={{ height: '100vh', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '15px', animation: 'fadeIn 0.5s ease-out', overflowY: 'auto', padding: '15px' }}>
+      
+      {showSuccess && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+           <div style={{ background: '#fff', padding: '60px', borderRadius: '40px', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+              <div style={{ width: '100px', height: '100px', background: '#ecfdf5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', color: '#10b981', fontSize: '48px' }}>
+                <i className="fas fa-check-circle"></i>
+              </div>
+              <h2 style={{ fontSize: '32px', fontWeight: 900, color: '#1e293b' }}>Payment Successful</h2>
+              <p style={{ color: '#64748b', fontWeight: 600, marginTop: '8px' }}>Finalizing sale and printing receipt...</p>
+           </div>
         </div>
       )}
 
-      <div className="pos-container">
-        <div className="pos-header">
-          <div>
-            <h2>🛍️ Retail POS Terminal</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <p className="text-muted" style={{ margin: 0 }}>Branch: {branchName}</p>
-              <button
-                onClick={loadInventory}
-                style={{ padding: '2px 8px', fontSize: '10px', background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                <i className="fas fa-sync"></i> Refresh
-              </button>
-            </div>
-          </div>
-          <div>
-            <p>Cashier: {user?.email}</p>
-          </div>
+      {/* ================= LEFT: CART ITEMS ================= */}
+      <div style={{ background: '#fff', borderRadius: '28px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div style={{ background: '#f8fafc', padding: '12px 20px', borderBottom: '2px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+           <div style={{ fontWeight: 900, fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1.2px' }}>Items in Cart</div>
+           <div style={{ background: '#eef2ff', padding: '3px 10px', borderRadius: '100px', fontSize: '10px', fontWeight: 800, color: '#4338ca' }}>{cart.length} ITEMS</div>
         </div>
 
-        <div className="pos-customer-bar">
-          <div className="input-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label>Customer Mobile</label>
-              <span style={{
-                fontSize: '11px',
-                color: mobile.length === 10 && /^[6-9]/.test(mobile) ? '#10b981' : (mobile.length > 0 && !/^[6-9]/.test(mobile) ? '#ef4444' : '#64748b'),
-                fontWeight: mobile.length === 10 ? 700 : 400
-              }}>
-                {mobile.length > 0 && !/^[6-9]/.test(mobile) ? 'Invalid start (Must be 6,7,8,9)' : `${mobile.length} / 10 digits`}
-              </span>
-            </div>
-            <input
-              placeholder="Enter Mobile Number"
-              value={mobile}
-              onChange={e => {
-                let val = e.target.value.replace(/\D/g, '');
-                if (val.length > 0 && !['6', '7', '8', '9'].includes(val[0])) {
-                  // If they try to type an invalid first digit, we can either block it or show error
-                  // Let's allow typing but the UI/Validation will catch it
-                }
-                setMobile(val.slice(0, 10));
-              }}
-            />
-          </div>
-          <div className="input-group">
-            <label>Scan Barcode</label>
-            <input placeholder="Scan SKU / ID" value={barcode} onChange={e => setBarcode(e.target.value)} onKeyDown={handleBarcodeKeyDown} autoFocus />
-          </div>
-          <div className="input-group search-container">
-            <label>Search Product</label>
-            <input
-              placeholder="Search by name or SKU..."
-              value={search}
-              onChange={e => { setSearch(e.target.value); setShowResults(true); }}
-              onFocus={() => setShowResults(true)}
-            />
-            {showResults && search.length > 0 && (
-              <div className="search-results-dropdown">
-                {filtered.length === 0 ? (
-                  <div className="no-results">No products found</div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px' }}>
+           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                 <tr style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
+                   <th style={{ padding: '12px', textAlign: 'left', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Product</th>
+                   <th style={{ padding: '12px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Price</th>
+                   <th style={{ padding: '12px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Qty</th>
+                   <th style={{ padding: '12px', textAlign: 'center', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Disc %</th>
+                   <th style={{ padding: '12px', textAlign: 'right', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Total</th>
+                   <th style={{ width: '40px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {cart.length === 0 ? (
+                  <tr><td colSpan="6" style={{ padding: '80px 0', textAlign: 'center', color: '#94a3b8' }}>
+                    <i className="fas fa-shopping-basket" style={{ fontSize: '48px', marginBottom: '20px', opacity: 0.3 }}></i>
+                    <div style={{ fontWeight: 800, fontSize: '16px' }}>Empty Cart</div>
+                    <p style={{ fontSize: '12px', marginTop: '5px' }}>Please scan products to start.</p>
+                  </td></tr>
                 ) : (
-                  filtered.map(p => (
-                    <div key={p.productId} className="search-result-item" onClick={() => handleSelectProduct(p)}>
-                      <div className="info">
-                        <span className="name">{p.name}</span>
-                        <span className="sku">SKU: {p.sku}</span>
-                        {(p.size || p.unit) && (
-                          <span className="sku" style={{ marginLeft: '10px', color: '#666' }}>
-                            {p.size ? `Size: ${p.size}` : ''} {p.unit ? `(${p.unit})` : ''}
-                          </span>
-                        )}
-                      </div>
-                      <div className="meta">
-                        <span className="price">₹{p.price}</span>
-                        {p.is_b1g1 && <span style={{ fontSize: '10px', background: '#d97706', color: 'white', padding: '2px 4px', borderRadius: '4px', marginLeft: '5px' }}>B1G1 Combined</span>}
-                        <span className={`stock ${p.availableStock <= 0 ? 'out' : ''}`}>Stock: {p.availableStock}</span>
-                      </div>
-                    </div>
+                  cart.map(i => (
+                    <tr key={i.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                       <td style={{ padding: '10px 12px' }}>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '12px' }}>{i.name}</div>
+                          <div style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 700 }}>{i.sku} | {i.size}</div>
+                       </td>
+                       <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800, color: '#64748b', fontSize: '12px' }}>₹{i.price.toFixed(2)}</td>
+                       <td style={{ padding: '10px 12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                             <button onClick={() => setCart(cart.map(x => x.id === i.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 900, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>-</button>
+                             <span style={{ fontWeight: 800, minWidth: '15px', fontSize: '12px' }}>{i.qty}</span>
+                             <button onClick={() => addToCart(i)} style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 900, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>+</button>
+                          </div>
+                       </td>
+                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <input type="number" min="0" max="100" value={i.item_discount_percent} onChange={e => updateItemDiscount(i.id, e.target.value)} style={{ width: '45px', padding: '3px', borderRadius: '5px', border: '1.5px solid #e2e8f0', textAlign: 'center', fontWeight: 800, fontSize: '11px' }} />
+                       </td>
+                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                          <div style={{ fontWeight: 900, color: '#1e293b', fontSize: '13px' }}>₹{(i.price * i.qty).toFixed(2)}</div>
+                          {(i.is_b1g1 || i.item_discount_percent > 0) && <div style={{ fontSize: '8px', color: '#10b981', fontWeight: 800 }}>SAVED</div>}
+                       </td>
+                       <td style={{ padding: '10px 12px' }}>
+                          <button onClick={() => setCart(cart.filter(x => x.id !== i.id))} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer', fontSize: '12px' }}><i className="fas fa-trash-alt"></i></button>
+                       </td>
+                    </tr>
                   ))
                 )}
-              </div>
-            )}
-          </div>
+              </tbody>
+           </table>
         </div>
 
-        <div className="pos-body-full">
-          <div className="pos-bill-enhanced">
-            <div className="cart-container">
-              <div className="table-wrapper">
-                <table className="cart-table-v2">
-                  <thead>
-                    <tr>
-                      <th>Product Details</th>
-                      <th style={{ textAlign: 'center' }}>Unit Price</th>
-                      <th style={{ textAlign: 'center' }}>Quantity</th>
-                      <th style={{ textAlign: 'right' }}>Subtotal</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cart.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="empty-cart-msg">
-                          <i className="fas fa-shopping-basket"></i>
-                          <p>No items in cart. Start scanning or searching!</p>
-                        </td>
-                      </tr>
-                    ) : (
-                      cart.map(i => (
-                        <tr key={i.productId}>
-                          <td>
-                            <div className="product-name">
-                              {i.name}
-                              {i.is_b1g1 && <span style={{ fontSize: '10px', background: '#d97706', color: 'white', padding: '1px 3px', borderRadius: '3px', marginLeft: '5px' }}>B1G1</span>}
-                            </div>
-                            <div className="product-sku">
-                              SKU: {i.sku}
-                              {(i.size || i.unit) && (
-                                <span style={{ marginLeft: '8px', color: '#555' }}>
-                                  | {i.size} {i.unit}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>₹{i.price.toFixed(2)}</td>
-                          <td>
-                            <div className="qty-controls-v2">
-                              <button onClick={() => updateQty(i.productId, -1)} className="qty-btn">-</button>
-                              <span className="qty-val">{i.qty}</span>
-                              <button onClick={() => updateQty(i.productId, 1)} className="qty-btn">+</button>
-                            </div>
-                          </td>
+      </div>
 
-                          <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                            {i.is_b1g1 && i.qty >= 2 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '11px' }}>
-                                  ₹{(i.price * i.qty).toFixed(2)}
-                                </span>
-                                <span style={{ color: '#16a34a' }}>
-                                  ₹{(i.price * (i.qty - Math.floor(i.qty / 2))).toFixed(2)}
-                                </span>
-                                <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'normal' }}>
-                                  (Free: {Math.floor(i.qty / 2)})
-                                </span>
-                              </div>
-                            ) : (
-                              `₹${(i.price * i.qty).toFixed(2)}`
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button
-                              className="remove-btn"
-                              onClick={() => setCart(cart.filter(x => x.productId !== i.productId))}
-                            >
-                              <i className="fas fa-times"></i>
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+      {/* ================= RIGHT: TOOLS ================= */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        
+        {/* SCAN & SEARCH */}
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+           <div style={{ position: 'relative', marginBottom: '12px' }}>
+              <i className="fas fa-barcode" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}></i>
+              <input 
+                placeholder="Scan Barcode or Type SKU..." 
+                value={barcode} 
+                onChange={e => setBarcode(e.target.value)}
+                onKeyDown={e => {
+                  if(e.key === 'Enter') {
+                    const found = products.find(p => p.sku === barcode || String(p.id) === barcode);
+                    if(found) { addToCart(found); setBarcode(""); }
+                    else showToast("Product not found", "error");
+                  }
+                }}
+                style={{ width: '100%', padding: '12px 12px 12px 45px', borderRadius: '12px', border: 'none', background: '#f8fafc', fontSize: '13px', fontWeight: 600, outline: 'none' }}
+              />
+           </div>
+           
+           <div style={{ position: 'relative' }}>
+              <i className="fas fa-search" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}></i>
+              <input 
+                placeholder="Product Search..." 
+                value={search} 
+                onFocus={() => setShowResults(true)}
+                onChange={e => {setSearch(e.target.value); setShowResults(true);}} 
+                style={{ width: '100%', padding: '12px 12px 12px 45px', borderRadius: '12px', border: 'none', background: '#f8fafc', fontSize: '13px', fontWeight: 600, outline: 'none' }}
+              />
+              {showResults && search.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', marginTop: '8px', zIndex: 100, maxHeight: '250px', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                   {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase())).map(p => (
+                     <div key={p.id} onClick={() => {addToCart(p); setSearch(""); setShowResults(false);}} style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>{p.name}</div>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>₹{p.price} | Stock: {p.stock}</div>
+                        </div>
+                        <i className="fas fa-plus-circle" style={{ color: '#4338ca', opacity: 0.5 }}></i>
+                     </div>
+                   ))}
+                </div>
+              )}
+           </div>
+        </div>
+
+        {/* CUSTOMER & DISCOUNTS */}
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Customer Phone</label>
+                <input maxLength="10" placeholder="Mobile..." value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, ''))} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontWeight: 800, fontSize: '14px', outline: 'none' }} />
               </div>
-            </div>
-
-            <div className="checkout-sidebar">
-              <div className="bill-card">
-                <h3>Summary</h3>
-                <div className="bill-row"><span>Items ({cart.reduce((a, b) => a + b.qty, 0)})</span><span>₹{subtotal.toFixed(2)}</span></div>
-                <div className="bill-row"><span>Tax (GST 5%)</span><span>₹{gst.toFixed(2)}</span></div>
-
-                {itemDiscounts > 0 && (
-                  <div className="bill-row" style={{ color: '#10b981' }}>
-                    <span>B1G1 Savings</span>
-                    <span>-₹{itemDiscounts.toFixed(2)}</span>
-                  </div>
-                )}
-
-                {/* Configurable Bill Offer */}
-                <div style={{ background: '#fffbeb', padding: '8px', borderRadius: '6px', marginBottom: '8px', border: '1px solid #fcd34d' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', marginBottom: '4px' }}>🎉 Auto Bill Offer Config</div>
-                  <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px' }}>If &gt; ₹</span>
-                    <input
-                      type="number"
-                      value={billThreshold}
-                      onChange={e => setBillThreshold(Number(e.target.value))}
-                      onWheel={(e) => e.target.blur()}
-                      onKeyDown={(e) => ["ArrowUp", "ArrowDown"].includes(e.key) && e.preventDefault()}
-                      style={{ width: '50px', padding: '2px', fontSize: '11px' }}
-                    />
-                    <span style={{ fontSize: '11px' }}>Get</span>
-                    <input
-                      type="number"
-                      value={billOfferPercent}
-                      onChange={e => setBillOfferPercent(Number(e.target.value))}
-                      onWheel={(e) => e.target.blur()}
-                      onKeyDown={(e) => ["ArrowUp", "ArrowDown"].includes(e.key) && e.preventDefault()}
-                      style={{ width: '35px', padding: '2px', fontSize: '11px' }}
-                    />
-                    <span style={{ fontSize: '11px' }}>% Off</span>
-                  </div>
-                </div>
-
-                {billDiscount > 0 && (
-                  <div className="bill-row" style={{ color: '#d97706' }}>
-                    <span>Special Offer ({billOfferPercent}% off)</span>
-                    <span>-₹{billDiscount.toFixed(2)}</span>
-                  </div>
-                )}
-
-                <div className="bill-row">
-                  <span>Manual Discount (%)</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <input
-                      type="number"
-                      className="disc-input"
-                      value={discount}
-                      onChange={e => setDiscount(Number(e.target.value))}
-                      onWheel={(e) => e.target.blur()}
-                      onKeyDown={(e) => ["ArrowUp", "ArrowDown"].includes(e.key) && e.preventDefault()}
-                      placeholder="0"
-                      max="100"
-                    />
-                    <span style={{ fontSize: '14px', fontWeight: 'bold' }}>%</span>
-                  </div>
-                </div>
-
-                {manualDiscountAmount > 0 && (
-                  <div className="bill-row" style={{ color: '#6366f1', fontSize: '12px' }}>
-                    <span>(Manual Amt)</span>
-                    <span>-₹{manualDiscountAmount.toFixed(2)}</span>
-                  </div>
-                )}
-
-                <div className="total-divider"></div>
-                <div className="bill-row total">
-                  <strong>Payable</strong>
-                  <strong>₹{total.toFixed(2)}</strong>
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Cart Discount %</label>
+                <input type="number" min="0" max="100" value={manualDiscountPercent} onChange={e => setManualDiscountPercent(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontWeight: 800, fontSize: '14px', outline: 'none' }} />
               </div>
+           </div>
 
-              <div className="payment-card">
-                <h3>Payment</h3>
-                <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="method-select">
-                  <option value="cash">Cash Payment</option>
-                  <option value="upi">UPI / GPay (UTR Needed)</option>
-                  <option value="qr">QR Code Scan</option>
-                  <option value="card">Debit/Credit Card</option>
-                </select>
+           <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '12px', border: '1px solid #bae6fd', marginBottom: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                 <div style={{ fontSize: '10px', fontWeight: 800, color: '#0369a1' }}>THRESHOLD DISCOUNT</div>
+                 <div style={{ fontSize: '9px', background: '#0369a1', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontWeight: 900 }}>{t.total > billThreshold ? 'QUALIFIED' : 'NOT MET'}</div>
+              </div>
+              <p style={{ margin: '4px 0 0', fontSize: '10px', color: '#0369a1', fontWeight: 600 }}>Get {billOfferPercent}% off on orders above ₹{billThreshold}.</p>
+           </div>
 
-                {paymentMethod === 'cash' && (
-                  <div className="payment-extra" style={{ marginTop: '10px', background: '#f0fdf4', padding: '10px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                    <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#166534', display: 'block', marginBottom: '5px' }}>💵 Cash Received (₹)</label>
-                    <input
-                      type="number"
-                      placeholder="Amount Tendered"
-                      value={cashReceived}
-                      onChange={e => setCashReceived(e.target.value)}
-                      onWheel={(e) => e.target.blur()}
-                      onKeyDown={(e) => ["ArrowUp", "ArrowDown"].includes(e.key) && e.preventDefault()}
-                      style={{ width: '100%', padding: '8px', fontSize: '16px', fontWeight: 'bold', border: '2px solid #22c55e', borderRadius: '6px' }}
-                    />
-                    {Number(cashReceived) > total && (
-                      <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 'bold', color: '#15803d', display: 'flex', justifyContent: 'space-between', paddingTop: '5px', borderTop: '1px dashed #16a34a' }}>
-                        <span>Change to Return:</span>
-                        <span style={{ fontSize: '18px' }}>₹{(Number(cashReceived) - total).toFixed(2)}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+           {/* TOTALS SUMMARY (MOVED FROM LEFT FOOTER) */}
+           <div style={{ padding: '15px', background: '#f8fafc', borderRadius: '15px', border: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>Subtotal</span>
+                 <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>₹{t.subtotal.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>Total Discount</span>
+                 <span style={{ fontSize: '13px', fontWeight: 800, color: '#10b981' }}>-₹{(t.savings + t.billDisc + t.manualDisc).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '10px', borderTop: '2px dashed #e2e8f0' }}>
+                 <span style={{ fontSize: '13px', fontWeight: 900, color: '#1e293b' }}>Grand Total</span>
+                 <span style={{ fontSize: '22px', fontWeight: 900, color: '#4338ca' }}>₹{Math.round(t.total).toFixed(2)}</span>
+              </div>
+           </div>
+        </div>
 
-                {paymentMethod === 'upi' && (
-                  <div className="payment-extra">
-                    <input placeholder="Enter UTR / Transaction ID" value={utr} onChange={e => setUtr(e.target.value)} />
-                  </div>
-                )}
-
-                {paymentMethod === 'qr' && (
-                  <div className="qr-checkout-box">
-                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=upi://pay?pa=${user?.upi_id || 'samartha@upi'}&pn=RetailStore&am=${total}&cu=INR`} alt="QR Code" />
-                    <p>Scan to Pay ₹{total.toFixed(2)}</p>
-                  </div>
-                )}
-
-                {paymentMethod === 'card' && (
-                  <div className="payment-extra card-inputs">
-                    <input placeholder="Card Holder Name" value={cardData.name} onChange={e => setCardData({ ...cardData, name: e.target.value })} />
-                    <input placeholder="Last 4 Digits" value={cardData.number} onChange={e => setCardData({ ...cardData, number: e.target.value })} />
-                  </div>
-                )}
-
-                <button className="checkout-btn" onClick={completePayment} disabled={loading || cart.length === 0}>
-                  {loading ? "PROCESSING..." : "FINAL CHECKOUT"}
+        {/* PAYMENT SETTINGS */}
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', flex: 1, minHeight: '350px' }}>
+           <h3 style={{ margin: '0 0 16px 0', fontSize: '12px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase' }}>Payment Mode</h3>
+           
+           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px' }}>
+              {['cash', 'upi', 'card'].map(m => (
+                <button key={m} onClick={() => setPaymentMethod(m)} style={{ padding: '10px', borderRadius: '10px', border: paymentMethod === m ? '2px solid #4338ca' : '1.5px solid #e2e8f0', background: paymentMethod === m ? '#eef2ff' : '#fff', color: paymentMethod === m ? '#4338ca' : '#64748b', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', cursor: 'pointer' }}>
+                   <i className={`fas fa-${m === 'cash' ? 'money-bill' : (m === 'upi' ? 'qrcode' : 'credit-card')}`} style={{ display: 'block', fontSize: '14px', marginBottom: '4px' }}></i>
+                   {m}
                 </button>
-              </div>
-            </div>
-          </div>
+              ))}
+           </div>
+
+           <div>
+              {paymentMethod === 'cash' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                     <label style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8' }}>CASH RECEIVED (Rs.)</label>
+                     <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '2px solid #10b981', fontSize: '18px', fontWeight: 900, outline: 'none' }} />
+                   </div>
+                   {Number(cashReceived) > t.total && (
+                     <div style={{ padding: '12px', background: '#ecfdf5', borderRadius: '10px', border: '1px solid #d1fae5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: '#059669' }}>REFUND</span>
+                        <span style={{ fontSize: '18px', fontWeight: 900, color: '#059669' }}>₹{(Number(cashReceived) - t.total).toFixed(2)}</span>
+                     </div>
+                   )}
+                </div>
+              ) : paymentMethod === 'upi' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                   <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '12px', textAlign: 'center' }}>
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=upi://pay?pa=store@upi&pn=RetailStore&am=${t.total.toFixed(2)}&cu=INR`} alt="QR" style={{ borderRadius: '6px' }} />
+                   </div>
+                   <input placeholder="Transaction ID / UTR" value={utr} onChange={e => setUtr(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '12px', fontWeight: 700, outline: 'none' }} />
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                   <input placeholder="Customer Name on Card" value={cardName} onChange={e => setCardName(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '12px', fontWeight: 700, outline: 'none' }} />
+                   <p style={{ fontSize: '9px', color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>Verify payment on PDQ machine before finishing.</p>
+                </div>
+              )}
+           </div>
+
+           <button 
+             onClick={handleCheckout} 
+             disabled={loading || !cart.length} 
+             style={{ width: '100%', padding: '16px', background: '#4338ca', color: '#fff', border: 'none', borderRadius: '14px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 8px 12px -3px rgba(67, 56, 202, 0.4)', marginTop: '20px' }}>
+             {loading ? 'FINISHING...' : 'FINISH SALE'}
+           </button>
         </div>
+      </div>
 
-        {
-          showReceipt && (
-            <div className="receipt-modal">
-              <div className="receipt-content">
-                <div ref={receiptRef} className="receipt-paper" style={{ padding: '10px', fontSize: '12px' }}>
-                  <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                    <h3 style={{ margin: '0 0 5px 0' }}>RETAIL STORE</h3>
-                    <p style={{ margin: '0 0 2px 0' }}>Branch: {branchName}</p>
-                    <p style={{ margin: 0 }}>{new Date().toLocaleString()}</p>
-                  </div>
-
-                  <table style={{ width: '100%', minWidth: '0', tableLayout: 'fixed', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '11px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px dashed #000' }}>
-                        <th style={{ textAlign: 'left', padding: '2px 0', width: '40%' }}>Item</th>
-                        <th style={{ textAlign: 'center', padding: '2px 0', width: '15%' }}>Qty</th>
-                        <th style={{ textAlign: 'right', padding: '2px 0', width: '20%' }}>Rate</th>
-                        <th style={{ textAlign: 'right', padding: '2px 0', width: '25%' }}>Amt</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cart.map(i => (
-                        <tr key={i.productId}>
-                          <td style={{ padding: '2px 0' }}>
-                            {i.name}
-                            {i.is_b1g1 && <span style={{ fontSize: '10px', fontWeight: 'bold' }}> (B1G1)</span>}
-                            {(i.size || i.unit) && (
-                              <span style={{ fontSize: '10px', marginLeft: '4px', color: '#555' }}>
-                                ({i.size || ''} {i.unit || ''})
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'center', padding: '2px 0' }}>{i.qty}</td>
-                          <td style={{ textAlign: 'right', padding: '2px 0' }}>{i.price.toFixed(2)}</td>
-                          <td style={{ textAlign: 'right', padding: '2px 0' }}>{(i.price * i.qty).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div style={{ borderTop: '1px dashed #000', paddingTop: '5px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Taxable Amount:</span>
-                      <span>₹{subtotal.toFixed(2)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>CGST (2.5%):</span>
-                      <span>₹{(gst / 2).toFixed(2)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>SGST (2.5%):</span>
-                      <span>₹{(gst / 2).toFixed(2)}</span>
-                    </div>
-                    {discount > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Discount:</span>
-                        <span>-₹{discount.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px solid #000', marginTop: '5px', paddingTop: '5px', fontSize: '14px' }}>
-                      <span>Grand Total:</span>
-                      <span>₹{total.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <p style={{ textAlign: 'center', marginTop: '15px', fontSize: '10px' }}>*** Thank You! Visit Again ***</p>
-                </div>
-                <div className="receipt-actions">
-                  <button onClick={() => { printReceipt(); setShowReceipt(false); setCart([]); setMobile(""); setDiscount(0); setLastSale(null); }}>🖨️ Print & Done</button>
-                  <button onClick={() => { setShowReceipt(false); setCart([]); setMobile(""); setDiscount(0); setLastSale(null); }}>✅ Done — New Sale</button>
-                </div>
-              </div>
-            </div>
-          )
-        }
-      </div >
-    </div >
+    </div>
   );
 }

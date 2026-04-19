@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.branch import Branch
 from app.models.product import Product
 from app.models.inventory import Inventory
+from app.models.category import Category
 from app.models.sales import SalesTransaction, TransactionItem
 from app.models.stock_transfer import StockTransfer
 from app.utils.decorators import roles_required
@@ -20,6 +21,14 @@ from app.routes import admin_bp
 from app.utils.validators import is_valid_indian_mobile
 from flask_mail import Message
 from app.extensions import mail
+from app.utils.ai_engine import (
+    get_inventory_insights, 
+    get_sales_forecast, 
+    get_pricing_recommendations, 
+    get_branch_rebalance_suggestions,
+    get_wastage_alerts,
+    simulate_profit_scenario
+)
 
 
 # =============================
@@ -42,7 +51,7 @@ def get_dashboard_stats():
         SalesTransaction.status == "completed"
     ).all()
     
-    total_revenue = sum(s.total_amount for s in recent_sales)
+    total_revenue = sum(s.total_amount or 0 for s in recent_sales)
     total_transactions = len(recent_sales)
     
     # Low stock items
@@ -66,10 +75,10 @@ def get_dashboard_stats():
         SalesTransaction.status == "completed"
     ).all()
     
-    today_revenue = sum(s.total_amount for s in today_sales)
-    today_cash = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'cash')
-    today_upi = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'upi')
-    today_qr = sum(s.total_amount for s in today_sales if s.payment_method and s.payment_method.lower() == 'qr')
+    today_revenue = sum(s.total_amount or 0 for s in today_sales)
+    today_cash = sum(s.total_amount or 0 for s in today_sales if s.payment_method and s.payment_method.lower() == 'cash')
+    today_upi = sum(s.total_amount or 0 for s in today_sales if s.payment_method and s.payment_method.lower() == 'upi')
+    today_qr = sum(s.total_amount or 0 for s in today_sales if s.payment_method and s.payment_method.lower() == 'qr')
     
     # Critical Low Stock (Top 5)
     critical_stock = db.session.query(
@@ -97,7 +106,7 @@ def get_dashboard_stats():
     
     branch_stats = [{
         "name": name,
-        "revenue": float(revenue)
+        "revenue": float(revenue or 0)
     } for name, revenue in branch_performance]
 
     return jsonify({
@@ -117,6 +126,87 @@ def get_dashboard_stats():
         "today_qr": today_qr,
         "critical_items": critical_items,
         "branch_performance": branch_stats
+    }), 200
+
+
+@admin_bp.route("/stats/ai-insights", methods=["GET"])
+@jwt_required()
+@roles_required("admin")
+def get_admin_ai_insights():
+    """
+    Returns system-wide AI-driven predictive insights.
+    """
+    insights = get_inventory_insights()
+    forecast = get_sales_forecast()
+    
+    return jsonify({
+        "insights": insights,
+        "forecast": forecast
+    }), 200
+
+
+@admin_bp.route("/stats/pricing-alerts", methods=["GET"])
+@jwt_required()
+@roles_required("admin")
+def get_admin_pricing_alerts():
+    """
+    Returns AI-driven pricing recommendations.
+    """
+    alerts = get_pricing_recommendations()
+    return jsonify({"alerts": alerts}), 200
+
+
+@admin_bp.route("/stats/rebalance", methods=["GET"])
+@jwt_required()
+@roles_required("admin")
+def get_admin_rebalance_suggestions():
+    """
+    Returns AI-driven inter-branch stock rebalancing suggestions.
+    """
+    suggestions = get_branch_rebalance_suggestions()
+    return jsonify({"suggestions": suggestions}), 200
+
+
+@admin_bp.route("/stats/wastage", methods=["GET"])
+@jwt_required()
+@roles_required("admin")
+def get_admin_wastage_alerts():
+    """
+    Returns AI-driven wastage alerts for expiring stock.
+    """
+    alerts = get_wastage_alerts()
+    print(f"DEBUG: Returning {len(alerts)} wastage alerts.")
+    return jsonify({"alerts": alerts}), 200
+
+
+@admin_bp.route("/stats/simulate", methods=["POST"])
+@jwt_required()
+@roles_required("admin")
+def simulate_admin_profit():
+    """
+    Runs a 'What-If' profit simulation.
+    """
+    data = request.json
+    price_change = data.get("price_change", 0)
+    discount_change = data.get("discount_change", 0)
+    
+    result = simulate_profit_scenario(price_change, discount_change)
+    print(f"DEBUG: Simulation result: {result}")
+    return jsonify(result), 200
+
+
+@admin_bp.route("/stats/trigger-announcements", methods=["POST"])
+@jwt_required()
+@roles_required("admin")
+def trigger_ai_announcements():
+    """
+    Triggers the AI engine to generate announcement drafts based on system performance.
+    """
+    from app.utils.ai_engine import create_ai_announcement_drafts
+    count = create_ai_announcement_drafts()
+    return jsonify({
+        "message": f"AI analysis complete. {count} new drafts created.",
+        "drafts_created": count
     }), 200
 
 
@@ -643,11 +733,13 @@ def inventory_report():
             return jsonify({"message": "User not assigned to a branch"}), 403
 
     query = db.session.query(
-        Inventory, Product, Branch.name.label("branch_name")
+        Inventory, Product, Branch.name.label("branch_name"), Category.name.label("cat_name")
     ).join(
         Product, Inventory.product_id == Product.product_id
     ).join(
         Branch, Inventory.branch_id == Branch.branch_id
+    ).outerjoin(
+        Category, Product.category_id == Category.category_id
     )
     
     if branch_id:
@@ -656,14 +748,14 @@ def inventory_report():
     results = query.all()
     
     total_items = len(results)
-    total_stock_value = sum(inv.quantity * prod.unit_price for inv, prod, b_name in results)
+    total_stock_value = sum(inv.quantity * prod.unit_price for inv, prod, b_name, cat_name in results)
     
     # Full inventory list with severity
     all_items = []
     category_breakdown = {}
     out_of_stock = 0
     
-    for inv, prod, b_name in results:
+    for inv, prod, b_name, cat_name in results:
         qty = inv.quantity
         threshold = inv.min_threshold
         
@@ -679,7 +771,7 @@ def inventory_report():
             severity = "ok"
         
         item_value = qty * prod.unit_price
-        cat = prod.category or "Uncategorized"
+        cat = cat_name or "Uncategorized"
         
         all_items.append({
             "product_id": prod.product_id,

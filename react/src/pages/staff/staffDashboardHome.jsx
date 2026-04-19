@@ -1,397 +1,230 @@
 import { useEffect, useState } from "react";
-import { formatDate } from "../../utils/dateUtils";
 import api from "../../services/api";
-import { getCurrentUser } from "../../services/authService";
-import DashboardFAQ from "../../components/DashboardFAQ";
+import Chart from "react-apexcharts";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function StaffDashboardHome() {
-  const user = getCurrentUser();
-  const branchId = user?.branch_id;
-
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [transactions, setTransactions] = useState([]);
-  const [summary, setSummary] = useState({
-    totalAmount: 0,
-    totalTransactions: 0,
-    cash: 0,
-    card: 0,
-    upi: 0,
-    qr: 0
-  });
-
-  // Use local date instead of UTC to avoid "yesterday" issues in IST
+  const [recentSales, setRecentSales] = useState([]);
   const [filterDate, setFilterDate] = useState(() => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
     return new Date(now - offset).toISOString().split("T")[0];
   });
 
-  useEffect(() => {
-    if (branchId) {
-      loadDashboardData();
-    }
-  }, [branchId, filterDate]); // Reload when date changes
+  const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
+  const branchId = loggedInUser?.branch_id;
 
-  const loadDashboardData = async () => {
+  const loadStats = async () => {
+    if (!branchId) return;
     setLoading(true);
     try {
-      const dateToFetch = filterDate || new Date().toISOString().split("T")[0];
+      const res = await api.sales.getDailySummary(branchId, filterDate);
 
-      const [summaryRes, transRes] = await Promise.all([
-        api.sales.getDailySummary(branchId, dateToFetch),
-        // Fetch recent history (first page, default 20, maybe increase to 50?)
-        api.sales.getByBranch(branchId, { per_page: 50 })
-      ]);
+      // Map back to the expected structure for existing UI components
+      const mappedStats = {
+        total_revenue: res.total_sales || 0,
+        total_transactions: res.transaction_count || 0,
+        avg_ticket_size: res.average_transaction || 0,
+        payment_breakdown: Object.entries(res.payment_breakdown || {}).map(([method, data]) => ({
+          method: method,
+          total: data.total || 0,
+          count: data.count || 0
+        }))
+      };
 
-      const breakdown = summaryRes.payment_breakdown || {};
-
-      setSummary({
-        totalAmount: summaryRes.total_sales || 0,
-        totalTransactions: summaryRes.transaction_count || 0,
-        cash: breakdown.cash?.total || 0,
-        card: breakdown.card?.total || 0,
-        upi: breakdown.upi?.total || 0,
-        qr: breakdown.qr?.total || 0
-      });
-
-      setTransactions(transRes.transactions || []);
+      setStats(mappedStats);
+      const salesRes = await api.manager.getTransactions();
+      setRecentSales((salesRes.transactions || []).slice(0, 5));
     } catch (err) {
-      console.error("Failed to load dashboard data", err);
+      console.error("Failed to load staff dash stats", err);
     }
     setLoading(false);
   };
 
-  const avgTransaction = summary.totalTransactions > 0
-    ? (summary.totalAmount / summary.totalTransactions).toFixed(2)
-    : "0.00";
+  useEffect(() => {
+    loadStats();
+  }, [branchId, filterDate]);
 
-  // Helper to group transactions by date
-  const groupTransactionsByDate = (txns) => {
-    const groups = {};
-    txns.forEach(t => {
-      if (!t.transaction_date) return;
-      const dateKey = formatDate(t.transaction_date);
-      if (!groups[dateKey]) {
-        groups[dateKey] = [];
-      }
-      groups[dateKey].push(t);
-    });
-    return groups;
-  };
-
-  const groupedTransactions = groupTransactionsByDate(transactions);
-
-  /* ================= PRINT HANDOVER REPORT ================= */
   const printHandoverReport = () => {
-    const win = window.open("", "_blank", "width=800,height=600");
-    if (!win) return;
-
-    const now = new Date();
-    const dateStr = formatDate(filterDate || now);
+    if (!stats) return;
+    const win = window.open("", "_blank");
+    const dateStr = formatDate(filterDate);
 
     const styles = `
       <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1e293b; line-height: 1.6; }
-        .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
-        .header h1 { margin: 0; color: #0f172a; font-size: 24px; text-transform: uppercase; }
-        .header p { margin: 5px 0; color: #64748b; font-size: 14px; }
-        .section { margin-bottom: 30px; }
-        .section-title { font-size: 14px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; margin-bottom: 15px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .stat-card { background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
-        .stat-card span { display: block; font-size: 12px; color: #64748b; margin-bottom: 5px; }
-        .stat-card b { font-size: 22px; color: #0f172a; }
-        .payment-table { width: 100%; border-collapse: collapse; }
-        .payment-table td { padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
-        .payment-table td:last-child { text-align: right; font-weight: 700; color: #0f172a; }
-        .footer { margin-top: 50px; padding-top: 20px; border-top: 1px dashed #cbd5e1; text-align: center; font-size: 12px; color: #94a3b8; }
-        .signature-area { margin-top: 60px; display: flex; justify-content: space-between; }
-        .sig-box { border-top: 1px solid #1e293b; width: 200px; text-align: center; padding-top: 8px; font-size: 13px; font-weight: 600; }
-        @media print { body { padding: 20px; } }
+        body { font-family: 'Inter', sans-serif; padding: 40px; color: #0f172a; line-height: 1.5; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 40px; }
+        .card { background: #fff; border: 1.5px solid #e2e8f0; padding: 20px; border-radius: 16px; }
+        .card h4 { margin: 0; font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; }
+        .card .val { margin-top: 8px; font-size: 24px; font-weight: 900; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        td { padding: 12px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; }
+        .total-row { border-top: 2px solid #e2e8f0; font-size: 18px; font-weight: 900; }
+        .sig-box { border-top: 2px solid #1e293b; margin-top: 60px; padding-top: 10px; width: 220px; text-align: center; font-size: 11px; font-weight: 800; text-transform: uppercase; }
       </style>
     `;
 
     const content = `
       <div class="header">
-        <h1>Daily Sales Handover Report</h1>
-        <p><b>Branch:</b> ${user?.branch_name || 'Main'}</p>
-        <p><b>Staff Name:</b> ${user?.firstName || user?.name || 'Staff'}</p>
-        <p><b>Employee ID:</b> ${user?.employee_id || 'N/A'}</p>
-        <p><b>Reporting Date:</b> ${dateStr}</p>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Summary Overview</div>
-        <div class="grid">
-          <div class="stat-card">
-            <span>Total Revenue Recognized</span>
-            <b>₹${summary.totalAmount.toFixed(2)}</b>
-          </div>
-          <div class="stat-card">
-            <span>Volume of Transactions</span>
-            <b>${summary.totalTransactions}</b>
-          </div>
+        <div>
+          <h1>DAILY SHIFT REPORT</h1>
+          <p style="margin:5px 0 0; font-size:12px; font-weight:700; color:#64748b;">Staff Member: ${loggedInUser?.name} | ID: ${loggedInUser?.employee_id || 'N/A'}</p>
+        </div>
+        <div style="text-align:right;">
+          <div style="padding:4px 12px; background:#f1f5f9; border-radius:100px; font-size:10px; font-weight:800; color:#475569;">B: ${loggedInUser?.branch_name}</div>
+          <p style="margin:10px 0 0; font-size:11px; font-weight:700; color:#94a3b8;">D: ${dateStr}</p>
         </div>
       </div>
 
-      <div class="section">
-        <div class="section-title">Collection Breakdown</div>
-        <table class="payment-table">
-          <tr><td>💵 Cash Collection (Tendered)</td><td>₹${summary.cash.toFixed(2)}</td></tr>
-          <tr><td>📱 UPI / QR Payments</td><td>₹${(summary.upi + summary.qr).toFixed(2)}</td></tr>
-          <tr><td>💳 Card Settlements</td><td>₹${summary.card.toFixed(2)}</td></tr>
-          <tr style="border-top: 2px solid #e2e8f0; font-size: 18px;">
-            <td style="padding-top: 20px;">TOTAL HANDOVER AMOUNT</td>
-            <td style="padding-top: 20px;">₹${summary.totalAmount.toFixed(2)}</td>
-          </tr>
-        </table>
+      <div class="summary-grid">
+        <div class="card"><h4>Declared Revenue</h4><div class="val">₹${stats.total_revenue?.toFixed(2)}</div></div>
+        <div class="card"><h4>Transaction Volume</h4><div class="val">${stats.total_transactions}</div></div>
       </div>
 
-      <div class="signature-area">
-        <div class="sig-box">Staff Signature</div>
-        <div class="sig-box">Manager/Receiver Signature</div>
-      </div>
+      <h4 style="font-size:12px; font-weight:900; color:#1e293b; margin-bottom:15px; border-bottom:2px solid #f1f5f9; padding-bottom:8px;">TERMINAL SETTLEMENTS</h4>
+      <table>
+        ${stats.payment_breakdown?.map(p => `<tr><td>${p.method.toUpperCase()} COLLECTION</td><td style="text-align:right;">₹${p.total.toFixed(2)}</td></tr>`).join('')}
+        <tr class="total-row"><td>TOTAL REMITTANCE</td><td style="text-align:right;">₹${stats.total_revenue?.toFixed(2)}</td></tr>
+      </table>
 
-      <div class="footer">
-        Generated on ${now.toLocaleString()} | Computer Generated Document
+      <div style="display:flex; justify-content:space-between; margin-top:40px;">
+        <div class="sig-box">Staff Auditor Signature</div>
+        <div class="sig-box">Manager Certification</div>
       </div>
     `;
 
-    win.document.write(`<html><head><title>Handover_Report_${dateStr}</title>${styles}</head><body>${content}</body></html>`);
+    win.document.write(`<html><head><title>Handover_${dateStr}</title>${styles}</head><body>${content}</body></html>`);
     win.document.close();
-    win.focus();
-    setTimeout(() => {
-      win.print();
-      win.close();
-    }, 500);
+    win.print();
   };
 
   return (
-    <div>
+    <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
 
-      {/* Welcome Header with Employee ID */}
-      <header className="topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* ================= HEADER & CONTROLS ================= */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', background: '#fff', padding: '16px 24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
         <div>
-          <h2 style={{ margin: 0 }}>👋 Welcome, {user?.firstName || user?.name || 'Staff'}</h2>
-          <div style={{ display: 'flex', gap: '15px', marginTop: '8px' }}>
-            {user?.employee_id && (
-              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
-                Employee ID: <code style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>{user.employee_id}</code>
-              </p>
-            )}
-            <p style={{ margin: 0, fontSize: '13px', color: '#059669', fontWeight: 700 }}>
-              🚀 Today's Sale #{summary.totalTransactions}
-            </p>
-          </div>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 900, color: '#1e293b' }}>Operational Overview</h2>
+          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Shift performance logs for Terminal #01</p>
         </div>
-
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="primary-btn" onClick={loadDashboardData} disabled={loading}>
-            {loading ? "Refreshing..." : "🔄 Refresh"}
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <span style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Shift Date</span>
+            <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ border: 'none', background: 'transparent', fontSize: '14px', fontWeight: 800, color: '#4338ca', outline: 'none', cursor: 'pointer' }} />
+          </div>
+          <div style={{ width: '1px', height: '30px', background: '#f1f5f9' }}></div>
+          <button onClick={printHandoverReport} style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', padding: '10px 20px', borderRadius: '12px', fontSize: '12px', fontWeight: 800, color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <i className="fas fa-print"></i> Download Shift Report
           </button>
         </div>
-      </header>
-
-      {/* STATS FILTER SECTION */}
-      <div style={{ background: '#fff', padding: '15px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '16px' }}>📊 Stats Overview</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13px', color: '#64748b' }}>Filter Date:</span>
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-          />
-        </div>
       </div>
 
-      {/* SUMMARY CARDS */}
-      <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', marginBottom: '25px', border: '1px solid #e2e8f0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h3 style={{ margin: 0 }}>📋 My Daily Handover Summary</h3>
-          <button
-            className="secondary-btn"
-            style={{ padding: '8px 15px', display: 'flex', alignItems: 'center', gap: '6px' }}
-            onClick={printHandoverReport}
-          >
-            <i className="fas fa-print"></i> Print Handover Report
-          </button>
+      {/* ================= QUICK STATS ================= */}
+      {/* ================= SUMMARY STATS ================= */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginBottom: '40px' }}>
+        <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Today's Sales</div>
+          <div style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', marginTop: '4px' }}>₹{stats?.total_revenue?.toFixed(2) || '0.00'}</div>
+          <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 700, marginTop: '4px' }}><i className="fas fa-caret-up"></i> Live</div>
         </div>
-        <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
-          <div style={{ background: '#fff', padding: '15px', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #22c55e' }}>
-            <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Total Sales</span>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>₹{summary.totalAmount.toFixed(2)}</div>
-          </div>
-          <div style={{ background: '#fff', padding: '15px', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #3b82f6' }}>
-            <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Transactions</span>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>{summary.totalTransactions}</div>
-          </div>
-          <div style={{ background: '#fff', padding: '15px', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #f59e0b' }}>
-            <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Cash in Hand</span>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>₹{summary.cash.toFixed(2)}</div>
-          </div>
-          <div style={{ background: '#fff', padding: '15px', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #8b5cf6' }}>
-            <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Online/Card</span>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>₹{(summary.upi + summary.card + summary.qr).toFixed(2)}</div>
-          </div>
+        <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Bills</div>
+          <div style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', marginTop: '4px' }}>{stats?.total_transactions || 0}</div>
+          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginTop: '4px' }}>Bills Completed</div>
         </div>
-        <p style={{ marginTop: '15px', fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>
-          * This summary is restricted to sales made by you today for handover to management.
-        </p>
+        <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Average Sale</div>
+          <div style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', marginTop: '4px' }}>₹{stats?.avg_ticket_size?.toFixed(0) || 0}</div>
+          <div style={{ fontSize: '11px', color: '#4338ca', fontWeight: 700, marginTop: '4px' }}>Per Customer</div>
+        </div>
+
       </div>
 
-      <div className="dashboard-grid">
-        <div className="data-box" style={{ borderLeft: '4px solid #22c55e' }}>
-          <h4>💰 Total Sales</h4>
-          <div className="value">₹{summary.totalAmount.toFixed(2)}</div>
-        </div>
+      {/* ================= PAYMENT BREAKDOWN STRIP ================= */}
+      {stats?.payment_breakdown?.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '40px', animation: 'slideUp 0.6s ease-out' }}>
+          {stats.payment_breakdown.map((pm, i) => {
+            const config = {
+              cash: { icon: 'fa-money-bill-wave', color: '#059669', bg: '#ecfdf5' },
+              upi: { icon: 'fa-mobile-alt', color: '#4338ca', bg: '#e0e7ff' },
+              card: { icon: 'fa-credit-card', color: '#2563eb', bg: '#eff6ff' },
+              qr: { icon: 'fa-qrcode', color: '#0d9488', bg: '#f0fdfa' },
+              other: { icon: 'fa-wallet', color: '#64748b', bg: '#f1f5f9' }
+            }[pm.method.toLowerCase()] || { icon: 'fa-wallet', color: '#64748b', bg: '#f1f5f9' };
 
-        <div className="data-box" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <h4>🧾 Transactions</h4>
-          <div className="value">{summary.totalTransactions}</div>
-        </div>
-
-        <div className="data-box" style={{ borderLeft: '4px solid #a855f7' }}>
-          <h4>📊 Avg Sale</h4>
-          <div className="value">₹{avgTransaction}</div>
-        </div>
-
-        <div className="data-box" style={{ borderLeft: '4px solid #f59e0b' }}>
-          <h4>💵 Cash</h4>
-          <div className="value">₹{summary.cash.toFixed(2)}</div>
-        </div>
-
-        <div className="data-box" style={{ borderLeft: '4px solid #6366f1' }}>
-          <h4>📱 UPI</h4>
-          <div className="value">₹{summary.upi.toFixed(2)}</div>
-        </div>
-
-        <div className="data-box" style={{ borderLeft: '4px solid #14b8a6' }}>
-          <h4>📷 QR Scan</h4>
-          <div className="value">₹{summary.qr.toFixed(2)}</div>
-        </div>
-
-        <div className="data-box" style={{ borderLeft: '4px solid #ec4899' }}>
-          <h4>💳 Card</h4>
-          <div className="value">₹{summary.card.toFixed(2)}</div>
-        </div>
-      </div>
-
-      {/* SALES HISTORY */}
-      <div style={{ marginTop: "30px" }}>
-        <h3 style={{ marginBottom: '15px' }}>🕒 Sales History</h3>
-
-        {Object.keys(groupedTransactions).length === 0 ? (
-          <div className="table-card">
-            <p style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>
-              {loading ? "Loading history..." : "No recent sales found."}
-            </p>
-          </div>
-        ) : (
-          Object.keys(groupedTransactions).map(dateKey => (
-            <div key={dateKey} style={{ marginBottom: '25px' }}>
-              <div style={{
-                background: '#f1f5f9',
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontWeight: '700',
-                color: '#475569',
-                marginBottom: '10px',
-                fontSize: '13px',
-                display: 'inline-block',
-                border: '1px solid #e2e8f0'
-              }}>
-                📅 {dateKey}
-              </div>
-
-              <div className="table-card" style={{ marginBottom: '0' }}>
-                <div className="table-responsive">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Invoice</th>
-                        <th>Time</th>
-                        <th>Payment</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupedTransactions[dateKey].map((s) => (
-                        <tr key={s.transaction_id}>
-                          <td>
-                            <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
-                              {s.invoice_number || `TRNS-${s.transaction_id}`}
-                            </code>
-                          </td>
-                          <td>{s.transaction_date ? new Date(s.transaction_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</td>
-                          <td>
-                            <span style={{
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              background: s.payment_method === 'cash' ? '#dcfce7' : (s.payment_method === 'upi' ? '#ede9fe' : '#fce7f3'),
-                              color: s.payment_method === 'cash' ? '#166534' : (s.payment_method === 'upi' ? '#5b21b6' : '#9d174d')
-                            }}>
-                              {s.payment_method?.toUpperCase()}
-                            </span>
-                          </td>
-                          <td style={{ fontWeight: 600 }}>₹{s.total_amount.toFixed(2)}</td>
-                          <td>
-                            <span style={{
-                              color: s.status === 'completed' ? 'green' : 'red',
-                              textTransform: 'capitalize'
-                            }}>
-                              {s.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            return (
+              <div key={i} style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>{pm.method} COLLECTION</p>
+                    <h2 style={{ margin: '8px 0 2px', fontSize: '20px', fontWeight: 900, color: '#1e293b' }}>₹{pm.total?.toFixed(2)}</h2>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{pm.count} Bills Total</p>
+                  </div>
+                  <div style={{ backgroundColor: config.bg, color: config.color, width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                    <i className={`fas ${config.icon}`}></i>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
-      <DashboardFAQ faqs={[
-        {
-          question: "How do I process a sale?",
-          answer: "Navigate to the 'POS' section in the sidebar, scan or search for products to add them to the cart, then select a payment method and click 'Checkout'."
-        },
-        {
-          question: "How do I print a receipt for a past sale?",
-          answer: "Go to the 'Receipts' section, locate the transaction in the history list, and click the 'Print' icon to generate the receipt."
-        },
-        {
-          question: "How do I check if an item is in stock?",
-          answer: "Use the 'Inventory' tab to search for products. The list shows real-time availability for your specific branch."
-        },
-        {
-          question: "How do I update my profile?",
-          answer: "Click on the 'Profile' tab in the sidebar to view your employee information and update your system credentials."
-        },
-        {
-          question: "How do I search for a customer in POS?",
-          answer: "In the POS screen, use the customer search bar to find existing customers by mobile number or name before processing the bill."
-        },
-        {
-          question: "What if I make a mistake on an invoice?",
-          answer: "If an invoice is finalized with errors, please contact your Branch Manager to void or edit the transaction in the system."
-        },
-        {
-          question: "Can I see my total sales for today?",
-          answer: "Yes, the 'Welcome' header on this home page displays your current sales count, and the 'Total Sales' card shows the total revenue processed for the selected date."
-        },
-        {
-          question: "How do I add items without a scanner?",
-          answer: "You can click on the 'Search Products' field in the POS and type the product name or SKU to manually add items to the cart."
-        }
-      ]} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
+
+        {/* ACTIVE SESSION SALES */}
+        <div style={{ background: '#fff', padding: '30px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
+          <h4 style={{ margin: '0 0 25px 0', fontSize: '16px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fas fa-history" style={{ color: '#4338ca' }}></i> Recent Store Sales
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {recentSales.map((sale, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: '#f8fafc', borderRadius: '18px', border: '1px solid #f1f5f9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div style={{ width: '42px', height: '42px', borderRadius: '14px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', color: '#4338ca' }}>
+                    <i className="fas fa-receipt"></i>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px' }}>INV-{sale.bill_number}</div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>{sale.payment_method?.toUpperCase()} • {new Date(sale.sale_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 900, color: '#4338ca', fontSize: '16px' }}>₹{sale.total_amount?.toFixed(2)}</div>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>DECLARED</div>
+                </div>
+              </div>
+            ))}
+            <button onClick={() => window.location.hash = '#receipts'} style={{ marginTop: '10px', padding: '14px', background: 'transparent', border: '2px dashed #e2e8f0', color: '#64748b', fontSize: '13px', fontWeight: 700, borderRadius: '14px', cursor: 'pointer' }}>View Transaction History</button>
+          </div>
+        </div>
+
+        {/* SETTLEMENT MIX */}
+        <div style={{ background: '#fff', padding: '30px', borderRadius: '24px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+          <h4 style={{ margin: '0 0 25px 0', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>Payment Mode Distribution</h4>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Chart
+              type="donut"
+              width={340}
+              series={stats?.payment_breakdown?.map(p => p.total) || []}
+              options={{
+                labels: stats?.payment_breakdown?.map(p => p.method.toUpperCase()) || [],
+                colors: ['#4338ca', '#10b981', '#f59e0b', '#ef4444'],
+                stroke: { width: 0 },
+                legend: { position: 'bottom', fontSize: '11px', fontWeight: 700, labels: { colors: '#64748b' } },
+                dataLabels: { enabled: true, style: { fontSize: '10px', fontWeight: 800 } },
+                plotOptions: { pie: { donut: { size: '75%', labels: { show: true, total: { show: true, label: 'SESSION', formatter: () => `₹${stats?.total_revenue?.toFixed(0) || 0}` } } } } }
+              }}
+            />
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

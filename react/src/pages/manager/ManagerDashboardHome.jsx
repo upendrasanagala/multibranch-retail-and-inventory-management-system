@@ -1,320 +1,209 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
-import DashboardFAQ from "../../components/DashboardFAQ";
+import InventoryInsightCard from "../../components/InventoryInsightCard";
+import StaffPerformanceInsight from "../../components/StaffPerformanceInsight";
 
 export default function ManagerDashboardHome() {
   const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
   const branchId = loggedInUser?.branch_id;
-  const branchName = loggedInUser?.branch_name || loggedInUser?.branch || "My Branch";
-
+  
   const [inventory, setInventory] = useState([]);
   const [lowStockItems, setLowStockItems] = useState([]);
-  const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [stats, setStats] = useState({ totalSales: 0, transactionCount: 0, todayCash: 0, todayUpi: 0, todayCard: 0 });
+  const [aiInsights, setAiInsights] = useState([]);
+  const [staffPerformance, setStaffPerformance] = useState([]);
 
-  const [reportData, setReportData] = useState(null);
-  const [stats, setStats] = useState({ totalSales: 0, transactionCount: 0 });
-
-  /* ================= LOAD DATA FROM BACKEND ================= */
   useEffect(() => {
     loadDashboardData();
   }, [branchId]);
 
   const loadDashboardData = async () => {
     setLoading(true);
-    setError("");
     try {
       const results = await Promise.allSettled([
         branchId ? api.inventory.getByBranch(branchId) : api.inventory.getAll(),
         branchId ? api.inventory.getLowStock(branchId) : api.inventory.getLowStock(),
-        // Fetch recent sales (paginated)
-        api.sales.getAll(branchId ? { branch_id: branchId, per_page: 5 } : { per_page: 5 }),
-        // Fetch total summary
         api.sales.getSummary(branchId ? { branch_id: branchId } : {}),
-        // Fetch Daily Sales Report
-        api.admin.getReports('sales', { branch_id: branchId, period: 30 }),
-        // Fetch Today's Breakdown
-        api.sales.getDailySummary(branchId)
+        api.sales.getDailySummary(branchId),
+        api.manager.getAiInsights(),
+        api.manager.getStaffPerformance()
       ]);
 
-      // Inventory
-      if (results[0].status === "fulfilled") {
-        const invData = results[0].value;
-        setInventory(invData.inventory || []);
-      }
-
-      // Low stock
-      if (results[1].status === "fulfilled") {
-        const lowData = results[1].value;
-        setLowStockItems(lowData.low_stock_items || []);
-      }
-
-      // Recent Sales
+      if (results[0].status === "fulfilled") setInventory(results[0].value.inventory || []);
+      if (results[1].status === "fulfilled") setLowStockItems(results[1].value.low_stock_items || []);
       if (results[2].status === "fulfilled") {
-        const salesData = results[2].value;
-        setSales(salesData.transactions || salesData.sales || []);
-      }
-
-      // Sales Summary (Totals)
-      if (results[3].status === "fulfilled") {
-        const summaryData = results[3].value;
         setStats(prev => ({
           ...prev,
-          totalSales: summaryData.total_sales || 0,
-          transactionCount: summaryData.transaction_count || 0
+          totalSales: results[2].value.total_sales || 0,
+          transactionCount: results[2].value.transaction_count || 0
         }));
       }
-
-      // Today's Breakdown
-      if (results[5].status === "fulfilled") {
-        const dailyData = results[5].value;
-        const breakdown = dailyData.payment_breakdown || {};
+      if (results[3].status === "fulfilled") {
+        const breakdown = results[3].value.payment_breakdown || {};
         setStats(prev => ({
           ...prev,
           todayCash: breakdown.cash?.total || 0,
           todayUpi: breakdown.upi?.total || 0,
-          todayQr: breakdown.qr?.total || 0,
           todayCard: breakdown.card?.total || 0
         }));
       }
-
-      // Daily Sales Report
-      if (results[4].status === "fulfilled") {
-        setReportData(results[4].value);
-      }
-
-      // Check for any errors
-      const errors = results.filter(r => r.status === "rejected");
-      if (errors.length > 0) {
-        console.error("Some dashboard data failed to load:", errors);
-      }
-    } catch (err) {
-      console.error("Failed to load dashboard data:", err);
-      setError("Failed to load dashboard data");
-    }
+      if (results[4].status === "fulfilled") setAiInsights(results[4].value.insights || []);
+      if (results[5].status === "fulfilled") setStaffPerformance(results[5].value.performance_metrics || []);
+    } catch (err) { console.error("Dashboard Load Err:", err); }
     setLoading(false);
   };
 
-  /* ================= CALCULATIONS ================= */
-  // Use stats from state instead of calculating from recent sales
-  const totalSalesAmount = stats.totalSales;
-  const totalTransactions = stats.transactionCount;
-  const recentSales = sales; // sales now only contains recent ones
+  if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontWeight: 800 }}>Loading Dashboard...</div>;
 
   return (
-    <div>
-      <header className="topbar">
-        <h1>{branchName} — Dashboard</h1>
-        {loading && <span style={{ marginLeft: '10px', color: '#666' }}>Loading...</span>}
-      </header>
-
-      {error && <p style={{ color: 'red', padding: '10px' }}>{error}</p>}
-
-      {/* ================= ALERTS CENTER ================= */}
-      {lowStockItems.length > 0 && (
-        <div className="alerts-center" style={{
-          marginBottom: '25px',
-          background: '#fff7ed',
-          border: '1px solid #ffedd5',
-          borderRadius: '12px',
-          padding: '16px',
-          display: 'flex',
-          gap: '15px',
-          alignItems: 'flex-start',
-          animation: 'slideDown 0.4s ease-out',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-        }}>
-          <div style={{
-            background: '#f97316',
-            color: 'white',
-            width: '40px',
-            height: '40px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            fontSize: '20px'
-          }}>
-            <i className="fas fa-bullhorn"></i>
+    <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
+      
+      {/* ================= SUMMARY STATS ================= */}
+      <div style={{ 
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', 
+        marginBottom: '40px'
+      }}>
+        {[
+          { label: 'Total Sales', val: `₹${stats.totalSales.toLocaleString()}`, color: '#4338ca', icon: 'fa-chart-bar' },
+          { label: 'Total Transactions', val: stats.transactionCount, color: '#1e293b', icon: 'fa-file-invoice-dollar' },
+          { label: 'Total Products', val: inventory.length, color: '#64748b', icon: 'fa-boxes' },
+          { label: 'Low Stock Alerts', val: lowStockItems.length, color: lowStockItems.length > 0 ? '#ef4444' : '#10b981', icon: 'fa-exclamation-triangle' }
+        ].map((s, idx) => (
+          <div key={idx} style={{ background: '#fff', padding: '24px 30px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className={`fas ${s.icon}`} style={{ fontSize: '10px', color: '#94a3b8' }}></i>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>{s.label}</div>
+             </div>
+             <div style={{ fontSize: '24px', fontWeight: 900, color: s.color }}>{s.val}</div>
           </div>
-          <div style={{ flex: 1 }}>
-            <h4 style={{ margin: '0 0 5px', color: '#9a3412', fontSize: '15px' }}>Store Stock Warnings</h4>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {lowStockItems.slice(0, 8).map((item, idx) => (
-                <div key={idx} style={{
-                  background: 'white',
-                  border: '1px solid #fed7aa',
-                  padding: '4px 10px',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                  color: '#4b5563'
+        ))}
+      </div>
+
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '30px' }}>
+         
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            
+            {/* SHIFT REVENUE */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+               {[
+                 { label: 'CASH SALES', val: stats.todayCash, sub: 'Daily Cash Revenue', color: '#059669', bg: '#ecfdf5', icon: 'fa-money-bill-wave' },
+                 { label: 'UPI SALES', val: stats.todayUpi, sub: 'Digital Payments', color: '#0284c7', bg: '#f0f9ff', icon: 'fa-mobile-alt' },
+                 { label: 'CARD SALES', val: stats.todayCard, sub: 'Card Transactions', color: '#7c3aed', bg: '#f5f3ff', icon: 'fa-credit-card' }
+               ].map((p, i) => (
+                 <div key={i} style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                       <div style={{ padding: '4px 10px', background: p.bg, borderRadius: '8px', fontSize: '10px', fontWeight: 900, color: p.color }}>{p.label}</div>
+                       <i className={`fas ${p.icon}`} style={{ color: '#cbd5e1' }}></i>
+                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b' }}>₹{p.val.toFixed(2)}</div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', marginTop: '4px' }}>{p.label}</div>
+                 </div>
+               ))}
+            </div>
+
+
+
+            {/* CRITICAL ASSET LOGS */}
+            <section style={{ background: '#fff', padding: '35px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: '#1e293b' }}>Inventory Alerts</h3>
+                  <div style={{ padding: '6px 14px', background: '#fff1f2', color: '#e11d48', borderRadius: '10px', fontSize: '11px', fontWeight: 900 }}>ACTION REQUIRED</div>
+               </div>
+               
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {lowStockItems.length === 0 ? (
+                    <div style={{ padding: '30px', textAlign: 'center', background: '#f0fdf4', borderRadius: '20px', color: '#166534', fontWeight: 700 }}>All stock levels are normal. No alerts.</div>
+                  ) : (
+                    lowStockItems.slice(0, 5).map((item, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: '#f8fafc', borderRadius: '16px', border: '1.5px solid #f1f5f9' }}>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#fff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '10px', fontWeight: 900 }}>SKU</div>
+                            <div>
+                               <div style={{ fontSize: '14px', fontWeight: 800, color: '#1e293b' }}>{item.product_name}</div>
+                               <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>ID: {item.sku}</div>
+                            </div>
+                         </div>
+                         <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 900, color: item.quantity <= 5 ? '#ef4444' : '#f59e0b' }}>{item.quantity} {item.unit || 'PCS'}</div>
+                            <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>In Stock</div>
+                         </div>
+                      </div>
+                    ))
+                  )}
+               </div>
+            </section>
+         </div>
+
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            
+            {/* PERSONNEL RANKING */}
+            <section style={{ background: '#fff', padding: '30px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '25px' }}>
+                  <i className="fas fa-crown" style={{ color: '#f59e0b' }}></i>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#1e293b' }}>Top Performers</h3>
+               </div>
+               <StaffPerformanceInsight metrics={staffPerformance} />
+            </section>
+
+
+         </div>
+
+      </div>
+
+      {/* ARTIFICIAL INTELLIGENCE INSIGHTS (Full Width at Bottom) */}
+      <section style={{ 
+        background: 'linear-gradient(135deg, #ffffff, #f8faff)', 
+        padding: '35px', 
+        borderRadius: '35px', 
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 10px 25px -5px rgba(0,0,0,0.03)',
+        marginTop: '40px'
+      }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <div style={{ 
+                  width: '56px', 
+                  height: '56px', 
+                  background: 'linear-gradient(135deg, #4338ca, #6366f1)', 
+                  borderRadius: '16px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: '#fff',
+                  fontSize: '24px',
+                  boxShadow: '0 8px 16px rgba(67, 56, 202, 0.2)'
                 }}>
-                  <b style={{ color: '#ea580c' }}>{item.product_name || item.name}</b>:
-                  <span style={{ fontWeight: 800, marginLeft: '5px', color: (item.quantity || 0) <= 5 ? '#dc2626' : '#ea580c' }}>
-                    {item.quantity || 0} left
-                  </span>
+                  <i className="fas fa-brain"></i>
                 </div>
-              ))}
-              {lowStockItems.length > 8 && (
-                <span style={{ fontSize: '12px', color: '#6b7280', alignSelf: 'center' }}>
-                  +{lowStockItems.length - 8} more critical items
-                </span>
-              )}
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#1e293b', letterSpacing: '-0.5px' }}>AI Business Intelligence</h3>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>Predictive branch analytics & inventory strategies</p>
+                </div>
+            </div>
+            <div style={{ 
+              padding: '8px 16px', 
+              background: '#eef2ff', 
+              borderRadius: '12px', 
+              color: '#4338ca', 
+              fontSize: '11px', 
+              fontWeight: 900,
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}>
+              <i className="fas fa-sparkles" style={{ marginRight: '8px' }}></i>
+              Live Branch Engine
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => {
-                const el = document.getElementById('low-stock-table');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', padding: '8px 16px', fontWeight: 600, cursor: 'pointer' }}
-            >
-              View Details
-            </button>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
+            {aiInsights.length > 0 ? aiInsights.slice(0, 4).map((insight, idx) => (
+              <InventoryInsightCard key={idx} insight={insight} />
+            )) : (
+              <div style={{ gridColumn: 'span 2', padding: '40px', textAlign: 'center', color: '#94a3b8', fontWeight: 700, background: '#f8fafc', borderRadius: '20px' }}>Analyzing branch data...</div>
+            )}
           </div>
-        </div>
-      )}
-
-      {/* ================= OVERVIEW CARDS ================= */}
-      <div className="dashboard-grid">
-
-        <div className="data-box">
-          <h4>Total Branch Sales</h4>
-          <div className="value">₹{totalSalesAmount.toFixed(2)}</div>
-        </div>
-
-        <div className="data-box">
-          <h4>Total Transactions</h4>
-          <div className="value">{totalTransactions}</div>
-        </div>
-
-        <div className="data-box" style={{ background: '#f0fdf4', borderColor: '#22c55e' }}>
-          <h4 style={{ color: '#166534' }}>Today's Cash</h4>
-          <div className="value" style={{ color: '#166534' }}>₹{stats.todayCash?.toFixed(2) || '0.00'}</div>
-        </div>
-
-        <div className="data-box" style={{ background: '#eff6ff', borderColor: '#3b82f6' }}>
-          <h4 style={{ color: '#1e40af' }}>Today's UPI</h4>
-          <div className="value" style={{ color: '#1e40af' }}>₹{stats.todayUpi?.toFixed(2) || '0.00'}</div>
-        </div>
-
-        <div className="data-box" style={{ background: '#f0f9ff', borderColor: '#0ea5e9' }}>
-          <h4 style={{ color: '#0369a1' }}>Today's QR</h4>
-          <div className="value" style={{ color: '#0369a1' }}>₹{stats.todayQr?.toFixed(2) || '0.00'}</div>
-        </div>
-
-        <div className="data-box">
-          <h4>Low Stock Items</h4>
-          <div className="value" style={{ color: lowStockItems.length > 0 ? '#dc2626' : 'green' }}>
-            {lowStockItems.length}
-          </div>
-        </div>
-
-        <div className="data-box">
-          <h4>Products in Stock</h4>
-          <div className="value">{inventory.length}</div>
-        </div>
-
-      </div>
-
-      {/* ================= DAILY SALES TABLE ================= */}
-      {reportData && reportData.daily_breakdown && (
-        <div className="table-card" style={{ marginTop: "30px" }}>
-          <h3>Day-to-Day Sales</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Transactions</th>
-                <th>Total Sales</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reportData.daily_breakdown.map((d, i) => (
-                <tr key={i}>
-                  <td>{d.date}</td>
-                  <td>{d.count}</td>
-                  <td>₹{d.total.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* ================= INVENTORY ALERTS ================= */}
-      <div id="low-stock-table" className="table-card" style={{ marginTop: "30px" }}>
-        <h3>⚠️ Low Stock Alerts</h3>
-
-        {lowStockItems.length === 0 ? (
-          <p style={{ color: 'green' }}>✅ All items are above minimum stock levels</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Current Stock</th>
-                <th>Min Threshold</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lowStockItems.map((item, i) => (
-                <tr key={item.inventory_id || i}>
-                  <td>{item.product_name || item.name}</td>
-                  <td>{item.sku || 'N/A'}</td>
-                  <td style={{ color: "red", fontWeight: 600 }}>
-                    {item.quantity || item.stock || 0}
-                  </td>
-                  <td>{item.min_threshold || 10}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* ================= RECENT TRANSACTIONS REMOVED AS REQUESTED ================= */}
-
-      {/* ================= BRANCH INVENTORY REMOVED AS REQUESTED ================= */}
-
-      <DashboardFAQ faqs={[
-        {
-          question: "How do I transfer stock to another branch?",
-          answer: "Go to the 'Stock Transfers' tab in the sidebar, click '+ New Transfer', select the destination branch, and add the items you wish to move."
-        },
-        {
-          question: "How can I see my branch's performance?",
-          answer: "The 'Reports' tab provides detailed sales history and product performance metrics specific to your assigned branch."
-        },
-        {
-          question: "How do I manage my branch staff?",
-          answer: "Use the 'Staff Management' tab to view employee details, track their activity, and monitor their performance scores."
-        },
-        {
-          question: "What should I do if an item is low on stock?",
-          answer: "Critical items are highlighted in the 'Store Stock Warnings' at the top of this dashboard. You can order more from suppliers or request an internal transfer."
-        },
-        {
-          question: "How do I set stock thresholds?",
-          answer: "Navigate to the 'Inventory' tab. You can edit the 'Minimum Threshold' for any product to trigger low-stock alerts when inventory drops below that number."
-        },
-        {
-          question: "Can I monitor individual staff activity?",
-          answer: "Yes, the 'Staff Management' tab provides an activity log where you can see which staff members are processing the most transactions."
-        },
-        {
-          question: "How do I handle stock returns?",
-          answer: "Currently, returns are handled through inventory adjustments in the 'Inventory' tab to ensure your physical stock matches the system count."
-        },
-        {
-          question: "Is there a daily sales breakdown?",
-          answer: "The 'Day-to-Day Sales' table on this home page shows your branch's daily transaction counts and total revenue for the current month."
-        }
-      ]} />
+      </section>
     </div>
   );
 }

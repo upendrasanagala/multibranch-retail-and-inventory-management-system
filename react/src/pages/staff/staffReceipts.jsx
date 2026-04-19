@@ -25,7 +25,7 @@ export default function StaffReceipts() {
 
   const loadReceipts = async () => {
     if (searchMobile && !/^[6-9]\d{9}$/.test(searchMobile)) {
-      showToast("Invalid mobile number for search. Must be 10 digits starting with 6,7,8,9", "error");
+      showToast("Invalid mobile identifier format.", "error");
       return;
     }
     setLoading(true);
@@ -35,367 +35,307 @@ export default function StaffReceipts() {
         date_to: endDate,
         ...(searchMobile && { customer_mobile: searchMobile })
       };
-
       const salesRes = await api.sales.getByBranch(branchId, params);
       setReceipts(salesRes.transactions || []);
       setSummary({
         count: salesRes.transactions?.length || 0,
         total: salesRes.transactions?.reduce((sum, t) => sum + t.total_amount, 0) || 0
       });
-
     } catch (err) {
       console.error("Failed to load receipts", err);
     }
     setLoading(false);
   };
 
-  /* ================= PRINT ALL SALES ================= */
   const printAllSales = () => {
     if (!receipts.length) return;
     const win = window.open("", "_blank");
     const now = new Date();
 
     const styles = `<style>
-      body { font-family: "Segoe UI", Arial, sans-serif; padding: 20px; color: #111; font-size: 11px; }
-      .hdr { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
-      .hdr h2 { margin: 0; font-size: 16px; }
-      .hdr p { margin: 2px 0; font-size: 10px; }
-      .summary-box { display: flex; justify-content: space-around; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 15px; border-radius: 4px; }
-      .summary-item { text-align: center; }
-      .summary-item b { display: block; font-size: 14px; color: #1e293b; }
-      table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-      th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; text-align: left; font-size: 9px; text-transform: uppercase; }
-      td { border: 1px solid #cbd5e1; padding: 5px; vertical-align: top; }
-      .r { text-align: right; }
-      .ftr { margin-top: 20px; text-align: center; font-size: 9px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 10px; }
+      body { font-family: 'Inter', sans-serif; padding: 40px; color: #0f172a; line-height: 1.5; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; }
+      .header h1 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
+      .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 40px; }
+      .card { background: #fff; border: 1.5px solid #e2e8f0; padding: 20px; border-radius: 16px; }
+      .card h4 { margin: 0; font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; }
+      .card .val { margin-top: 8px; font-size: 24px; font-weight: 900; }
+      table { width: 100%; border-collapse: separate; border-spacing: 0; }
+      th { background: #f8fafc; padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid #e2e8f0; }
+      td { padding: 12px 16px; font-size: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 600; vertical-align: top; }
+      .total-row { border-top: 2px solid #e2e8f0; font-size: 16px; font-weight: 900; }
     </style>`;
 
-    const header = `<div class="hdr">
-      <h2>RETAIL STORE - CONSOLIDATED SALES REPORT</h2>
-      <p><b>Branch:</b> ${user?.branch_name || 'Main'}</p>
-      <p><b>Period:</b> ${formatDate(new Date(startDate))} to ${formatDate(new Date(endDate))}</p>
-      <p><b>Generated On:</b> ${now.toLocaleString()}</p>
-    </div>`;
+    const content = `
+      <div class="header">
+        <div>
+          <h1>SALES REPORT</h1>
+          <p style="margin:5px 0 0; font-size:12px; font-weight:700; color:#64748b;">Branch: ${user?.branch_name} | Period: ${formatDate(new Date(startDate))} - ${formatDate(new Date(endDate))}</p>
+        </div>
+        <div style="text-align:right;">
+          <div style="padding:4px 12px; background:#f1f5f9; border-radius:100px; font-size:10px; font-weight:800; color:#475569;">OFFICIAL LOG</div>
+          <p style="margin:10px 0 0; font-size:11px; font-weight:700; color:#94a3b8;">GEN: ${now.toLocaleString()}</p>
+        </div>
+      </div>
 
-    const summaryHtml = `<div class="summary-box">
-      <div class="summary-item">Transactions: <b>${summary.count}</b></div>
-      <div class="summary-item">Total Revenue: <b>₹${summary.total.toFixed(2)}</b></div>
-    </div>`;
+      <div class="summary-grid">
+        <div class="card"><h4>Total Bills</h4><div class="val">${summary.count}</div></div>
+        <div class="card"><h4>Total Sales</h4><div class="val">₹${summary.total.toFixed(2)}</div></div>
+      </div>
 
-    let table = '<table><thead><tr><th>Date</th><th>Bill No</th><th>Items</th><th>Payment</th><th class="r">Amount</th></tr></thead><tbody>';
-    receipts.forEach(r => {
-      const itemsText = r.items?.map(i => `${i.product_name} x${i.quantity}`).join(', ') || 'No Items';
-      table += `<tr>
-        <td>${formatDate(r.transaction_date)}</td>
-        <td>#${r.transaction_id}</td>
-        <td style="max-width:300px">${itemsText}</td>
-        <td style="text-transform:uppercase">${r.payment_method}</td>
-        <td class="r">₹${r.total_amount.toFixed(2)}</td>
-      </tr>`;
-    });
-    table += '</tbody></table>';
+      <table>
+        <thead><tr><th>Timestamp</th><th>Bill Reference</th><th>Line Items</th><th>Method</th><th style="text-align:right;">Amount</th></tr></thead>
+        <tbody>
+          ${receipts.map(r => `<tr><td>${formatDate(r.transaction_date)}</td><td>#${r.transaction_id}</td><td style="max-width:280px">${r.items?.map(i => i.product_name).join(', ')}</td><td>${r.payment_method.toUpperCase()}</td><td style="text-align:right;">₹${r.total_amount.toFixed(2)}</td></tr>`).join('')}
+          <tr class="total-row"><td colspan="4">PERIOD AGGREGATE</td><td style="text-align:right;">₹${summary.total.toFixed(2)}</td></tr>
+        </tbody>
+      </table>
+    `;
 
-    const footer = `<div class="ftr">
-      <p>End of Report | Page 1 of 1</p>
-      <p>Generated by ${user?.name || 'Staff'}</p>
-    </div>`;
-
-    win.document.write(`<html><head><title>Sales_Report_${startDate}_to_${endDate}</title>${styles}</head><body>${header}${summaryHtml}${table}${footer}</body></html>`);
+    win.document.write(`<html><head><title>Period_Audit_${startDate}</title>${styles}</head><body>${content}</body></html>`);
     win.document.close();
     win.print();
   };
 
-  /* ================= PRINT RECEIPT ================= */
   const printReceipt = (sale) => {
-    const win = window.open("", "_blank", "width=350,height=600");
-
-    if (!win) {
-      showToast("Receipt printing was blocked. Please allow popups for this site.", "warning");
-      return;
-    }
-
-    const transaction_id = sale.transaction_id || "ERR";
-    const transaction_date = sale.transaction_date ? new Date(sale.transaction_date) : new Date();
-    const total_amount = Number(sale.total_amount || 0);
-    const discount = Number(sale.discount || 0);
-    const paymentMethod = sale.payment_method;
-    const items = sale.items || [];
-
-    // GST breakup
-    const gstBreakup = {};
-    items.forEach(item => {
-      const rate = item.gst_percent || 0;
-      if (!gstBreakup[rate]) gstBreakup[rate] = { taxable: 0, cgst: 0, sgst: 0 };
-      const price = Number(item.unit_price || 0);
-      const qty = Number(item.quantity || 0);
-      const itemTotal = price * qty;
-      const taxable = itemTotal / (1 + rate / 100);
-      const taxAmt = itemTotal - taxable;
-      gstBreakup[rate].taxable += taxable;
-      gstBreakup[rate].cgst += taxAmt / 2;
-      gstBreakup[rate].sgst += taxAmt / 2;
-    });
-
-    const totalSavings = discount;
-    const roundedTotal = Math.round(total_amount);
-    const roundOff = roundedTotal - total_amount;
-    const totalQty = items.reduce((s, i) => s + Number(i.quantity || 0), 0);
-    const grossAmt = items.reduce((s, i) => s + (Number(i.unit_price || 0) * Number(i.quantity || 0)), 0);
-
-    // Amount in words (Indian)
-    const numberToWords = (num) => {
-      const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-        'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-      const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-      if (num === 0) return 'Zero';
-      const n = Math.abs(Math.round(num));
-      if (n < 20) return ones[n];
-      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
-      if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' and ' + numberToWords(n % 100) : '');
-      if (n < 100000) return numberToWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + numberToWords(n % 1000) : '');
-      if (n < 10000000) return numberToWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + numberToWords(n % 100000) : '');
-      return numberToWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + numberToWords(n % 10000000) : '');
-    };
-
-    // Monospace helpers
+    const w = window.open("", "_blank", "width=400,height=600");
+    if (!w) { showToast("Popup blocked", "warning"); return; }
+    
+    // Original Monospace Helpers
     const L = 42;
     const dash = '-'.repeat(L);
-    const dblLine = '='.repeat(L);
-    const center = (txt) => { const pad = Math.max(0, Math.floor((L - txt.length) / 2)); return ' '.repeat(pad) + txt; };
-    const leftRight = (l, r) => l + ' '.repeat(Math.max(1, L - l.length - r.length)) + r;
+    const dbl = '='.repeat(L);
+    const center = (txt) => { const p = Math.max(0, Math.floor((L - txt.length) / 2)); return ' '.repeat(p) + txt; };
+    const lr = (l, r) => {
+      const space = Math.max(1, L - l.toString().length - r.toString().length);
+      return l.toString() + ' '.repeat(space) + r.toString();
+    };
 
-    // Build item lines
-    let itemLines = '';
-    let sno = 0;
-    items.forEach(i => {
-      sno++;
-      const name = (i.product_name || i.name || 'Item').length > 24 ? (i.product_name || i.name || 'Item').substring(0, 22) + '..' : (i.product_name || i.name || 'Item');
-      const price = Number(i.unit_price || 0);
-      const qty = Number(i.quantity || 0);
-      const amt = (price * qty).toFixed(2);
-      const gstTag = (i.gst_percent || 0) + '%';
-      itemLines += sno + '. ' + name;
-      if (i.is_b1g1) itemLines += ' (B1G1)';
-      if (i.is_returned) itemLines += ' [RETURNED]';
-      itemLines += '\n';
-      itemLines += '   ' + qty + ' x ' + price.toFixed(2) + ' = ' + amt + '  [' + gstTag + ']\n';
+    const numToWords = (n) => {
+      const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+      const b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+      const transform = (num) => {
+        if (num < 20) return a[num];
+        if (num < 100) return b[Math.floor(num/10)] + (num%10 !== 0 ? ' ' + a[num%10] : '');
+        if (num < 1000) return a[Math.floor(num/100)] + ' Hundred' + (num%100 !== 0 ? ' ' + transform(num%100) : '');
+        if (num < 100000) return transform(Math.floor(num/1000)) + ' Thousand' + (num%1000 !== 0 ? ' ' + transform(num%1000) : '');
+        return transform(Math.floor(num/100000)) + ' Lakh' + (num%100000 !== 0 ? ' ' + transform(num%100000) : '');
+      };
+      return 'Rs. ' + (n === 0 ? 'Zero' : transform(Math.floor(n))) + ' Only';
+    };
+
+    const transId = sale.invoice_number || sale.transaction_id || "ERR";
+    const transDate = sale.transaction_date ? new Date(sale.transaction_date) : new Date();
+    const total_amount = Number(sale.total_amount || 0);
+    const saleItems = sale.items || [];
+    const totalQty = saleItems.reduce((sum, i) => sum + i.quantity, 0);
+
+    // GST Slabs Logic
+    const gstGroups = {};
+    saleItems.forEach(item => {
+      const rate = item.gst_percent || 0;
+      if (!gstGroups[rate]) gstGroups[rate] = { taxable: 0, gst: 0 };
+      
+      const lineNet = item.unit_price * item.quantity;
+      const lineTaxable = lineNet / (1 + (rate / 100));
+      const lineGst = lineNet - lineTaxable;
+
+      gstGroups[rate].taxable += lineTaxable;
+      gstGroups[rate].gst += lineGst;
     });
 
-    const isPartialReturn = items.some(i => i.is_returned);
-
-    // GST breakup lines
-    let gstLines = '';
-    gstLines += leftRight('GST%   Taxable    CGST     SGST', '') + '\n';
-    gstLines += dash + '\n';
-    let totTaxable = 0, totCGST = 0, totSGST = 0;
-    Object.keys(gstBreakup).sort((a, b) => Number(a) - Number(b)).forEach(rate => {
-      const g = gstBreakup[rate];
-      totTaxable += g.taxable; totCGST += g.cgst; totSGST += g.sgst;
-      gstLines += (rate + '%').padEnd(7) + g.taxable.toFixed(2).padStart(9) + g.cgst.toFixed(2).padStart(9) + g.sgst.toFixed(2).padStart(9) + '\n';
+    let taxTable = 'GST%      Taxable   CGST   SGST   Total\n' + dash + '\n';
+    Object.keys(gstGroups).sort((a,b)=>a-b).forEach(rate => {
+      const gp = gstGroups[rate];
+      const r_p = (rate + '%').padEnd(6);
+      const t_p = gp.taxable.toFixed(1).padStart(11);
+      const c_p = (gp.gst / 2).toFixed(1).padStart(7);
+      const s_p = (gp.gst / 2).toFixed(1).padStart(7);
+      const tot_p = gp.gst.toFixed(1).padStart(8);
+      taxTable += r_p + t_p + c_p + s_p + tot_p + '\n';
     });
-    gstLines += dash + '\n';
-    gstLines += 'Total'.padEnd(7) + totTaxable.toFixed(2).padStart(9) + totCGST.toFixed(2).padStart(9) + totSGST.toFixed(2).padStart(9) + '\n';
 
-    // Discount line
-    let discLine = '';
-    if (discount > 0) discLine = leftRight('Less: Discount:', '-Rs.' + discount.toFixed(2)) + '\n';
+    let itemsLines = '';
+    saleItems.forEach((item, index) => {
+      itemsLines += `${index + 1}. ${item.product_name.substring(0, 38)}\n`;
+      const detail = `${item.quantity} x ${item.unit_price.toFixed(2)} = ${(item.quantity * item.unit_price).toFixed(2)} [${item.gst_percent || 0}%]`;
+      itemsLines += `   ${detail}\n`;
+    });
 
-    // Round off
-    let roundLine = '';
-    if (Math.abs(roundOff) >= 0.01) {
-      roundLine = leftRight('Round Off', (roundOff >= 0 ? '+' : '') + roundOff.toFixed(2)) + '\n';
-    }
+    const barcodeVal = transId;
 
-    // Savings
-    let savingsLine = '';
-    if (totalSavings > 0) {
-      savingsLine = '\n' + center('** You Saved Rs.' + totalSavings.toFixed(2) + ' **') + '\n';
-    }
-
-    // Calculate total GST
-    const totalGST = totCGST + totSGST;
-
-    // Date/time from transaction
-    const dateStr = formatDate(transaction_date);
-    const timeStr = transaction_date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-    // Full receipt
-    const receipt =
+    const header = 
       center('RETAIL STORE') + '\n' +
-      center('Branch: ' + (user?.branch_name || 'Main')) + '\n' +
-      center('4-143, Srinagar Colony, Vijayawada - 520001') + '\n' +
-      center('GSTIN: 37XXXXX0000X1ZX') + '\n' +
-      dblLine + '\n' +
-      center('TAX INVOICE' + (isPartialReturn ? ' (PARTIAL RETURN)' : '')) + '\n' +
-      dblLine + '\n' +
-      leftRight('Bill No: ' + transaction_id, 'Date: ' + dateStr) + '\n' +
-      leftRight('Cashier: ' + (user?.name || 'Staff'), 'Time: ' + timeStr) + '\n' +
+      center(`Branch: ${user?.branch_name || 'Store'}`) + '\n' +
+      center(user?.branch_address || 'Srinagar Colony, Vijayawada - 520001') + '\n' +
+      center('GSTIN: ' + (user?.branch_gstin || '37XXXXX0000X1ZX')) + '\n' +
       dash + '\n' +
-      leftRight('ITEM', 'QTY x RATE = AMT [GST]') + '\n' +
+      center('TAX INVOICE') + '\n' +
+      dash + '\n';
+
+    const body = 
+      lr(`Bill No: ${transId}`, `Date: ${formatDate(transDate)}`) + '\n' +
+      lr(`Cashier: ${user?.first_name || 'Staff'}`, `Time: ${transDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`) + '\n' +
+      `Customer: ${sale.customer_mobile || '7989702030'}\n\n` +
+      `ITEM                  QTY x RATE = AMT [GST]\n` +
       dash + '\n' +
-      itemLines +
+      itemsLines + 
       dash + '\n' +
-      leftRight('Total Items: ' + items.length, 'Total Qty: ' + totalQty) + '\n' +
+      lr(`Total Items: ${saleItems.length}`, `Total Qty: ${totalQty}`) + '\n' +
       dash + '\n' +
-      leftRight('Gross Amount:', 'Rs.' + grossAmt.toFixed(2)) + '\n' +
-      discLine +
-      leftRight('GST (Tax):', 'Rs.' + totalGST.toFixed(2)) + '\n' +
-      roundLine +
-      dblLine + '\n' +
-      leftRight('NET PAYABLE:', 'Rs.' + roundedTotal.toFixed(2)) + '\n' +
-      dblLine + '\n' +
-      'Rs. ' + numberToWords(roundedTotal) + ' Only' + '\n' +
+      lr('Gross Amount:', 'Rs.' + (total_amount + (sale.discount || 0)).toFixed(2)) + '\n' +
+      dbl + '\n' +
+      lr('NET PAYABLE:', 'Rs.' + Math.round(total_amount).toFixed(2)) + '\n' +
+      dbl + '\n' +
+      numToWords(total_amount) + '\n' +
       dash + '\n' +
-      '\n' +
-      center('--- GST BREAKUP ---') + '\n' +
-      gstLines +
+      taxTable +
       dash + '\n' +
-      '\n' +
-      leftRight('Payment:', (paymentMethod || 'cash').toUpperCase()) + '\n' +
-      leftRight('Amount Paid:', 'Rs.' + roundedTotal.toFixed(2)) + '\n' +
-      dash + '\n' +
-      savingsLine +
-      '\n' +
+      lr('Payment:', (sale.payment_method || 'CASH').toUpperCase()) + '\n' +
+      lr('Mode:', (sale.payment_method || 'CASH').toUpperCase()) + '\n' +
+      lr('Cash Tendered:', 'Rs.' + Math.round(total_amount).toString()) + '\n' +
+      lr('Change:', 'Rs.0.00') + '\n' +
+      dash + '\n\n' +
       center('Thank you! Visit Again') + '\n' +
       center('Goods once sold will not be taken back') + '\n' +
-      center('E. & O.E.') + '\n' +
-      '\n' +
-      center('--- Authorized Signatory ---') + '\n' +
-      '\n' +
+      center('E. & O.E.') + '\n\n' +
+      center('--- Authorized Signatory ---') + '\n\n' +
       center('Computer Generated Invoice') + '\n';
 
-    // Build HTML
-    const html = '<!DOCTYPE html><html><head>' +
-      '<title>Invoice #' + transaction_id + '</title>' +
-      '<style>' +
-      '* { margin:0; padding:0; }' +
-      'body { font-family: "Courier New", "Lucida Console", monospace; font-size: 12px; padding: 5px; width: 302px; color: #000; line-height: 1.4; }' +
-      'pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: inherit; margin: 0; }' +
-      '@media print { body { width: 100%; padding: 2px; } }' +
-      '</style>' +
-      '</head><body>' +
-      '<pre>' + receipt + '</pre>' +
-      '</body></html>';
-
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => {
-      win.print();
-      win.close();
-    }, 250);
+    w.document.write(`
+      <html>
+        <head>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+          <style>
+            pre { font-family:"Courier New",monospace; font-size:12px; width:302px; margin:0; padding:10px 20px; }
+            .barcode-container { text-align: center; width: 342px; margin: 10px 0; }
+            #barcode { max-width: 100%; height: 60px; }
+          </style>
+        </head>
+        <body>
+          <pre>${header}</pre>
+          <div class="barcode-container">
+            <svg id="barcode"></svg>
+          </div>
+          <pre>${body}</pre>
+          <script>
+            try {
+              JsBarcode("#barcode", "${barcodeVal}", {
+                format: "CODE128",
+                width: 2,
+                height: 50,
+                displayValue: true,
+                fontSize: 14,
+                margin: 0
+              });
+            } catch(e) { console.error("Barcode Error:", e); }
+            setTimeout(() => { window.print(); window.close(); }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+    w.document.close();
   };
 
+
+
+
+
   return (
-    <div style={{ padding: '0 20px 20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>🧾 My Sales Receipts</h2>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-            <span style={{ fontSize: '12px', color: '#64748b' }}>From:</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              style={{ padding: '4px', border: 'none', fontSize: '13px' }}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-            <span style={{ fontSize: '12px', color: '#64748b' }}>To:</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              style={{ padding: '4px', border: 'none', fontSize: '13px' }}
-            />
-          </div>
-          {canSearchMobile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-              <span style={{ fontSize: '12px', color: '#64748b' }}><i className="fas fa-search"></i> Mobile:</span>
-              <input
-                type="text"
-                placeholder="Search Mobile..."
-                value={searchMobile}
-                onChange={(e) => setSearchMobile(e.target.value)}
-                style={{ padding: '4px', border: 'none', fontSize: '13px', width: '120px' }}
-              />
-            </div>
-          )}
-          <button className="secondary-btn" onClick={printAllSales} disabled={loading || !receipts.length} style={{ padding: '8px 15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <i className="fas fa-print"></i> Print All Sales
-          </button>
-          <button className="primary-btn" onClick={loadReceipts} disabled={loading} style={{ padding: '8px 15px' }}>
-            {loading ? "Refreshing..." : "🔄 Refresh"}
-          </button>
+    <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
+      
+      {/* ================= ACTIONS BAR ================= */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', background: '#fff', padding: '16px 24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+        <div style={{ display: 'flex', gap: '15px' }}>
+           <div style={{ display: 'flex', flexDirection: 'column' }}>
+             <span style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Range Start</span>
+             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#4338ca', outline: 'none' }} />
+           </div>
+           <div style={{ width: '1px', height: '30px', background: '#f1f5f9' }}></div>
+           <div style={{ display: 'flex', flexDirection: 'column' }}>
+             <span style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Range End</span>
+             <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#4338ca', outline: 'none' }} />
+           </div>
+           {canSearchMobile && (
+             <>
+               <div style={{ width: '1px', height: '30px', background: '#f1f5f9' }}></div>
+               <div style={{ display: 'flex', flexDirection: 'column' }}>
+                 <span style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Mobile Filter</span>
+                 <input type="text" placeholder="Digits only..." value={searchMobile} onChange={e => setSearchMobile(e.target.value)} style={{ border: 'none', background: 'transparent', fontSize: '13px', fontWeight: 800, color: '#4338ca', outline: 'none', width: '100px' }} />
+               </div>
+             </>
+           )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px' }}>
+           <button onClick={loadReceipts} disabled={loading} style={{ padding: '12px 20px', background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: '14px', fontSize: '12px', fontWeight: 800, color: '#64748b', cursor: 'pointer' }}>
+             <i className={`fas fa-sync ${loading ? 'fa-spin' : ''}`}></i> Sync
+           </button>
+           <button onClick={printAllSales} disabled={!receipts.length} style={{ padding: '12px 24px', background: '#4338ca', color: 'white', border: 'none', borderRadius: '14px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.3)' }}>
+             <i className="fas fa-file-invoice"></i> Download Report
+           </button>
         </div>
       </div>
 
-      {/* SUMMARY CARDS */}
-      <div className="dashboard-grid" style={{ marginBottom: '25px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-        <div className="data-box" style={{ borderLeft: '4px solid #10b981' }}>
-          <h4>💰 Period Revenue</h4>
-          <div className="value">₹{summary.total.toFixed(2)}</div>
-        </div>
-        <div className="data-box" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <h4>🧾 Transactions</h4>
-          <div className="value">{summary.count}</div>
-        </div>
+      {/* ================= SUMMARY STRIP ================= */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '30px' }}>
+         <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Bills</div>
+            <div style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', marginTop: '4px' }}>{summary.count}</div>
+         </div>
+         <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Revenue</div>
+            <div style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', marginTop: '4px' }}>₹{summary.total.toFixed(2)}</div>
+         </div>
       </div>
 
-      <div className="table-card">
-        {receipts.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-            <i className="fas fa-receipt" style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }}></i>
-            <p>No receipts found for this period.</p>
-          </div>
-        ) : (
-          <div className="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Date & Time</th>
-                  <th>Payment</th>
-                  <th>Items</th>
-                  <th>Amount</th>
-                  <th>Action</th>
+      {/* ================= TABLE ================= */}
+      <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
+              <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Invoice ID & Time</th>
+              <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Products Sold</th>
+              <th style={{ padding: '16px 24px', textAlign: 'center', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Payment Mode</th>
+              <th style={{ padding: '16px 24px', textAlign: 'right', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Amount</th>
+              <th style={{ padding: '16px 24px', textAlign: 'center', fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {receipts.length === 0 ? (
+              <tr><td colSpan="5" style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', fontWeight: 800 }}>No sales record found for this period.</td></tr>
+            ) : (
+              receipts.map(r => (
+                <tr key={r.transaction_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '16px 24px' }}>
+                    <div style={{ fontWeight: 900, color: '#4338ca', fontSize: '15px' }}>#REC-{r.transaction_id}</div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, marginTop: '2px' }}>{formatDate(r.transaction_date)} • {new Date(r.transaction_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  </td>
+                  <td style={{ padding: '16px 24px' }}>
+                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px' }}>{r.items?.length || 0} Products Indexed</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{r.items?.map(i => i.product_name).join(', ')}</div>
+                  </td>
+                  <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                    <span style={{ 
+                      padding: '4px 12px', borderRadius: '100px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase',
+                      background: r.payment_method === 'cash' ? '#dcfce7' : '#e0e7ff',
+                      color: r.payment_method === 'cash' ? '#15803d' : '#4338ca'
+                    }}>{r.payment_method}</span>
+                  </td>
+                  <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                    <div style={{ fontWeight: 900, color: '#1e293b', fontSize: '16px' }}>₹{r.total_amount.toFixed(2)}</div>
+                    {r.items?.some(i => i.is_returned) && <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 800 }}>CONTAINS RETURNS</div>}
+                  </td>
+                  <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                    <button onClick={() => printReceipt(r)} style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', color: '#64748b', padding: '8px 16px', borderRadius: '10px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>
+                      <i className="fas fa-print"></i> Print
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {receipts.map(r => (
-                  <tr key={r.transaction_id}>
-                    <td><span style={{ fontWeight: 600 }}>#{r.transaction_id}</span></td>
-                    <td>
-                      <div>{formatDate(r.transaction_date)}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>{new Date(r.transaction_date).toLocaleTimeString()}</div>
-                    </td>
-                    <td>
-                      <span className={`stock-badge ${r.payment_method === 'cash' ? 'ok' : 'low'}`}
-                        style={{ textTransform: 'uppercase', fontSize: '11px' }}>
-                        {r.payment_method}
-                      </span>
-                    </td>
-                    <td>{r.items?.length || 0} items
-                      {r.items?.some(i => i.is_returned) && (
-                        <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 600 }}> (Partial Return)</div>
-                      )}
-                    </td>
-                    <td style={{ fontWeight: 700 }}>₹{r.total_amount.toFixed(2)}</td>
-                    <td>
-                      <button
-                        className="secondary-btn"
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
-                        onClick={() => printReceipt(r)}
-                      >
-                        <i className="fas fa-print"></i> Print
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
