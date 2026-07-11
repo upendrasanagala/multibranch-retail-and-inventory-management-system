@@ -1,0 +1,112 @@
+name,sku,price,category,size,unit,barcode,description,cost_price,discount_percent,gst_percent,expiry_date,quantity,manufacturing_date
+Maggi 2-Minute Noodles (100g),SNACK-008-100g-0,21.66,Snacks,70g,pkt,8.9E+12,Masala noodles,12,0,0,20-09-2026,186,24-03-2026
+Maggi 2-Minute Noodles (50g),SNACK-008-50g-1,21.63,Snacks,70g,pkt,8.9E+12,Masala noodles,12,0,0,10-02-2027,371,10-02-2026
+Maggi 2-Minute Noodles (200g),SNACK-008-200g-2,13.15,Snacks,70g,pkt,8.9E+12,Masala noodles,12,0,0,27-08-2027,96,05-03-2026
+Amul Taaza Milk (100g),DAIRY-001-100g-3,76.4,"Dairy (Milk, Eggs, Cheese)",1L,L,8.9E+12,Fresh toned milk,60,0,0,13-03-2026,201,13-11-2025
+Amul Taaza Milk (500g),DAIRY-001-500g-4,69.62,"Dairy (Milk, Eggs, Cheese)",1L,L,8.9E+12,Fresh toned milk,60,0,0,28-02-2026,126,31-10-2025
+Scotch Brite Scrub (100g),HH-007-100g-5,19.83,Household Items,1pc,pcs,8.9E+12,Durable scrub pad,15,0,0,11-05-2027,305,17-11-2025
+Scotch Brite Scrub (1kg),HH-007-1kg-6,28.97,Household Items,1pc,pcs,8.9E+12,Durable scrub pad,15,0,0,02-03-2027,107,02-03-2026
+Scotch Brite Scrub (50g),HH-007-50g-7,23.68,Household Items,1pc,pcs,8.9E+12,Durable scrub pad,15,0,0,29-06-2026,333,31-12-2025
+Robusta Banana (250ml),FRUIT-002-250ml-8,86.81,Fruits,1dz,dz,8.9E+12,Yellow ripe banana,45,0,0,28-04-2026,157,30-10-2025
+Farm Fresh Eggs (500g),DAIRY-006-500g-9,112.46,"Dairy (Milk, Eggs, Cheese)",12pcs,dz,8.9E+12,Local poultry eggs,75,0,0,05-09-2026,46,08-01-2026
+Farm Fresh Eggs (100g),DAIRY-006-100g-10,77.05,"Dairy (Milk, Eggs, Cheese)",12pcs,dz,8.9E+12,Local poultry eggs,75,0,0,24-03-2027,268,24-03-2026
+Farm Fresh Eggs (200g),DAIRY-006-200g-11,77.47,"Dairy (Milk, Eggs, Cheese)",12pcs,dz,8.9E+12,Local poultry eggs,75,0,0,13-07-2027,278,19-01-2026
+MDH Red Chilli Powder (200g),SPICE-002-200g-12,41.69,Spices & Oils,100g,pkt,8.9E+12,Spicy lal mirch,35,0,0,09-03-2027,295,09-03-2026
+MDH Red Chilli Powder (50g),SPICE-002-50g-13,51.41,Spices & Oils,100g,pkt,8.9E+12,Spicy lal mirch,35,0,0,21-08-2027,504,27-02-2026
+MDH Red Chilli Powder (1L),SPICE-002-1L-14,58.84,Spices & Oils,100g,pkt,8.9E+12,Spicy lal mirch,35,0,0,23-05-2027,132,29-11-2025
+Kelloggs Corn Flakes (1kg),GROC-002-1kg-15,338.69,Groceries,475g,pkt,8.9E+12,Breakfast cereal,280,0,0,09-06-2026,39,11-12-2025
+Kelloggs Corn Flakes (500ml),GROC-002-500ml-16,421.17,Groceries,475g,pkt,8.9E+12,Breakfast cereal,280,0,0,18-02-2026,89,21-10-2025
+Nescafe Classic Coffee (100g),BEV-001-100g-17,361.53,Beverages,100g,jar,8.9E+12,Rich aroma coffee,290,0,0,07-03-2027,368,07-03-2026
+Nescafe Classic Coffee (500ml),BEV-001-500ml-18,486.01,Beverages,100g,jar,8.9E+12,Rich aroma coffee,290,0,0,22-04-2026,179,23-12-2025
+Nescafe Classic Coffee (50g),BEV-001-50g-19,326.52,Beverages,100g,jar,8.9E+12,Rich aroma coffee,290,0,0,06-08-2026,525,09-12-2025
+Potato (500ml),VEG-002-500ml-20,28.43,Vegetables,1kg,kg,8.9E+12,Fresh farm potato,22,0,0,22-07-2026,118,23-01-2026
+Potato (100g),VEG-002-100g-21,40.44,Vegetables,1kg,kg,8.9E+12,Fresh farm potato,22,0,0,01-07-2026,581,03-03-2026
+Amul Paneer (250ml),DAIRY-005-250ml-22,100.6,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8.9E+12,Soft fresh paneer,75,0,0,30-09-2026,225,02-02-2026
+Amul Paneer (500ml),DAIRY-005-500ml-23,124.51,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8.9E+12,Soft fresh paneer,75,0,0,23-02-2026,115,26-10-2025
+Kurkure Masala Munch (1L),SNACK-006-1L-24,20.21,Snacks,90g,pkt,8.9E+12,Tedha hai par mera hai,18,0,0,01-08-2026,241,04-12-2025
+Kurkure Masala Munch (250ml),SNACK-006-250ml-25,29.15,Snacks,90g,pkt,8.9E+12,Tedha hai par mera hai,18,0,0,03-04-2027,360,03-04-2026
+Lux Rose Soap (100g),PC-001-100g-26,51.11,Personal Care,100g,pcs,8.9E+12,Soft skin soap,28,0,0,19-06-2026,545,21-12-2025
+Lux Rose Soap (250ml),PC-001-250ml-27,31.59,Personal Care,100g,pcs,8.9E+12,Soft skin soap,28,0,0,16-03-2026,496,16-11-2025
+Dove Shampoo (250ml),PC-003-250ml-28,186.16,Personal Care,340ml,btl,8.9E+12,Damage repair shampoo,155,0,0,20-08-2027,325,26-02-2026
+Dove Shampoo (1kg),PC-003-1kg-29,203.88,Personal Care,340ml,btl,8.9E+12,Damage repair shampoo,155,0,0,29-05-2026,29,30-11-2025
+Cocoa Cola (500g),BEV-003-500g-30,56.63,Beverages,750ml,btl,8.9E+12,Original taste,32,0,0,30-06-2026,174,02-03-2026
+Cocoa Cola (50g),BEV-003-50g-31,40.36,Beverages,750ml,btl,8.9E+12,Original taste,32,0,0,17-11-2026,105,17-11-2025
+Dettol Original Soap (500g),PC-002-500g-32,41.8,Personal Care,125g,pcs,8.9E+12,Germ protection soap,32,0,0,07-12-2026,189,07-12-2025
+Dettol Original Soap (100g),PC-002-100g-33,52,Personal Care,125g,pcs,8.9E+12,Germ protection soap,32,0,0,10-08-2026,368,13-12-2025
+Sprite (50g),BEV-005-50g-34,58.61,Beverages,750ml,btl,8.9E+12,Clear soda,32,0,0,26-08-2026,91,29-12-2025
+Sprite (500ml),BEV-005-500ml-35,48.1,Beverages,750ml,btl,8.9E+12,Clear soda,32,0,0,23-03-2027,59,23-03-2026
+Sprite (1kg),BEV-005-1kg-36,34.88,Beverages,750ml,btl,8.9E+12,Clear soda,32,0,0,15-03-2026,96,15-11-2025
+Britannia Cheese Block (500ml),DAIRY-003-500ml-37,216.72,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8.9E+12,Creamy cheese block,110,0,0,25-10-2026,197,25-10-2025
+Britannia Cheese Block (100g),DAIRY-003-100g-38,322.94,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8.9E+12,Creamy cheese block,110,0,0,24-08-2026,402,25-02-2026
+Britannia Cheese Block (200g),DAIRY-003-200g-39,312.08,"Dairy (Milk, Eggs, Cheese)",200g,pkt,8.9E+12,Creamy cheese block,110,0,0,21-04-2027,215,28-10-2025
+Ponds Talcum Powder (50g),PC-005-50g-40,236.15,Personal Care,400g,btl,8.9E+12,Floral freshness,185,0,0,09-09-2027,361,18-03-2026
+Ponds Talcum Powder (200g),PC-005-200g-41,233.99,Personal Care,400g,btl,8.9E+12,Floral freshness,185,0,0,15-10-2026,244,17-02-2026
+Madhur Sugar (1L),GRAIN-005-1L-42,56.86,Grains & Pulses,1kg,kg,8.9E+12,Pure sulphur free sugar,45,0,0,10-09-2027,85,19-03-2026
+Aashirvaad Whole Wheat Atta (200g),GRAIN-002-200g-43,76.34,Grains & Pulses,1kg,kg,8.9E+12,Chakki fresh atta,198,0,0,21-02-2027,196,21-02-2026
+Aashirvaad Whole Wheat Atta (50g),GRAIN-002-50g-44,85.24,Grains & Pulses,1kg,kg,8.9E+12,Chakki fresh atta,198,0,0,11-03-2027,513,11-03-2026
+Odonil Room Freshener (1L),HH-005-1L-45,69.69,Household Items,50g,pcs,8.9E+12,Bathroom freshener,50,0,0,19-09-2026,533,22-01-2026
+Odonil Room Freshener (1kg),HH-005-1kg-46,90.62,Household Items,50g,pcs,8.9E+12,Bathroom freshener,50,0,0,15-06-2026,71,17-12-2025
+Odonil Room Freshener (500g),HH-005-500g-47,68.49,Household Items,50g,pcs,8.9E+12,Bathroom freshener,50,0,0,08-07-2027,168,14-01-2026
+Onion (1L),VEG-001-1L-48,34.77,Vegetables,1kg,kg,8.9E+12,Red medium onion,30,0,0,21-06-2026,265,24-10-2025
+Onion (500ml),VEG-001-500ml-49,46.11,Vegetables,1kg,kg,8.9E+12,Red medium onion,30,0,0,13-11-2026,139,18-03-2026
+Mother Dairy Curd (50g),DAIRY-004-50g-50,33.47,"Dairy (Milk, Eggs, Cheese)",400g,pkt,8.9E+12,Set curd,30,0,0,31-07-2027,445,06-02-2026
+Mother Dairy Curd (500ml),DAIRY-004-500ml-51,47.27,"Dairy (Milk, Eggs, Cheese)",400g,pkt,8.9E+12,Set curd,30,0,0,28-09-2026,199,01-04-2026
+Dhara Mustard Oil (1kg),OIL-002-1kg-52,243.28,Spices & Oils,1L,L,8.9E+12,Kachi ghani oil,145,0,0,08-07-2026,117,10-11-2025
+Dhara Mustard Oil (100g),OIL-002-100g-53,164.07,Spices & Oils,1L,L,8.9E+12,Kachi ghani oil,145,0,0,16-09-2026,581,20-03-2026
+Red Label Tea (50g),BEV-002-50g-54,343.76,Beverages,500g,pkt,8.9E+12,Strong chai,250,0,0,04-11-2026,300,04-11-2025
+Red Label Tea (500g),BEV-002-500g-55,408.71,Beverages,500g,pkt,8.9E+12,Strong chai,250,0,0,17-04-2027,135,24-10-2025
+Red Label Tea (250ml),BEV-002-250ml-56,337.02,Beverages,500g,pkt,8.9E+12,Strong chai,250,0,0,22-03-2026,199,22-11-2025
+Parle-G Biscuits (500g),SNACK-002-500g-57,15.54,Bakery Items,130g,pkt,8.9E+12,Classic biscuits,9,0,0,30-10-2026,108,04-03-2026
+Parle-G Biscuits (500ml),SNACK-002-500ml-58,9.69,Bakery Items,130g,pkt,8.9E+12,Classic biscuits,9,0,0,30-05-2026,187,01-12-2025
+Daawat Basmati Rice (1kg),GRAIN-001-1kg-59,131.53,Grains & Pulses,1kg,kg,8.9E+12,Premium long grain rice,105,0,0,03-08-2026,21,06-12-2025
+Colgate Strong Teeth (1L),PC-004-1L-60,142.37,Personal Care,200g,tube,8.9E+12,Everyday protection,90,0,0,30-07-2026,175,02-12-2025
+Colgate Strong Teeth (500ml),PC-004-500ml-61,146.41,Personal Care,200g,tube,8.9E+12,Everyday protection,90,0,0,15-06-2027,73,22-12-2025
+Colgate Strong Teeth (250ml),PC-004-250ml-62,98.32,Personal Care,200g,tube,8.9E+12,Everyday protection,90,0,0,05-07-2027,302,11-01-2026
+Thums Up (1kg),BEV-004-1kg-63,41.53,Beverages,750ml,btl,8.9E+12,Taste the thunder,32,0,0,08-05-2027,32,14-11-2025
+Thums Up (500ml),BEV-004-500ml-64,49.83,Beverages,750ml,btl,8.9E+12,Taste the thunder,32,0,0,27-11-2026,95,27-11-2025
+Quaker Oats (500ml),GROC-003-500ml-65,252.89,Groceries,1kg,pkt,8.9E+12,Rolled oats,155,0,0,28-09-2027,174,06-04-2026
+Quaker Oats (1L),GROC-003-1L-66,205.44,Groceries,1kg,pkt,8.9E+12,Rolled oats,155,0,0,29-07-2027,121,04-02-2026
+Duracell AA Batteries (500g),HH-006-500g-67,257.62,Household Items,4pcs,pkt,8.9E+12,Long lasting battery,150,0,0,04-07-2026,130,06-11-2025
+Duracell AA Batteries (500ml),HH-006-500ml-68,206.39,Household Items,4pcs,pkt,8.9E+12,Long lasting battery,150,0,0,26-07-2026,96,28-03-2026
+Good Day Cashew (500g),SNACK-003-500g-69,18.37,Snacks,60g,pkt,8.9E+12,With real cashew,16,0,0,23-09-2027,61,01-04-2026
+Good Day Cashew (50g),SNACK-003-50g-70,20.27,Snacks,60g,pkt,8.9E+12,With real cashew,16,0,0,13-10-2026,277,15-02-2026
+Good Day Cashew (100g),SNACK-003-100g-71,26.33,Snacks,60g,pkt,8.9E+12,With real cashew,16,0,0,15-08-2026,438,18-12-2025
+Lizol Floor Cleaner (500ml),HH-003-500ml-72,266.7,Household Items,975ml,btl,8.9E+12,Germ kill formula,170,0,0,03-07-2027,193,09-01-2026
+Lizol Floor Cleaner (1kg),HH-003-1kg-73,219.03,Household Items,975ml,btl,8.9E+12,Germ kill formula,170,0,0,08-11-2026,55,08-11-2025
+Haldiram Aloo Bhujia (500g),SNACK-007-500g-74,61.79,Snacks,200g,pkt,8.9E+12,Favorite namkeen,42,0,0,29-01-2027,146,29-01-2026
+Haldiram Aloo Bhujia (1L),SNACK-007-1L-75,56.22,Snacks,200g,pkt,8.9E+12,Favorite namkeen,42,0,0,07-06-2026,162,09-12-2025
+Vim Dishwash Gel (500ml),HH-002-500ml-76,231.76,Household Items,750ml,btl,8.9E+12,Grease removal gel,155,0,0,26-03-2027,116,26-03-2026
+Vim Dishwash Gel (1kg),HH-002-1kg-77,235.45,Household Items,750ml,btl,8.9E+12,Grease removal gel,155,0,0,03-07-2026,44,04-01-2026
+Vim Dishwash Gel (1L),HH-002-1L-78,197.18,Household Items,750ml,btl,8.9E+12,Grease removal gel,155,0,0,08-05-2026,291,08-01-2026
+Tata Salt (50g),GRAIN-004-50g-79,29.59,Grains & Pulses,1kg,kg,8.9E+12,Desh ka namak,21,0,0,23-04-2027,240,30-10-2025
+Tata Salt (500ml),GRAIN-004-500ml-80,35.81,Grains & Pulses,1kg,kg,8.9E+12,Desh ka namak,21,0,0,29-08-2027,169,07-03-2026
+Kissan Tomato Ketchup (100g),GROC-001-100g-81,184.01,Groceries,950g,btl,8.9E+12,Fresh tomato sauce,105,0,0,30-05-2026,411,30-01-2026
+Kissan Tomato Ketchup (500g),GROC-001-500g-82,115.83,Groceries,950g,btl,8.9E+12,Fresh tomato sauce,105,0,0,28-05-2026,149,29-11-2025
+Kissan Tomato Ketchup (50g),GROC-001-50g-83,128.2,Groceries,950g,btl,8.9E+12,Fresh tomato sauce,105,0,0,28-02-2026,474,31-10-2025
+Everest Turmeric Powder (1kg),SPICE-001-1kg-84,50.42,Spices & Oils,100g,pkt,8.9E+12,Kitchen essential,28,0,0,27-03-2026,114,27-11-2025
+Everest Turmeric Powder (500ml),SPICE-001-500ml-85,34.14,Spices & Oils,100g,pkt,8.9E+12,Kitchen essential,28,0,0,23-08-2027,184,01-03-2026
+Fortune Refined Sunflower Oil (100g),OIL-001-100g-86,172.85,Spices & Oils,1L,L,8.9E+12,Light cooking oil,135,0,0,03-05-2027,473,09-11-2025
+Shimla Apple (100g),FRUIT-001-100g-87,242.33,Fruits,1kg,kg,8.9E+12,Fresh seasonal fruit,160,0,0,07-06-2026,448,07-02-2026
+Shimla Apple (500g),FRUIT-001-500g-88,236.13,Fruits,1kg,kg,8.9E+12,Fresh seasonal fruit,160,0,0,06-09-2027,167,15-03-2026
+Shimla Apple (1kg),FRUIT-001-1kg-89,255.97,Fruits,1kg,kg,8.9E+12,Fresh seasonal fruit,160,0,0,27-07-2026,119,29-03-2026
+Oreo Vanilla Cream (250ml),SNACK-004-250ml-90,46.82,Snacks,120g,pkt,8.9E+12,Twist lick dunk,28,0,0,12-07-2026,125,13-01-2026
+Himalaya Face Wash (50g),PC-006-50g-91,202.97,Personal Care,100ml,tube,8.9E+12,Natural herbal care,130,0,0,27-08-2027,114,05-03-2026
+Himalaya Face Wash (200g),PC-006-200g-92,183.66,Personal Care,100ml,tube,8.9E+12,Natural herbal care,130,0,0,06-07-2026,186,08-03-2026
+Saffola Gold Oil (500ml),OIL-003-500ml-93,269.54,Spices & Oils,1L,L,8.9E+12,Heart healthy oil,175,0,0,10-07-2026,194,11-01-2026
+Saffola Gold Oil (500g),OIL-003-500g-94,216.43,Spices & Oils,1L,L,8.9E+12,Heart healthy oil,175,0,0,31-10-2026,85,31-10-2025
+Saffola Gold Oil (50g),OIL-003-50g-95,179.95,Spices & Oils,1L,L,8.9E+12,Heart healthy oil,175,0,0,29-04-2026,535,30-12-2025
+Surf Excel Matic (500g),HH-001-500g-96,351.43,Household Items,1kg,pkt,8.9E+12,Machine wash detergent,200,0,0,18-04-2026,139,19-12-2025
+Surf Excel Matic (1kg),HH-001-1kg-97,230.22,Household Items,1kg,pkt,8.9E+12,Machine wash detergent,200,0,0,21-09-2026,26,24-01-2026
+Lays Magic Masala (1kg),SNACK-005-1kg-98,22.92,Snacks,50g,pkt,8.9E+12,Spicy potato chips,18,0,0,23-08-2026,27,24-02-2026
+Lays Magic Masala (50g),SNACK-005-50g-99,20.31,Snacks,50g,pkt,8.9E+12,Spicy potato chips,18,0,0,19-06-2026,572,19-02-2026
+Lays Magic Masala (500ml),SNACK-005-500ml-100,27.38,Snacks,50g,pkt,8.9E+12,Spicy potato chips,18,0,0,23-04-2026,99,24-12-2025
+Harpic Toilet Cleaner (1L),HH-004-1L-101,220.63,Household Items,1L,btl,8.9E+12,Bathroom cleaner,155,0,0,09-03-2027,271,09-03-2026
+Tata Sampann Toor Dal (1kg),GRAIN-003-1kg-102,116.26,Grains & Pulses,1kg,kg,8.9E+12,Unpolished dal,115,0,0,17-05-2026,83,17-01-2026
+Tata Sampann Toor Dal (250ml),GRAIN-003-250ml-103,153.56,Grains & Pulses,1kg,kg,8.9E+12,Unpolished dal,115,0,0,13-02-2027,475,13-02-2026
+Britannia Marie Gold (500g),SNACK-001-500g-104,39.73,Bakery Items,250g,pkt,8.9E+12,For tea time,24,0,0,07-05-2027,96,13-11-2025
+Britannia Marie Gold (500ml),SNACK-001-500ml-105,42.32,Bakery Items,250g,pkt,8.9E+12,For tea time,24,0,0,08-11-2026,99,08-11-2025
+Tropicana Mixed Fruit (500ml),BEV-006-500ml-106,94.18,Beverages,1L,pkt,8.9E+12,Natural juice,90,0,0,04-05-2027,61,10-11-2025
+Tropicana Mixed Fruit (50g),BEV-006-50g-107,109.04,Beverages,1L,pkt,8.9E+12,Natural juice,90,0,0,23-05-2026,322,24-11-2025
+Tropicana Mixed Fruit (100g),BEV-006-100g-108,140.63,Beverages,1L,pkt,8.9E+12,Natural juice,90,0,0,08-12-2026,368,08-12-2025
+Amul Butter (50g),DAIRY-002-50g-109,275.92,"Dairy (Milk, Eggs, Cheese)",500g,pkt,8.9E+12,Utterly butterly delicious,205,0,0,22-07-2026,144,24-03-2026
+Amul Butter (200g),DAIRY-002-200g-110,291.53,"Dairy (Milk, Eggs, Cheese)",500g,pkt,8.9E+12,Utterly butterly delicious,205,0,0,02-10-2026,68,04-02-2026

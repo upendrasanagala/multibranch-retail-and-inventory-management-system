@@ -498,9 +498,22 @@ export default function StaffPOS() {
                 </div>
               ) : paymentMethod === 'upi' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                   <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '12px', textAlign: 'center' }}>
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=upi://pay?pa=store@upi&pn=RetailStore&am=${t.total.toFixed(2)}&cu=INR`} alt="QR" style={{ borderRadius: '6px' }} />
-                   </div>
+                    <div style={{ padding: '16px', background: '#fff', borderRadius: '16px', border: '1.5px solid #e2e8f0', display: 'inline-block', margin: '0 auto', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'relative' }}>
+                       <img 
+                         src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=store@upi&pn=RetailStore&am=${t.total.toFixed(2)}&cu=INR`)}`} 
+                         alt="Payment QR" 
+                         style={{ display: 'block', margin: '0 auto', minHeight: '150px', background: '#f8fafc' }} 
+                         onError={(e) => {
+                           e.target.style.display = 'none';
+                           e.target.nextSibling.style.display = 'block';
+                         }}
+                       />
+                       <div style={{ display: 'none', padding: '40px 10px', fontSize: '13px', fontWeight: 800, color: '#4338ca', textAlign: 'center' }}>
+                         <i className="fas fa-university" style={{ fontSize: '24px', marginBottom: '10px', display: 'block' }}></i>
+                         PAY TO UPI:<br/>store@upi
+                       </div>
+                       <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', marginTop: '10px' }}>SCAN TO PAY ₹{Math.round(t.total)}</div>
+                    </div>
                    <input placeholder="Transaction ID / UTR" value={utr} onChange={e => setUtr(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '12px', fontWeight: 700, outline: 'none' }} />
                 </div>
               ) : (

@@ -5,16 +5,30 @@ import { formatDate } from '../../utils/dateUtils';
 import InventoryInsightCard from '../InventoryInsightCard';
 import { useToast } from '../ToastContext';
 
+const styles = `
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes pulse {
+        0% { transform: scale(0.95); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 1; }
+        100% { transform: scale(0.95); opacity: 0.5; }
+    }
+`;
 const AIBusinessHub = () => {
     const [insights, setInsights] = useState([]);
     const [forecast, setForecast] = useState([]);
     const [pricing, setPricing] = useState([]);
     const [wastage, setWastage] = useState([]);
+    const [categoryMatrix, setCategoryMatrix] = useState([]);
     const [loading, setLoading] = useState(true);
     const { showToast } = useToast();
 
     useEffect(() => {
         loadData();
+        const styleTag = document.createElement("style");
+        styleTag.innerHTML = styles;
+        document.head.appendChild(styleTag);
+        return () => document.head.removeChild(styleTag);
     }, []);
 
     const loadData = async () => {
@@ -28,6 +42,7 @@ const AIBusinessHub = () => {
             setInsights(aiRes.insights || []);
             // FIX: Access the nested 'forecast' array within the forecast dictionary
             setForecast(aiRes.forecast?.forecast || []);
+            setCategoryMatrix(aiRes.category_performance || []);
             setPricing(pricingRes.alerts || []);
             setWastage(wastageRes.alerts || []);
         } catch (error) {
@@ -82,25 +97,42 @@ const AIBusinessHub = () => {
             </div>
 
             {/* Top Stats Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginBottom: '32px' }}>
-                <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>30-Day Revenue Projection</div>
-                    <div style={{ fontSize: '32px', fontWeight: 900, color: '#1e293b', margin: '12px 0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+                <div style={{ 
+                    background: 'linear-gradient(135deg, #4338ca, #6366f1)', 
+                    padding: '28px', 
+                    borderRadius: '28px', 
+                    color: '#fff',
+                    boxShadow: '0 10px 25px -5px rgba(67, 56, 202, 0.3)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}>
+                    <div style={{ position: 'absolute', top: '-10%', right: '-5%', fontSize: '120px', color: 'rgba(255,255,255,0.05)', fontWeight: 900 }}>₹</div>
+                    <div style={{ fontSize: '11px', fontWeight: 800, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>30-Day Revenue Projection</div>
+                    <div style={{ fontSize: '42px', fontWeight: 900, margin: '16px 0 8px' }}>
                         ₹{(forecast.reduce((a, b) => a + (b.predicted_revenue || 0), 0)).toLocaleString()}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: 700, fontSize: '13px' }}>
-                        <i className="fas fa-chart-line"></i> AI Confidence: High
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#86efac', fontWeight: 700, fontSize: '13px', background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: '12px', width: 'fit-content' }}>
+                        <i className="fas fa-check-shield"></i> High Confidence Analysis
                     </div>
                 </div>
 
-                <div style={{ background: '#fff', padding: '24px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Strategic Alerts</div>
-                    <div style={{ fontSize: '32px', fontWeight: 900, color: '#f59e0b', margin: '12px 0' }}>
-                        {insights.length + pricing.length + wastage.length} Items
+                <div style={{ 
+                    background: '#fff', 
+                    padding: '28px', 
+                    borderRadius: '28px', 
+                    border: '1px solid #f1f5f9', 
+                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center'
+                }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Strategic Alerts</div>
+                    <div style={{ fontSize: '36px', fontWeight: 900, color: '#1e293b', margin: '12px 0', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        {insights.length + pricing.length + wastage.length} 
+                        <span style={{ fontSize: '14px', background: '#fef2f2', color: '#ef4444', padding: '4px 12px', borderRadius: '10px', fontWeight: 700 }}>Action Required</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 700, fontSize: '13px' }}>
-                        Critical and strategic alerts detected
-                    </div>
+                    <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>Critical inventory and pricing anomalies detected.</div>
                 </div>
             </div>
 
@@ -120,10 +152,16 @@ const AIBusinessHub = () => {
             </div>
 
             {/* Main AI Insights Feed */}
-            <div style={{ marginBottom: '32px' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginBottom: '20px' }}>
-                    <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>Operational Insights</h3>
-                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Real-time scaling and inventory logic</span>
+            <div style={{ marginBottom: '40px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#1e293b' }}>Operational Intelligence</h3>
+                        <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#64748b', fontWeight: 500 }}>Automated stock movement and scaling logic</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', animation: 'pulse 2s infinite' }}></div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>Live Feed</span>
+                    </div>
                 </div>
                 
                 <div style={{ 
@@ -132,17 +170,25 @@ const AIBusinessHub = () => {
                     gap: '24px', 
                     overflowX: 'auto', 
                     paddingBottom: '20px',
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: '#6366f1 transparent'
-                }}>
+                    marginRight: '-30px',
+                    paddingRight: '30px',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
+                }} className="hide-scrollbar">
                     {insights.length > 0 ? insights.map((insight, idx) => (
-                        <div key={idx} style={{ minWidth: '340px', maxWidth: '340px', flexShrink: 0 }}>
+                        <div key={idx} style={{ 
+                            minWidth: '360px', 
+                            maxWidth: '360px', 
+                            flexShrink: 0,
+                            transition: 'transform 0.3s ease'
+                        }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
                             <InventoryInsightCard insight={insight} />
                         </div>
                     )) : (
-                        <p style={{ padding: '40px', textAlign: 'center', width: '100%', color: '#94a3b8', fontSize: '14px' }}>
-                            AI models are still training on your data. More sales will unlock insights.
-                        </p>
+                        <div style={{ width: '100%', background: '#fff', padding: '60px', borderRadius: '24px', border: '1px dashed #e2e8f0', textAlign: 'center' }}>
+                            <i className="fas fa-robot" style={{ fontSize: '40px', color: '#e2e8f0', marginBottom: '16px' }}></i>
+                            <p style={{ margin: 0, color: '#94a3b8', fontWeight: 600 }}>AI models are calculating baseline performance...</p>
+                        </div>
                     )}
                 </div>
             </div>
@@ -235,16 +281,56 @@ const AIBusinessHub = () => {
 
             {/* Category Performance Matrix */}
             <div style={{ marginTop: '32px', background: '#fff', borderRadius: '24px', border: '1px solid #f1f5f9', overflow: 'hidden' }}>
-                <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9' }}>
-                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>Category Performance Intelligence</h4>
+                <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', background: 'linear-gradient(to right, #f8fafc, #fff)' }}>
+                    <h4 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>Category Performance Intelligence</h4>
+                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>30-Day Growth Matrix (BCG framework analysis)</p>
                 </div>
                 <div style={{ padding: '24px' }}>
-                        <p style={{ fontSize: '13px', color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>
-                            Generating category growth matrix based on current velocity...
-                        </p>
-                        <div style={{ height: '140px', background: '#f8fafc', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <i className="fas fa-microchip" style={{ fontSize: '32px', color: '#e2e8f0' }}></i>
+                    {categoryMatrix.length > 0 ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+                            {categoryMatrix.map((cat, idx) => (
+                                <div key={idx} style={{ 
+                                    padding: '20px', 
+                                    borderRadius: '16px', 
+                                    background: '#fff', 
+                                    border: '1.5px solid #f1f5f9',
+                                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                        <h5 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>{cat.category}</h5>
+                                        <div style={{ 
+                                            background: cat.growth >= 0 ? '#dcfce7' : '#fee2e2', 
+                                            color: cat.growth >= 0 ? '#16a34a' : '#dc2626',
+                                            padding: '4px 8px',
+                                            borderRadius: '8px',
+                                            fontSize: '11px',
+                                            fontWeight: 800
+                                        }}>
+                                            {cat.growth >= 0 ? '↑' : '↓'} {Math.abs(cat.growth)}%
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', marginBottom: '16px' }}>
+                                        ₹{cat.revenue.toLocaleString()}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '10px' }}>
+                                        <div>
+                                            <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Sales Velocity</div>
+                                            <div style={{ fontSize: '12px', fontWeight: 800, color: cat.velocity === 'High' ? '#4338ca' : '#475569' }}>{cat.velocity}</div>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Recommended AI Action</div>
+                                            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0ea5e9' }}>{cat.action}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
+                    ) : (
+                        <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                            <i className="fas fa-layer-group" style={{ fontSize: '32px', opacity: 0.5, marginBottom: '16px' }}></i>
+                            <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Insufficient data to generate category matrix.</p>
+                        </div>
+                    )}
                 </div>
             </div>
 

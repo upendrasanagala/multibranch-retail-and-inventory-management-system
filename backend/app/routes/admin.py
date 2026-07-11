@@ -28,7 +28,8 @@ from app.utils.ai_engine import (
     get_pricing_recommendations, 
     get_branch_rebalance_suggestions,
     get_wastage_alerts,
-    simulate_profit_scenario
+    simulate_profit_scenario,
+    get_category_performance_matrix
 )
 
 
@@ -144,10 +145,12 @@ def get_admin_ai_insights():
     """
     insights = get_inventory_insights()
     forecast = get_sales_forecast()
+    category_matrix = get_category_performance_matrix()
     
     return jsonify({
         "insights": insights,
-        "forecast": forecast
+        "forecast": forecast,
+        "category_performance": category_matrix
     }), 200
 
 

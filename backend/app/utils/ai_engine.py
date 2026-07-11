@@ -534,8 +534,8 @@ def get_sales_forecast(branch_id=None):
         
     daily_sales = query.group_by('day').all()
     
-    if not daily_sales or len(daily_sales) < 7:
-        return []
+    if not daily_sales or len(daily_sales) < 1:
+        return {"forecast": [], "growth_trend": 0, "seasonality_detect": "Insufficient Data"}
         
     df = pd.DataFrame(daily_sales, columns=['date', 'revenue'])
     df['date'] = pd.to_datetime(df['date'])
@@ -548,15 +548,17 @@ def get_sales_forecast(branch_id=None):
     weekday_weights = (weekday_avgs / avg_revenue).fillna(1.0)
     
     # 2. Calculate Growth Trend (Recent vs Older)
-    recent_total = df['revenue'].iloc[-7:].sum()
-    previous_total = df['revenue'].iloc[-14:-7].sum()
+    # Using dynamic windows based on available data
+    data_len = len(df)
+    recent_total = df['revenue'].iloc[-min(7, data_len):].sum()
+    previous_total = df['revenue'].iloc[-min(14, data_len):-min(7, data_len)].sum() if data_len > 7 else 0
     growth = ((recent_total - previous_total) / previous_total * 100) if previous_total > 0 else 0
     
-    # 3. Generate Forecast for next 7 days
+    # 3. Generate Forecast for next 30 days (extended from 7)
     forecast_data = []
-    baseline_daily = df['revenue'].iloc[-7:].mean()
+    baseline_daily = df['revenue'].iloc[-min(30, data_len):].mean()
     
-    for i in range(1, 8):
+    for i in range(1, 31):
         future_date = datetime.now() + timedelta(days=i)
         w_day = future_date.weekday()
         
@@ -575,3 +577,86 @@ def get_sales_forecast(branch_id=None):
         "growth_trend": round(growth, 1),
         "seasonality_detect": "Active" if weekday_weights.max() > 1.2 else "Stable"
     }
+
+def get_category_performance_matrix():
+    """
+    Analyzes category revenue and growth over the last 30 days vs previous 30 days.
+    Provides BCG-style matrix insights.
+    """
+    from app.models.category import Category
+    from app.models.product import Product, ProductVariant
+    from app.models.sales import SalesTransaction, TransactionItem
+    
+    now = datetime.now()
+    thirty_days_ago = now - timedelta(days=30)
+    sixty_days_ago = now - timedelta(days=60)
+    
+    # Recent 30 days
+    recent_sales = db.session.query(
+        Category.name,
+        func.sum(TransactionItem.subtotal).label('revenue'),
+        func.sum(TransactionItem.quantity).label('qty')
+    ).select_from(SalesTransaction).join(
+        TransactionItem, SalesTransaction.transaction_id == TransactionItem.transaction_id
+    ).join(
+        ProductVariant, TransactionItem.variant_id == ProductVariant.variant_id
+    ).join(
+        Product, ProductVariant.product_id == Product.product_id
+    ).outerjoin(
+        Category, Product.category_id == Category.category_id
+    ).filter(
+        SalesTransaction.transaction_date >= thirty_days_ago,
+        SalesTransaction.status == "completed"
+    ).group_by(Category.name).all()
+    
+    # Previous 30 days
+    prev_sales = db.session.query(
+        Category.name,
+        func.sum(TransactionItem.subtotal).label('revenue')
+    ).select_from(SalesTransaction).join(
+        TransactionItem, SalesTransaction.transaction_id == TransactionItem.transaction_id
+    ).join(
+        ProductVariant, TransactionItem.variant_id == ProductVariant.variant_id
+    ).join(
+        Product, ProductVariant.product_id == Product.product_id
+    ).outerjoin(
+        Category, Product.category_id == Category.category_id
+    ).filter(
+        SalesTransaction.transaction_date >= sixty_days_ago,
+        SalesTransaction.transaction_date < thirty_days_ago,
+        SalesTransaction.status == "completed"
+    ).group_by(Category.name).all()
+    
+    prev_rev_map = {(name or 'Uncategorized'): float(rev or 0) for name, rev in prev_sales}
+    
+    matrix = []
+    for name, rev, qty in recent_sales:
+        cat_name = name or 'Uncategorized'
+        rev_val = float(rev or 0)
+        prev_val = prev_rev_map.get(cat_name, 0)
+        
+        # Simplified growth calc if no previous data
+        growth = ((rev_val - prev_val) / prev_val * 100) if prev_val > 0 else (100 if rev_val > 0 else 0)
+        
+        velocity = "High" if qty > 50 else ("Medium" if qty > 15 else "Low")
+        
+        action = "Maintain"
+        if growth > 10 and velocity == "High":
+             action = "Scale & Promote"
+        elif growth < 0 and velocity == "High":
+             action = "Review Pricing"
+        elif growth < 0 and velocity == "Low":
+             action = "Clearance / Liquidate"
+        elif growth > 20 and velocity == "Low":
+             action = "Push Marketing"
+        
+        matrix.append({
+            "category": cat_name,
+            "revenue": round(rev_val, 2),
+            "growth": round(growth, 1),
+            "velocity": velocity,
+            "action": action
+        })
+        
+    matrix = sorted(matrix, key=lambda x: x["revenue"], reverse=True)
+    return matrix[:6]
