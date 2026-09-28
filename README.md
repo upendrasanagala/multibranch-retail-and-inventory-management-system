@@ -4,6 +4,20 @@ A premium, comprehensive solution for managing retail operations across multiple
 
 ---
 
+## 🚀 Live Demo & Deployments
+
+| Component | Platform | URL |
+| :--- | :--- | :--- |
+| **Frontend Web App** | Vercel | [multibranch-retail-and-inventory-ma.vercel.app](https://multibranch-retail-and-inventory-ma.vercel.app/) |
+| **Backend REST API** | Render | [multibranch-retail-and-inventory.onrender.com](https://multibranch-retail-and-inventory.onrender.com) |
+| **Cloud Database** | Neon | Serverless PostgreSQL 16 |
+
+### 🔑 Demo Credentials
+* **Admin Login**: `admin@retail.com` / `Admin@123`
+* *(Note: On free-tier hosting, Render backends spin down after 15 minutes of inactivity; the initial request may take ~30 seconds to wake up).*
+
+---
+
 ## 🌟 Key Features
 
 ### 1. ⚖️ Stock Rebalancing Assistant (Smart Engine)
@@ -72,10 +86,11 @@ Enhanced security and personal details management.
 ---
 
 ## 🛠️ Tech Stack
-- **Frontend**: React.js with Vanilla CSS (Modern UI tokens)
-- **Backend**: Python Flask with SQLAlchemy
-- **Database**: PostgreSQL (Local)
-- **Auth**: JWT-based secure authentication
+- **Frontend**: React 18, Vite, Vanilla CSS (Modern UI tokens, responsive layouts) — Deployed on **Vercel**
+- **Backend**: Python 3.11, Flask 3.1, Gunicorn, Flask-SQLAlchemy, Alembic migrations — Deployed on **Render** (pinned via `.python-version`)
+- **Database**: PostgreSQL (Neon Serverless Cloud & Local PostgreSQL supported)
+- **Authentication**: JWT-based stateless secure authentication (Flask-JWT-Extended)
+- **Reporting & POS**: Pandas for analytical processing, OpenPyXL for Excel reporting
 
 ---
 
@@ -166,23 +181,55 @@ The system uses a normalized PostgreSQL schema with 10 tables:
 
 ---
 
-## 🚀 Quick Setup
+## 🚀 Quick Setup (Local Development)
 
 ### Backend
-1. Navigate to `/backend`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Ensure `.env` is configured correctly (see Database Setup above)
-4. Run the server: `py -3.12 run.py`
-
-### Automated Testing
-The system includes a suite of automated tests to ensure API stability and data integrity.
-1. Navigate to `/backend`
-2. Run tests: `python -m pytest tests/test_api.py`
+1. Ensure Python 3.11+ is installed (pinned via `.python-version` as 3.11.9).
+2. Navigate to `/backend`
+3. Install dependencies: `pip install -r requirements.txt`
+4. Configure `.env` with your `DATABASE_URL` and `JWT_SECRET_KEY`
+5. Run migrations: `flask db upgrade`
+6. Run the server: `python run.py` (or `gunicorn "app:create_app()"`)
 
 ### Frontend
 1. Navigate to `/react`
 2. Install dependencies: `npm install`
-3. Launch the app: `npm run dev`
+3. Launch the local dev server: `npm run dev`
+
+### Automated Testing
+The system includes automated API tests:
+```bash
+cd backend
+python -m pytest tests/test_api.py
+```
+
+---
+
+## ☁️ Production Deployment Guide
+
+### 1. Database (Neon Serverless PostgreSQL)
+* Create a free PostgreSQL project at [neon.tech](https://neon.tech).
+* Copy the pooled connection string (`postgresql://...`).
+
+### 2. Backend (Render Web Service)
+* Connect this repository to [render.com](https://render.com).
+* **Root Directory**: `backend`
+* **Runtime**: `Python 3`
+* **Build Command**: `pip install -r requirements.txt`
+* **Start Command**: `gunicorn "app:create_app()"`
+* **Environment Variables**:
+  * `PYTHON_VERSION`: `3.11.9`
+  * `DATABASE_URL`: Your Neon connection string
+  * `FRONTEND_URL`: `https://multibranch-retail-and-inventory-ma.vercel.app`
+  * `SECRET_KEY`: *(secure random string)*
+  * `JWT_SECRET_KEY`: *(secure random string)*
+
+### 3. Frontend (Vercel)
+* Import the repository in [vercel.com](https://vercel.com).
+* **Root Directory**: `react`
+* **Framework Preset**: Vite
+* **Environment Variables**:
+  * `VITE_API_URL`: `https://multibranch-retail-and-inventory.onrender.com`
 
 ---
 
