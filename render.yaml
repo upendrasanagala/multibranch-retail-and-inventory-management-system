@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: retail-inventory-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "app:create_app()"
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # set manually in Render dashboard — do NOT put value here
+      - key: SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false          # set to your Vercel URL after deploying frontend
+      - key: MAIL_SERVER
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USE_TLS
+        value: "True"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_DEFAULT_SENDER
+        sync: false
+    healthCheckPath: /
