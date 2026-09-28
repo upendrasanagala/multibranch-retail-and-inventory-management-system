@@ -7,6 +7,8 @@ services:
     startCommand: gunicorn "app:create_app()"
     plan: free
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: DATABASE_URL
         sync: false          # set manually in Render dashboard — do NOT put value here
       - key: SECRET_KEY
