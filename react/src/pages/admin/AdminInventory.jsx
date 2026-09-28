@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatDate } from "../../utils/dateUtils";
-import api from "../../services/api";
+import api, { API_BASE_URL } from "../../services/api";
 import { useToast } from "../../components/ToastContext";
 import { useConfirm } from "../../components/ConfirmContext";
 
@@ -197,7 +197,7 @@ export default function AdminInventory({ setActiveSection }) {
       const user = JSON.parse(localStorage.getItem("loggedInUser"));
       const token = user?.access_token;
       if (token) {
-        const res = await fetch("http://127.0.0.1:5001/api/products/imports", {
+        const res = await fetch(`${API_BASE_URL}/products/imports`, {
           headers: { "Authorization": "Bearer " + token }
         });
         const data = await res.json();
@@ -280,7 +280,7 @@ export default function AdminInventory({ setActiveSection }) {
       const user = JSON.parse(localStorage.getItem("loggedInUser"));
       const token = user?.access_token;
 
-      const res = await fetch("http://127.0.0.1:5001/api/products/download-sample", {
+      const res = await fetch(`${API_BASE_URL}/products/download-sample`, {
         headers: { "Authorization": "Bearer " + token }
       });
 
@@ -303,7 +303,7 @@ export default function AdminInventory({ setActiveSection }) {
       const user = JSON.parse(localStorage.getItem("loggedInUser"));
       const token = user?.access_token;
 
-      const res = await fetch(`http://127.0.0.1:5001/api/products/imports/${filename}`, {
+      const res = await fetch(`${API_BASE_URL}/products/imports/${filename}`, {
         headers: { "Authorization": "Bearer " + token }
       });
 
@@ -386,7 +386,7 @@ export default function AdminInventory({ setActiveSection }) {
     try {
       const user = JSON.parse(localStorage.getItem("loggedInUser"));
       const token = user?.access_token;
-      const res = await fetch("http://127.0.0.1:5001/api/products/return", {
+      const res = await fetch(`${API_BASE_URL}/products/return`, {
         method: "POST",
         headers: {
           "Authorization": "Bearer " + token,
@@ -524,7 +524,7 @@ export default function AdminInventory({ setActiveSection }) {
         const user = JSON.parse(localStorage.getItem("loggedInUser"));
         const token = user?.access_token;
         if (token) {
-          const res = await fetch("http://127.0.0.1:5001/api/categories/", {
+          const res = await fetch(`${API_BASE_URL}/categories/`, {
             headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" }
           });
           const data = await res.json();

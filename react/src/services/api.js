@@ -3,7 +3,12 @@
  * Connects React frontend to Flask backend
  */
 
-const API_BASE_URL = "/api";
+// In production (Vercel), VITE_API_URL points to the Render backend.
+// In local dev, it's unset so requests go to "/api" which the Vite proxy
+// forwards to http://127.0.0.1:5001.
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : "/api";
 
 
 /* =====================================================
