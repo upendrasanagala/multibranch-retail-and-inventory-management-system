@@ -28,9 +28,16 @@ def create_app():
     # -----------------------------
     # Enable CORS
     # -----------------------------
+    frontend_url = app.config.get("FRONTEND_URL", "http://localhost:5173")
+    # Always allow local dev origins; add the configured production URL
+    allowed_origins = list({
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        frontend_url
+    })
     cors.init_app(
         app,
-        resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}},
+        resources={r"/api/*": {"origins": allowed_origins}},
         supports_credentials=True
     )
 
